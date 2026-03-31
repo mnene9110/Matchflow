@@ -1,18 +1,34 @@
-import type {Metadata} from 'next';
+
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from "@/firebase"
 import Script from 'next/script';
 
+export const viewport: Viewport = {
+  themeColor: '#800000',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
+};
+
 export const metadata: Metadata = {
   title: 'MatchFlow - Genuine Connections',
   description: 'Find your perfect match with video calls and AI icebreakers.',
   manifest: '/manifest.json',
-  themeColor: '#800000',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
     title: 'MatchFlow',
+  },
+  formatDetection: {
+    telephone: false,
+  },
+  icons: {
+    apple: [
+      { url: 'https://picsum.photos/seed/mf-icon-192/192/192', sizes: '192x192' },
+    ],
   },
 };
 
