@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Video, Send, Mic, MoreVertical, Phone, PhoneOff, Loader2 } from "lucide-react"
+import { ChevronLeft, Video, Send, MoreVertical, Phone, PhoneOff, Loader2, Mic, MicOff, Camera, CameraOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -17,7 +17,6 @@ import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 import { getZegoConfig } from "@/app/actions/zego"
 
-// We'll load the Zego library dynamically to avoid SSR issues
 let ZegoUIKitPrebuilt: any = null;
 
 export default function ChatDetailPage() {
@@ -39,6 +38,8 @@ export default function ChatDetailPage() {
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'calling' | 'ongoing' | 'incoming'>('idle')
   const [callType, setCallType] = useState<'video' | 'audio'>('video')
   const [zegoInstance, setZegoInstance] = useState<any>(null)
+  const [isMuted, setIsMuted] = useState(false)
+  const [isVideoHidden, setIsVideoHidden] = useState(false)
 
   const [messages, setMessages] = useState<any[]>([])
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
@@ -48,7 +49,6 @@ export default function ChatDetailPage() {
   const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "users", otherUserId) : null, [firestore, otherUserId])
   const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
 
-  // Load Zego Library on Mount
   useEffect(() => {
     if (typeof window !== "undefined") {
       import('@zegocloud/zego-uikit-prebuilt').then((module) => {
@@ -57,8 +57,7 @@ export default function ChatDetailPage() {
     }
   }, []);
 
-  // Comprehensive Resource Cleanup
-  const stopAllMedia = async () => {
+  const stopAllMedia = () => {
     if (zegoInstance) {
       try {
         zegoInstance.destroy();
@@ -67,18 +66,13 @@ export default function ChatDetailPage() {
       }
       setZegoInstance(null);
     }
-    // Explicitly kill any orphaned tracks
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true }).catch(() => null);
-      stream?.getTracks().forEach(track => track.stop());
-    } catch(e) {}
   };
 
   useEffect(() => {
     return () => {
       stopAllMedia();
     }
-  }, [zegoInstance]);
+  }, []);
 
   // Signaling Listener
   useEffect(() => {
@@ -115,14 +109,13 @@ export default function ChatDetailPage() {
   const initiateZegoCall = async (roomID: string) => {
     if (!ZegoUIKitPrebuilt || !currentUser || !zegoContainerRef.current) return;
 
-    // Fetch config securely via server action
     const { appID, serverSecret } = await getZegoConfig();
 
     if (!appID || !serverSecret) {
       toast({ 
         variant: "destructive", 
         title: "Call Configuration Missing", 
-        description: "Please set ZEGO_APP_ID and ZEGO_SERVER_SECRET in your Vercel environment variables." 
+        description: "Please check your environment variables." 
       });
       handleEndCall();
       return;
@@ -159,6 +152,8 @@ export default function ChatDetailPage() {
   const handleInitiateCall = (type: 'video' | 'audio') => {
     if (!database || !chatId || !currentUser) return
     setCallType(type)
+    setIsMuted(false)
+    setIsVideoHidden(type === 'audio')
     const callRef = ref(database, `calls/${chatId}`)
     set(callRef, {
       callerId: currentUser.uid,
@@ -189,6 +184,20 @@ export default function ChatDetailPage() {
     remove(callRef)
     stopAllMedia();
     setCallStatus('idle')
+  }
+
+  const toggleMute = () => {
+    if (!zegoInstance) return
+    const newState = !isMuted
+    zegoInstance.setMicrophoneEnabled(newState)
+    setIsMuted(!newState)
+  }
+
+  const toggleVideo = () => {
+    if (!zegoInstance || callType === 'audio') return
+    const newState = !isVideoHidden
+    zegoInstance.setCameraEnabled(newState)
+    setIsVideoHidden(!newState)
   }
 
   // Presence & Message Listeners
@@ -243,6 +252,7 @@ export default function ChatDetailPage() {
   if (!otherUser) return <div className="flex flex-col items-center justify-center h-svh p-6"><h2 className="text-2xl font-bold mb-4 font-headline">User Not Found</h2><Button onClick={() => router.push('/discover')}>Go Back</Button></div>
 
   const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUser.id}/400/600`
+  const currentUserImage = `https://picsum.photos/seed/${currentUser?.uid}/400/600`
 
   return (
     <div className="flex flex-col h-svh bg-slate-50 relative overflow-hidden">
@@ -250,10 +260,12 @@ export default function ChatDetailPage() {
       {callStatus !== 'idle' && (
         <div className="absolute inset-0 z-[100] bg-black flex flex-col animate-in fade-in zoom-in duration-500">
           <div className="relative flex-1 flex flex-col">
+            {/* Background Blur */}
             <div className="absolute inset-0 z-0 opacity-40">
                <img src={otherUserImage} className="w-full h-full object-cover blur-3xl scale-110" alt="bg" />
             </div>
 
+            {/* Waiting State UI */}
             {callStatus !== 'ongoing' && (
               <div className="flex-1 relative z-10 flex flex-col items-center justify-center p-6 text-center text-white">
                 <Avatar className="w-32 h-32 border-4 border-white/20 shadow-2xl mx-auto ring-4 ring-primary/20 animate-pulse">
@@ -261,16 +273,50 @@ export default function ChatDetailPage() {
                 </Avatar>
                 <div className="mt-6 space-y-2">
                   <h2 className="text-3xl font-black font-headline">{otherUser.username}</h2>
-                  <p className="text-xs font-bold text-white/40 uppercase tracking-widest">
-                    {callStatus === 'incoming' ? `Incoming ${callType} Call...` : `Ringing ${callType}...`}
+                  <p className="text-xs font-bold text-white/40 uppercase tracking-widest animate-bounce">
+                    {callStatus === 'incoming' ? `Incoming ${callType} Call...` : `Calling ${otherUser.username}...`}
                   </p>
                 </div>
               </div>
             )}
 
-            <div ref={zegoContainerRef} className={cn("flex-1 z-10 bg-transparent", callStatus !== 'ongoing' && "hidden")} />
+            {/* Privacy Mode Overlay (Only when ongoing and video hidden) */}
+            {callStatus === 'ongoing' && isVideoHidden && (
+              <div className="absolute inset-0 z-20 bg-gray-900 flex flex-col items-center justify-center">
+                <Avatar className="w-40 h-40 border-4 border-white/10 shadow-2xl">
+                  <AvatarImage src={currentUserImage} className="object-cover" />
+                </Avatar>
+                <p className="mt-4 text-white/50 font-bold uppercase tracking-widest text-xs">Video Paused</p>
+              </div>
+            )}
 
-            <div className="relative z-20 px-8 pb-12 pt-6 flex justify-center gap-6">
+            {/* Zego Container */}
+            <div ref={zegoContainerRef} className={cn("flex-1 z-10 bg-transparent", (callStatus !== 'ongoing' || isVideoHidden) && "hidden")} />
+
+            {/* Call Controls */}
+            <div className="relative z-30 px-8 pb-12 pt-6 flex justify-center items-center gap-6 bg-gradient-to-t from-black/80 to-transparent">
+              {callStatus === 'ongoing' && (
+                <>
+                  <Button 
+                    onClick={toggleMute} 
+                    variant="ghost" 
+                    className={cn("w-14 h-14 rounded-full border-2 transition-all", isMuted ? "bg-red-500 border-red-500 text-white" : "bg-white/10 border-white/20 text-white")}
+                  >
+                    {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                  </Button>
+                  
+                  {callType === 'video' && (
+                    <Button 
+                      onClick={toggleVideo} 
+                      variant="ghost" 
+                      className={cn("w-14 h-14 rounded-full border-2 transition-all", isVideoHidden ? "bg-red-500 border-red-500 text-white" : "bg-white/10 border-white/20 text-white")}
+                    >
+                      {isVideoHidden ? <CameraOff className="w-6 h-6" /> : <Camera className="w-6 h-6" />}
+                    </Button>
+                  )}
+                </>
+              )}
+
               {callStatus === 'incoming' ? (
                 <>
                   <Button onClick={handleAcceptCall} className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl scale-110">
@@ -281,7 +327,7 @@ export default function ChatDetailPage() {
                   </Button>
                 </>
               ) : (
-                <Button onClick={handleEndCall} variant="destructive" className="rounded-full w-16 h-16 shadow-2xl">
+                <Button onClick={handleEndCall} variant="destructive" className="rounded-full w-16 h-16 shadow-2xl scale-110">
                   <PhoneOff className="w-7 h-7" />
                 </Button>
               )}

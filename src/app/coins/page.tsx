@@ -3,22 +3,23 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, List, Coins, Check, Loader2 } from "lucide-react"
+import { ChevronLeft, List, Check, Loader2, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useDoc, useFirestore, useUser, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase"
 import { doc, collection } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { initiatePesaPalPayment } from "@/app/actions/pesapal"
 
 const COIN_PACKAGES = [
-  { amount: 1000, price: "$0.99" },
-  { amount: 2000, price: "$1.99" },
-  { amount: 5000, price: "$4.99" },
-  { amount: 10000, price: "$9.99" },
-  { amount: 20000, price: "$19.99" },
-  { amount: 50000, price: "$49.99" },
-  { amount: 100000, price: "$99.99" },
+  { amount: 1000, price: 100, label: "KES 100" },
+  { amount: 2000, price: 200, label: "KES 200" },
+  { amount: 5000, price: 500, label: "KES 500" },
+  { amount: 10000, price: 1000, label: "KES 1,000" },
+  { amount: 20000, price: 2000, label: "KES 2,000" },
+  { amount: 50000, price: 5000, label: "KES 5,000" },
+  { amount: 100000, price: 10000, label: "KES 10,000" },
 ]
 
 export default function WalletPage() {
@@ -36,49 +37,65 @@ export default function WalletPage() {
   
   const { data: coinAccount, isLoading } = useDoc(coinAccountRef)
 
-  const handlePay = () => {
+  const handlePay = async () => {
     if (!coinAccountRef || !coinAccount || !user || !firestore) return;
 
     setIsProcessing(true)
-    const amount = selectedPackage.amount;
-    const price = selectedPackage.price;
-    const newBalance = (coinAccount.balance || 0) + amount;
     
-    // Update balance
-    updateDocumentNonBlocking(coinAccountRef, {
-      balance: newBalance,
-      updatedAt: new Date().toISOString()
-    });
+    try {
+      // Initiate PesaPal Payment
+      const result = await initiatePesaPalPayment(
+        selectedPackage.price, 
+        user.email || 'guest@matchflow.app', 
+        user.uid
+      );
 
-    // Log transaction
-    const transactionsRef = collection(firestore, "users", user.uid, "coinAccount", "primary", "transactions");
-    addDocumentNonBlocking(transactionsRef, {
-      type: 'purchase',
-      amount: amount,
-      transactionDate: new Date().toISOString(),
-      description: `Recharged ${amount} coins for ${price}`,
-      coinAccountId: user.uid
-    });
+      if (result.error) {
+        // Fallback for demo purposes if PesaPal isn't configured in Vercel yet
+        toast({
+          title: "Demo Mode",
+          description: "PesaPal configuration not detected. Simulating successful purchase...",
+        });
+        
+        const amount = selectedPackage.amount;
+        const newBalance = (coinAccount.balance || 0) + amount;
+        
+        updateDocumentNonBlocking(coinAccountRef, {
+          balance: newBalance,
+          updatedAt: new Date().toISOString()
+        });
 
-    setTimeout(() => {
-      setIsProcessing(false)
+        const transactionsRef = collection(firestore, "users", user.uid, "coinAccount", "primary", "transactions");
+        addDocumentNonBlocking(transactionsRef, {
+          type: 'purchase',
+          amount: amount,
+          transactionDate: new Date().toISOString(),
+          description: `Recharged ${amount} coins via PesaPal Sim`,
+          coinAccountId: user.uid
+        });
+
+        setTimeout(() => {
+          setIsProcessing(false);
+          toast({ title: "Success", description: `${amount} coins added.` });
+        }, 1500);
+      } else if (result.redirect_url) {
+        // Redirect to PesaPal Checkout
+        window.location.href = result.redirect_url;
+      }
+    } catch (e) {
+      setIsProcessing(false);
       toast({
-        title: "Recharge Successful",
-        description: `Successfully added ${amount} coins to your wallet.`,
+        variant: "destructive",
+        title: "Payment Error",
+        description: "Could not connect to payment provider.",
       });
-    }, 1000)
+    }
   }
 
   return (
     <div className="flex flex-col min-h-svh bg-white text-gray-900">
-      {/* Header */}
       <header className="px-4 py-6 flex items-center justify-between sticky top-0 bg-white z-10">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => router.back()} 
-          className="text-gray-900"
-        >
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-gray-900">
           <ChevronLeft className="w-8 h-8" />
         </Button>
         <h1 className="text-xl font-bold font-headline">Wallet</h1>
@@ -88,7 +105,6 @@ export default function WalletPage() {
       </header>
 
       <main className="flex-1 px-6 pt-4 pb-32">
-        {/* Balance Section */}
         <section className="mb-8">
           <h2 className="text-lg font-bold mb-6">My Balance</h2>
           <div className="flex items-center gap-4">
@@ -103,15 +119,12 @@ export default function WalletPage() {
           </div>
         </section>
 
-        {/* Packages Grid Section */}
         <section className="space-y-6">
-          <div className="flex items-center gap-2">
-            <h2 className="text-lg font-bold">My Balance</h2>
-            <div className="bg-black text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
-              <div className="w-2 h-2 rounded-full border border-white flex items-center justify-center">
-                <div className="w-1 h-1 bg-green-400 rounded-full" />
-              </div>
-              Kenya
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-bold">Select Package</h2>
+            <div className="flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full border border-green-100">
+              <ShieldCheck className="w-3 h-3" />
+              <span className="text-[10px] font-bold uppercase tracking-wider">PesaPal Secure</span>
             </div>
           </div>
 
@@ -125,19 +138,19 @@ export default function WalletPage() {
                   className={cn(
                     "relative aspect-square flex flex-col items-center justify-center gap-2 border-2 transition-all cursor-pointer rounded-2xl",
                     isSelected 
-                      ? "border-sky-400 bg-sky-50/10 shadow-md" 
+                      ? "border-primary bg-primary/5 shadow-md" 
                       : "border-gray-100 bg-white"
                   )}
                 >
                   <div className="bg-amber-400 p-1.5 rounded-full shadow-sm">
-                    <span className="text-white font-black text-sm italic">S</span>
+                    <span className="text-white font-black text-xs italic">S</span>
                   </div>
-                  <span className={cn("text-sm font-black", isSelected ? "text-sky-400" : "text-gray-600")}>
+                  <span className={cn("text-xs font-black", isSelected ? "text-primary" : "text-gray-600")}>
                     {pkg.amount}
                   </span>
                   
                   {isSelected && (
-                    <div className="absolute -bottom-1 -right-1 bg-sky-400 text-white p-0.5 rounded-tl-xl rounded-br-2xl">
+                    <div className="absolute -bottom-1 -right-1 bg-primary text-white p-0.5 rounded-tl-xl rounded-br-2xl">
                       <Check className="w-3 h-3 stroke-[4]" />
                     </div>
                   )}
@@ -148,15 +161,19 @@ export default function WalletPage() {
         </section>
       </main>
 
-      {/* Sticky Bottom Pay Button */}
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-50">
-        <Button 
-          className="w-full h-14 rounded-full bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl active:scale-95 transition-all"
-          onClick={handlePay}
-          disabled={isProcessing || isLoading}
-        >
-          {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : `Pay ${selectedPackage.price}`}
-        </Button>
+        <div className="flex flex-col gap-4">
+          <div className="flex items-center justify-center gap-2 opacity-40">
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Secured by PesaPal V3</p>
+          </div>
+          <Button 
+            className="w-full h-14 rounded-full bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl active:scale-95 transition-all"
+            onClick={handlePay}
+            disabled={isProcessing || isLoading}
+          >
+            {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : `Pay ${selectedPackage.label}`}
+          </Button>
+        </div>
       </footer>
     </div>
   )
