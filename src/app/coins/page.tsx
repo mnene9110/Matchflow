@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, List, Check, Loader2, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { useDoc, useFirestore, useUser, useMemoFirebase, updateDocumentNonBlocking, addDocumentNonBlocking } from "@/firebase"
-import { doc, collection } from "firebase/firestore"
+import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { initiatePesaPalPayment } from "@/app/actions/pesapal"
 
 const COIN_PACKAGES = [
+  { amount: 500, price: 50, label: "KES 50" },
   { amount: 1000, price: 100, label: "KES 100" },
   { amount: 2000, price: 200, label: "KES 200" },
   { amount: 5000, price: 500, label: "KES 500" },
@@ -19,6 +20,7 @@ const COIN_PACKAGES = [
   { amount: 20000, price: 2000, label: "KES 2,000" },
   { amount: 50000, price: 5000, label: "KES 5,000" },
   { amount: 100000, price: 10000, label: "KES 10,000" },
+  { amount: 150000, price: 15000, label: "KES 15,000" },
 ]
 
 export default function WalletPage() {
@@ -28,7 +30,7 @@ export default function WalletPage() {
   const firestore = useFirestore()
   const { toast } = useToast()
   
-  const [selectedPackage, setSelectedPackage] = useState(COIN_PACKAGES[0])
+  const [selectedPackage, setSelectedPackage] = useState(COIN_PACKAGES[1]) // Default to 1000 coins
   const [isProcessing, setIsProcessing] = useState(false)
   
   const coinAccountRef = useMemoFirebase(() => {
@@ -135,7 +137,7 @@ export default function WalletPage() {
                     <span className="text-white font-black text-xs italic">S</span>
                   </div>
                   <span className={cn("text-xs font-black", isSelected ? "text-primary" : "text-gray-600")}>
-                    {pkg.amount}
+                    {pkg.amount.toLocaleString()}
                   </span>
                   
                   {isSelected && (
