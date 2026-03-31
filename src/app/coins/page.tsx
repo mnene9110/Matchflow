@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
@@ -10,7 +9,7 @@ import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { initializePaystackTransaction } from "@/app/actions/paystack"
+import { initializePesaPalTransaction } from "@/app/actions/pesapal"
 
 const COIN_PACKAGES = [
   { amount: 500, price: 50, label: "KES 50" },
@@ -36,7 +35,6 @@ function WalletContent() {
   
   const coinAccountRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    // Path fixed to match standardized backend.json: /coinAccounts/{userId}
     return doc(firestore, "coinAccounts", user.uid);
   }, [firestore, user])
   
@@ -45,29 +43,23 @@ function WalletContent() {
   useEffect(() => {
     if (searchParams?.get('status') === 'success') {
       toast({
-        title: "Payment Successful!",
-        description: "Your coins will be added to your account shortly.",
+        title: "Order Submitted",
+        description: "PesaPal is processing your payment. Your balance will update soon.",
       })
     }
   }, [searchParams, toast])
 
   const handlePay = async () => {
-    if (!user?.email && !user?.isAnonymous) {
-      toast({
-        variant: "destructive",
-        title: "Email Required",
-        description: "Please bind an email to your account to make purchases.",
-      })
-      return
-    }
+    if (!user) return;
 
     setIsProcessing(true)
     
-    const email = user?.email || `guest_${user?.uid.slice(0, 8)}@matchflow.app`
+    const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
     
-    const result = await initializePaystackTransaction(email, selectedPackage.price, {
-      userId: user?.uid,
-      packageAmount: selectedPackage.amount
+    const result = await initializePesaPalTransaction(email, selectedPackage.price, {
+      userId: user.uid,
+      packageAmount: selectedPackage.amount,
+      username: user.displayName || 'User'
     })
 
     if (result.error) {
@@ -80,8 +72,8 @@ function WalletContent() {
       return
     }
 
-    if (result.authorization_url) {
-      window.location.href = result.authorization_url
+    if (result.redirect_url) {
+      window.location.href = result.redirect_url
     }
   }
 
@@ -157,7 +149,7 @@ function WalletContent() {
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-50 flex flex-col gap-4">
         <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
           <ShieldCheck className="w-3 h-3 text-green-500" />
-          Secure checkout by Paystack
+          Secure payment by PesaPal
         </div>
         <Button 
           className="w-full h-16 rounded-full bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-2xl active:scale-95 transition-all"
@@ -167,7 +159,7 @@ function WalletContent() {
           {isProcessing ? (
             <div className="flex items-center gap-2">
               <Loader2 className="w-6 h-6 animate-spin" />
-              <span>Connecting...</span>
+              <span>Redirecting...</span>
             </div>
           ) : `Pay ${selectedPackage.label}`}
         </Button>
