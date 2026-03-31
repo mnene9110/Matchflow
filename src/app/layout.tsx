@@ -29,10 +29,12 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet" />
         <link rel="manifest" href="/manifest.json" />
       </head>
-      <body className="font-body antialiased bg-white min-h-svh flex flex-col items-center">
+      <body className="font-body antialiased bg-slate-50 min-h-svh flex flex-col items-center">
         <FirebaseClientProvider>
-          <div className="w-full max-w-md min-h-svh flex flex-col bg-white shadow-2xl relative overflow-hidden">
-            {children}
+          <div className="app-container">
+            <div className="app-content">
+              {children}
+            </div>
           </div>
         </FirebaseClientProvider>
         <Toaster />
@@ -40,7 +42,7 @@ export default function RootLayout({
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
-                navigator.worker.register('/sw.js').then(
+                navigator.serviceWorker.register('/sw.js').then(
                   function(registration) {
                     console.log('Service Worker registration successful with scope: ', registration.scope);
                   },

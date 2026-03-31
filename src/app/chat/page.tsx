@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Navbar } from "@/components/Navbar"
@@ -24,50 +23,50 @@ export default function ChatListPage() {
   const [activeTab, setActiveTab] = useState("Chat")
 
   return (
-    <div className="flex flex-col min-h-svh pb-24 bg-white">
+    <div className="flex flex-col min-h-svh pb-24 bg-transparent">
       {/* Top Header Area */}
-      <header className="bg-white pt-10 pb-4 px-6 sticky top-0 z-20 border-b border-gray-50">
+      <header className="bg-transparent pt-10 pb-4 px-6 sticky top-0 z-20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <button 
               onClick={() => setActiveTab("Chat")}
               className={cn(
                 "text-2xl font-headline font-black relative transition-all",
-                activeTab === "Chat" ? "text-black" : "text-gray-300"
+                activeTab === "Chat" ? "text-white" : "text-white/40"
               )}
             >
               Chat
               {activeTab === "Chat" && (
-                <div className="absolute -bottom-1 left-0 right-0 h-1 bg-maroon-800 rounded-full" />
+                <div className="absolute -bottom-1 left-0 right-0 h-1 bg-accent rounded-full" />
               )}
             </button>
             <button 
               onClick={() => setActiveTab("Call")}
               className={cn(
                 "text-2xl font-headline font-black relative transition-all",
-                activeTab === "Call" ? "text-black" : "text-gray-300"
+                activeTab === "Call" ? "text-white" : "text-white/40"
               )}
             >
               Call
               {activeTab === "Call" && (
-                <div className="absolute -bottom-1 left-0 right-0 h-1 bg-maroon-800 rounded-full" />
+                <div className="absolute -bottom-1 left-0 right-0 h-1 bg-accent rounded-full" />
               )}
             </button>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer">
+            <div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer">
               <Gift className="w-4 h-4" />
             </div>
-            <div className="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer">
+            <div className="w-9 h-9 bg-white/10 rounded-full flex items-center justify-center text-white/60 hover:text-white transition-colors cursor-pointer">
               <User className="w-4 h-4" />
             </div>
           </div>
         </div>
       </header>
 
-      <main className="flex-1 px-4">
-        <section className="mt-2">
+      <main className="flex-1 px-4 mt-4 bg-white rounded-t-[3rem] shadow-2xl pt-6">
+        <section>
           {CHATS.map((chat) => (
             <Link 
               key={chat.id} 
@@ -77,7 +76,7 @@ export default function ChatListPage() {
               <div className="relative shrink-0">
                 <div className={cn(
                   "rounded-full p-0.5 transition-transform group-active:scale-95",
-                  chat.specialFrame ? "bg-gradient-to-tr from-maroon-600 to-maroon-800 p-[2px]" : ""
+                  chat.specialFrame ? "bg-gradient-to-tr from-primary to-accent p-[2px]" : ""
                 )}>
                   <Avatar className="w-14 h-14 border-2 border-white shadow-sm">
                     <AvatarImage src={chat.image} className="object-cover" />
@@ -129,11 +128,6 @@ export default function ChatListPage() {
       </main>
 
       <Navbar />
-      <style jsx global>{`
-        .bg-maroon-800 { background-color: #800000; }
-        .from-maroon-600 { --tw-gradient-from: #b30000; --tw-gradient-to: rgb(179 0 0 / 0); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
-        .to-maroon-800 { --tw-gradient-to: #800000; }
-      `}</style>
     </div>
   )
 }

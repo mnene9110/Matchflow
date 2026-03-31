@@ -54,11 +54,9 @@ export default function ProfilePage() {
   ]
 
   return (
-    <div className="flex flex-col min-h-svh bg-white pb-24">
+    <div className="flex flex-col min-h-svh bg-transparent pb-24">
       {/* Header Area */}
-      <header className="relative pt-12 pb-8 px-6 overflow-hidden">
-        {/* Abstract Background */}
-        <div className="absolute inset-0 bg-[#D4F835] -z-10" />
+      <header className="relative pt-12 pb-8 px-6 overflow-hidden bg-accent rounded-b-[3rem] shadow-xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/20 rounded-full -mr-20 -mt-20 blur-3xl" />
         
         <div className="flex justify-between items-start">
@@ -82,7 +80,7 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <Avatar className="w-16 h-16 border-2 border-white shadow-xl ring-1 ring-black/5">
+          <Avatar className="w-16 h-16 border-2 border-white shadow-2xl ring-2 ring-white/50">
             <AvatarImage src={PlaceHolderImages.find(i => i.id === 'user-1')?.imageUrl} className="object-cover" />
             <AvatarFallback>M</AvatarFallback>
           </Avatar>
@@ -94,7 +92,7 @@ export default function ProfilePage() {
             <div key={stat.label} className="flex flex-col">
               <div className="flex items-center gap-0.5">
                 <span className="text-lg font-black text-black">{stat.value}</span>
-                {stat.hasDot && <div className="w-1.5 h-1.5 bg-red-500 rounded-full border border-[#D4F835]" />}
+                {stat.hasDot && <div className="w-1.5 h-1.5 bg-red-500 rounded-full border border-accent" />}
               </div>
               <span className="text-[9px] text-black/50 font-black uppercase tracking-widest">{stat.label}</span>
             </div>
@@ -103,30 +101,30 @@ export default function ProfilePage() {
       </header>
 
       {/* Main Content */}
-      <main className="px-4 -mt-4 space-y-6">
+      <main className="px-4 mt-6 space-y-6">
         {/* Wallet Cards */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-[#A3E635] rounded-2xl p-4 flex items-center gap-3 shadow-md shadow-lime-100 hover:scale-[1.01] transition-transform cursor-pointer border border-white/10">
-            <div className="w-8 h-8 bg-white/40 rounded-full flex items-center justify-center">
-              <Coins className="w-5 h-5 text-white" />
+          <div className="bg-accent rounded-[2rem] p-5 flex items-center gap-3 shadow-lg hover:scale-[1.01] transition-transform cursor-pointer border-2 border-white/20">
+            <div className="w-10 h-10 bg-white/40 rounded-full flex items-center justify-center">
+              <Coins className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-black text-white">98</span>
+            <span className="text-2xl font-black text-white">98</span>
           </div>
-          <div className="bg-white rounded-2xl p-4 flex items-center justify-center shadow-md shadow-gray-50 hover:scale-[1.01] transition-transform cursor-pointer border border-gray-50">
-             <span className="text-xl font-black text-[#D4F835] italic tracking-tighter">VIP4</span>
+          <div className="bg-white rounded-[2rem] p-5 flex items-center justify-center shadow-lg hover:scale-[1.01] transition-transform cursor-pointer border border-gray-100">
+             <span className="text-2xl font-black text-accent italic tracking-tighter">VIP4</span>
           </div>
         </div>
 
         {/* Recommended Games */}
-        <section className="space-y-3">
+        <section className="bg-white/60 backdrop-blur-md rounded-[2.5rem] p-6 space-y-4 border border-white/20">
           <div className="flex items-center justify-between px-1">
             <h2 className="font-headline font-black text-base">Recommended Games</h2>
             <ChevronRight className="w-4 h-4 text-gray-300" />
           </div>
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-3 gap-3">
             {games.map((game) => (
-              <div key={game.name} className="flex flex-col items-center gap-1.5 group cursor-pointer">
-                <div className="relative w-full aspect-[4/3] rounded-xl overflow-hidden shadow-sm group-hover:shadow-md transition-shadow">
+              <div key={game.name} className="flex flex-col items-center gap-2 group cursor-pointer">
+                <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-sm group-hover:shadow-md transition-shadow">
                   <Image src={game.image} alt={game.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" data-ai-hint={game.hint} />
                 </div>
                 <span className="text-[9px] font-black text-gray-700 text-center leading-tight px-0.5">{game.name}</span>
@@ -136,11 +134,11 @@ export default function ProfilePage() {
         </section>
 
         {/* Icon Grid (Action Center) */}
-        <section className="bg-gray-50/30 rounded-[2rem] p-5 grid grid-cols-4 gap-y-6">
+        <section className="bg-white/80 rounded-[2.5rem] p-6 grid grid-cols-4 gap-y-8 border border-white/20">
           {actions.map((action) => (
-            <div key={action.label} className="flex flex-col items-center gap-1.5 group cursor-pointer">
-              <div className={`w-10 h-10 ${action.bg} rounded-xl flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}>
-                <action.icon className={`w-5 h-5 ${action.color}`} />
+            <div key={action.label} className="flex flex-col items-center gap-2 group cursor-pointer">
+              <div className={`w-12 h-12 ${action.bg} rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}>
+                <action.icon className={`w-6 h-6 ${action.color}`} />
               </div>
               <span className="text-[10px] font-black text-gray-500">{action.label}</span>
             </div>
@@ -148,22 +146,22 @@ export default function ProfilePage() {
         </section>
 
         {/* Other Tools */}
-        <section className="space-y-4 pb-4">
+        <section className="space-y-6 pb-4">
           <h2 className="font-headline font-black text-base px-1">Other Tools</h2>
-          <div className="grid grid-cols-4 gap-y-6">
+          <div className="grid grid-cols-4 gap-y-8">
             {otherTools.map((tool) => (
-              <div key={tool.label} className="flex flex-col items-center gap-1.5 group cursor-pointer">
-                <div className="w-9 h-9 flex items-center justify-center rounded-full group-hover:bg-gray-50 transition-colors">
-                  <tool.icon className="w-5 h-5 text-gray-400 group-hover:text-black transition-colors" />
+              <div key={tool.label} className="flex flex-col items-center gap-2 group cursor-pointer">
+                <div className="w-11 h-11 flex items-center justify-center rounded-full group-hover:bg-accent/20 transition-colors">
+                  <tool.icon className="w-6 h-6 text-gray-400 group-hover:text-black transition-colors" />
                 </div>
                 <span className="text-[10px] font-black text-gray-400 group-hover:text-black text-center transition-colors">{tool.label}</span>
               </div>
             ))}
-            <div className="flex flex-col items-center gap-1 relative group cursor-pointer">
-               <div className="bg-blue-600 rounded-xl p-2 shadow-lg shadow-blue-100 group-hover:scale-105 transition-transform">
-                  <Gamepad2 className="w-5 h-5 text-white" />
+            <div className="flex flex-col items-center gap-2 relative group cursor-pointer">
+               <div className="bg-blue-600 rounded-2xl p-3 shadow-lg shadow-blue-100 group-hover:scale-105 transition-transform">
+                  <Gamepad2 className="w-6 h-6 text-white" />
                </div>
-               <span className="absolute -bottom-1 bg-[#D4F835] text-[7px] font-black px-1.5 py-0.5 rounded-full border-2 border-white shadow-sm text-black">PLAY</span>
+               <span className="absolute -bottom-1 bg-accent text-[8px] font-black px-2 py-0.5 rounded-full border-2 border-white shadow-sm text-black">PLAY</span>
             </div>
           </div>
         </section>
