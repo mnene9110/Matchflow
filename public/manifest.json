@@ -1,12 +1,11 @@
-
 {
   "name": "MatchFlow",
   "short_name": "MatchFlow",
-  "description": "Genuine Connections through MatchFlow",
+  "description": "Genuine Connections through Video and AI",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#7E8EF1",
+  "theme_color": "#800000",
   "icons": [
     {
       "src": "/icon-192.png",

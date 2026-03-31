@@ -1,4 +1,3 @@
-
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -9,7 +8,7 @@ export const metadata: Metadata = {
   title: 'MatchFlow - Genuine Connections',
   description: 'Find your perfect match with video calls and AI icebreakers.',
   manifest: '/manifest.json',
-  themeColor: '#7E8EF1',
+  themeColor: '#800000',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -41,7 +40,7 @@ export default function RootLayout({
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').then(
+                navigator.worker.register('/sw.js').then(
                   function(registration) {
                     console.log('Service Worker registration successful with scope: ', registration.scope);
                   },

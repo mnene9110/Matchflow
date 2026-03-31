@@ -1,13 +1,9 @@
-
 const CACHE_NAME = 'matchflow-v1';
 const urlsToCache = [
   '/',
-  '/welcome',
-  '/login',
-  '/discover',
-  '/chat',
-  '/profile',
-  '/globals.css'
+  '/manifest.json',
+  '/icon-192.png',
+  '/icon-512.png'
 ];
 
 self.addEventListener('install', event => {

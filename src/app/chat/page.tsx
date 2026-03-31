@@ -2,7 +2,7 @@
 
 import { Navbar } from "@/components/Navbar"
 import { Gift, User, Mail } from "lucide-react"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/avatar"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import { cn } from "@/lib/utils"
@@ -19,15 +19,15 @@ const CHATS = [
   { id: "8", name: "bella", lastMsg: "heey", time: "03-31 07:39", unread: 2, image: "https://picsum.photos/seed/bella/200/200", online: false, tag: "0.2°C" },
 ]
 
-export function ChatListPage() {
+export default function ChatListPage() {
   const [activeTab, setActiveTab] = useState("Chat")
 
   return (
     <div className="flex flex-col min-h-svh pb-24 bg-white">
       {/* Top Header Area */}
-      <header className="bg-white pt-12 pb-4 px-6 sticky top-0 z-20 border-b border-gray-100">
+      <header className="bg-white pt-10 pb-4 px-6 sticky top-0 z-20 border-b border-gray-50">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-8">
+          <div className="flex items-center gap-6">
             <button 
               onClick={() => setActiveTab("Chat")}
               className={cn(
@@ -37,7 +37,7 @@ export function ChatListPage() {
             >
               Chat
               {activeTab === "Chat" && (
-                <div className="absolute -bottom-1 left-0 right-0 h-1.5 bg-maroon-800 rounded-full" />
+                <div className="absolute -bottom-1 left-0 right-0 h-1 bg-maroon-800 rounded-full" />
               )}
             </button>
             <button 
@@ -49,17 +49,17 @@ export function ChatListPage() {
             >
               Call
               {activeTab === "Call" && (
-                <div className="absolute -bottom-1 left-0 right-0 h-1.5 bg-maroon-800 rounded-full" />
+                <div className="absolute -bottom-1 left-0 right-0 h-1 bg-maroon-800 rounded-full" />
               )}
             </button>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer">
-              <Gift className="w-5 h-5" />
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer">
+              <Gift className="w-4 h-4" />
             </div>
-            <div className="w-10 h-10 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer">
-              <User className="w-5 h-5" />
+            <div className="w-9 h-9 bg-gray-50 rounded-full flex items-center justify-center text-gray-400 hover:text-black hover:bg-gray-100 transition-colors cursor-pointer">
+              <User className="w-4 h-4" />
             </div>
           </div>
         </div>
@@ -84,30 +84,30 @@ export function ChatListPage() {
                   </Avatar>
                 </div>
                 {chat.online && (
-                  <span className="absolute bottom-0 right-0 w-4 h-4 bg-green-500 border-2 border-white rounded-full shadow-md" />
+                  <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-green-500 border-2 border-white rounded-full shadow-md" />
                 )}
               </div>
 
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 mb-0.5">
-                  <h3 className="font-bold text-base text-gray-900 truncate">{chat.name}</h3>
+                  <h3 className="font-bold text-sm text-gray-900 truncate">{chat.name}</h3>
                   {chat.tag && (
-                    <span className="flex items-center gap-0.5 text-[10px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-md font-black italic">
+                    <span className="flex items-center gap-0.5 text-[9px] text-orange-500 bg-orange-50 px-1.5 py-0.5 rounded-md font-black italic">
                       🔥 {chat.tag}
                     </span>
                   )}
                 </div>
-                <p className="text-sm text-gray-400 truncate font-medium">
+                <p className="text-[13px] text-gray-400 truncate font-medium">
                   {chat.lastMsg}
                 </p>
               </div>
 
-              <div className="flex flex-col items-end gap-2 shrink-0 ml-2">
-                <span className="text-[10px] text-gray-300 font-bold tracking-tighter">
+              <div className="flex flex-col items-end gap-1.5 shrink-0 ml-2">
+                <span className="text-[9px] text-gray-300 font-bold tracking-tighter">
                   {chat.time}
                 </span>
                 {chat.unread > 0 && (
-                  <div className="bg-red-500 text-white text-[10px] font-black w-5 h-5 flex items-center justify-center rounded-full shadow-lg shadow-red-200">
+                  <div className="bg-red-500 text-white text-[9px] font-black w-4 h-4 flex items-center justify-center rounded-full shadow-lg shadow-red-100">
                     {chat.unread}
                   </div>
                 )}
@@ -116,12 +116,12 @@ export function ChatListPage() {
           ))}
 
           <div className="flex items-center gap-4 py-6 px-2 mt-2 border-t border-gray-50 opacity-60">
-            <div className="w-14 h-14 bg-amber-400 rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-amber-100">
-              <Mail className="w-7 h-7 text-white" />
+            <div className="w-12 h-12 bg-amber-400 rounded-full flex items-center justify-center shrink-0 shadow-lg shadow-amber-50">
+              <Mail className="w-6 h-6 text-white" />
             </div>
             <div className="flex-1 min-w-0">
-              <h3 className="font-bold text-base text-gray-900">Expired Messages</h3>
-              <p className="text-sm text-gray-400 font-medium">History of old conversations</p>
+              <h3 className="font-bold text-sm text-gray-900">Expired Messages</h3>
+              <p className="text-xs text-gray-400 font-medium">History of old conversations</p>
             </div>
           </div>
         </section>
@@ -136,5 +136,3 @@ export function ChatListPage() {
     </div>
   )
 }
-
-export default ChatListPage;
