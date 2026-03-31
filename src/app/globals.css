@@ -69,5 +69,14 @@
 }
 
 .font-logo {
-  font-family: 'Pacifico', cursive;
+  @apply font-headline; /* Fallback */
+  font-family: 'Pacifico', cursive !important;
+}
+
+h1, h2, h3 {
+  @apply font-headline;
+}
+
+.font-headline {
+  font-family: 'Space Grotesk', sans-serif;
 }
