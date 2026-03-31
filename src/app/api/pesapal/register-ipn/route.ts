@@ -1,14 +1,17 @@
 import { NextResponse } from 'next/server';
 
 /**
- * @fileOverview Temporary debug route to register the PesaPal IPN URL in Production.
+ * @fileOverview Route to register the PesaPal IPN URL in Production.
  * This should be called once to get a production IPN_ID from PesaPal.
  */
 
-export async function GET() {
+export async function GET(request: Request) {
   if (!process.env.PESAPAL_CONSUMER_KEY || !process.env.PESAPAL_CONSUMER_SECRET) {
     return NextResponse.json({ error: "Environment variables missing" }, { status: 500 });
   }
+
+  const { origin } = new URL(request.url);
+  const ipnUrl = `${origin}/api/pesapal/ipn`;
 
   try {
     // Step 1: get token from live production
@@ -16,6 +19,7 @@ export async function GET() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "Accept": "application/json"
       },
       body: JSON.stringify({
         consumer_key: process.env.PESAPAL_CONSUMER_KEY,
@@ -23,11 +27,15 @@ export async function GET() {
       }),
     });
 
-    const tokenData = await tokenRes.json();
-    const token = tokenData.token;
+    if (!tokenRes.ok) {
+      const err = await tokenRes.text();
+      return NextResponse.json({ error: `Auth failed: ${tokenRes.status}`, details: err }, { status: 500 });
+    }
+
+    const { token } = await tokenRes.json();
 
     if (!token) {
-      return NextResponse.json({ error: "Failed to retrieve token", details: tokenData }, { status: 500 });
+      return NextResponse.json({ error: "Failed to retrieve token" }, { status: 500 });
     }
 
     // Step 2: register IPN in live production
@@ -35,16 +43,21 @@ export async function GET() {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
+        "Accept": "application/json",
+        "Authorization": `Bearer ${token}`,
       },
       body: JSON.stringify({
-        url: `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`,
+        url: ipnUrl,
         ipn_notification_type: "GET",
       }),
     });
 
     const data = await ipnRes.json();
-    return NextResponse.json(data);
+    return NextResponse.json({ 
+      message: "IPN Registration Attempted",
+      registered_url: ipnUrl,
+      pesapal_response: data 
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }

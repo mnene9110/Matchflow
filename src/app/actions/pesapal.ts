@@ -15,7 +15,7 @@ const IPN_ID = process.env.PESAPAL_IPN_ID;
  */
 async function getAuthToken() {
   if (!CONSUMER_KEY || !CONSUMER_SECRET) {
-    throw new Error('PesaPal Consumer Key or Secret is missing.');
+    throw new Error('PesaPal Consumer Key or Secret is missing in Environment Variables.');
   }
 
   const response = await fetch(`${PESAPAL_BASE_URL}/api/Auth/RequestToken`, {
@@ -30,9 +30,14 @@ async function getAuthToken() {
     }),
   });
 
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`PesaPal Auth Failed (${response.status}): ${text.slice(0, 100)}`);
+  }
+
   const data = await response.json();
   if (!data.token) {
-    throw new Error(data.message || 'Failed to authenticate with PesaPal Production.');
+    throw new Error(data.message || 'Failed to retrieve token from PesaPal.');
   }
   return data.token;
 }
@@ -45,11 +50,10 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const token = await getAuthToken();
 
     if (!IPN_ID) {
-      return { error: 'PESAPAL_IPN_ID is required for V3 transactions.' };
+      return { error: 'PESAPAL_IPN_ID is required. Please register your IPN via /api/pesapal/register-ipn.' };
     }
 
-    // Live production order ID prefix
-    const orderId = `MF-LIVE-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const orderId = `MF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     const response = await fetch(`${PESAPAL_BASE_URL}/api/Transactions/SubmitOrderRequest`, {
       method: 'POST',
@@ -72,6 +76,11 @@ export async function initializePesaPalTransaction(email: string, amount: number
         },
       }),
     });
+
+    if (!response.ok) {
+      const text = await response.text();
+      return { error: `PesaPal Order Failed (${response.status}): ${text.slice(0, 100)}` };
+    }
 
     const data = await response.json();
 
@@ -100,9 +109,14 @@ export async function getTransactionStatus(orderTrackingId: string) {
       },
     });
 
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Status check failed (${response.status}): ${text.slice(0, 100)}`);
+    }
+
     return await response.json();
-  } catch (error) {
+  } catch (error: any) {
     console.error('PesaPal Production Status Error:', error);
-    return { error: 'Failed to verify transaction status.' };
+    return { error: error.message || 'Failed to verify transaction status.' };
   }
 }
