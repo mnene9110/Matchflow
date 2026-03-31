@@ -15,6 +15,7 @@ import { doc } from "firebase/firestore"
 import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, remove } from "firebase/database"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
+import { getZegoConfig } from "@/app/actions/zego"
 
 // We'll load the Zego library dynamically to avoid SSR issues
 let ZegoUIKitPrebuilt: any = null;
@@ -114,14 +115,14 @@ export default function ChatDetailPage() {
   const initiateZegoCall = async (roomID: string) => {
     if (!ZegoUIKitPrebuilt || !currentUser || !zegoContainerRef.current) return;
 
-    const appID = Number(process.env.NEXT_PUBLIC_ZEGO_APP_ID);
-    const serverSecret = process.env.NEXT_PUBLIC_ZEGO_SERVER_SECRET;
+    // Fetch config securely via server action
+    const { appID, serverSecret } = await getZegoConfig();
 
     if (!appID || !serverSecret) {
       toast({ 
         variant: "destructive", 
         title: "Call Configuration Missing", 
-        description: "Please set your Zego AppID and ServerSecret in the environment variables." 
+        description: "Please set ZEGO_APP_ID and ZEGO_SERVER_SECRET in your Vercel environment variables." 
       });
       handleEndCall();
       return;
