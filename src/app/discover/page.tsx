@@ -87,7 +87,7 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Horizontal Notification Banner */}
+      {/* Horizontal Notification Banner - Now replaces the tab section */}
       <div className="px-4 py-3">
         <div className="bg-gradient-to-r from-maroon-800 to-maroon-600 rounded-2xl p-4 flex items-center justify-between text-white shadow-lg">
           <div className="flex-1 text-xs">
@@ -100,18 +100,8 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Header with Title and Actions */}
-      <div className="sticky top-0 z-20 bg-white px-4 py-4 flex items-center justify-between border-b border-gray-50">
-        <div className="flex items-center gap-6">
-          <h2 className="relative text-xl font-headline font-bold text-black scale-110">
-            Recommend
-            <div className="absolute -bottom-1 left-0 right-0 h-1.5 bg-maroon-800 -z-10 rounded-full" />
-          </h2>
-        </div>
-      </div>
-
       {/* Users Grid */}
-      <main className="px-4 grid grid-cols-2 gap-4 mt-4 pb-10">
+      <main className="px-4 grid grid-cols-2 gap-4 mt-2 pb-10">
         {users.map((user) => (
           <Link key={user.id} href={`/chat/${user.id}`} className="group relative aspect-[3/4] rounded-[2.5rem] overflow-hidden shadow-md bg-gray-100">
             <Image
