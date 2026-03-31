@@ -1,0 +1,560 @@
+{
+  "entities": {
+    "UserProfile": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "UserProfile",
+      "type": "object",
+      "description": "Represents a user's public profile and personal information within the MatchFlow app.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the UserProfile entity."
+        },
+        "authProviderId": {
+          "type": "string",
+          "description": "Identifier from the external authentication system for this user. (Security Best Practice: No passwords or auth system data directly stored here)."
+        },
+        "username": {
+          "type": "string",
+          "description": "A unique, user-facing name for the user."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address, used for communication and account recovery.",
+          "format": "email"
+        },
+        "bio": {
+          "type": "string",
+          "description": "A short description or biography written by the user."
+        },
+        "dateOfBirth": {
+          "type": "string",
+          "description": "The user's date of birth, used for age verification and filtering.",
+          "format": "date"
+        },
+        "gender": {
+          "type": "string",
+          "description": "The user's self-identified gender."
+        },
+        "preferredGenders": {
+          "type": "array",
+          "description": "An array of genders the user is interested in matching with.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "location": {
+          "type": "string",
+          "description": "The user's general location (e.g., city, region) for proximity matching."
+        },
+        "interests": {
+          "type": "array",
+          "description": "A list of interests and hobbies of the user, used for match discovery.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "profilePhotoUrls": {
+          "type": "array",
+          "description": "An array of URLs pointing to the user's profile photos.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the user profile was last updated.",
+          "format": "date-time"
+        },
+        "lastActiveAt": {
+          "type": "string",
+          "description": "Timestamp of the user's last activity in the application.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "authProviderId",
+        "username",
+        "email",
+        "dateOfBirth",
+        "gender",
+        "createdAt"
+      ]
+    },
+    "CoinAccount": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CoinAccount",
+      "type": "object",
+      "description": "Manages a user's virtual coin balance for in-app purchases and activities.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CoinAccount entity."
+        },
+        "userId": {
+          "type": "string",
+          "description": "Reference to the UserProfile this coin account belongs to. (Relationship: UserProfile 1:1 CoinAccount)"
+        },
+        "balance": {
+          "type": "number",
+          "description": "The current number of coins in the user's account."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the coin account was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the coin account balance was last updated.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "userId",
+        "balance",
+        "createdAt"
+      ]
+    },
+    "CoinTransaction": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "CoinTransaction",
+      "type": "object",
+      "description": "Records individual transactions of virtual coins, including purchases and spending.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the CoinTransaction entity."
+        },
+        "coinAccountId": {
+          "type": "string",
+          "description": "Reference to the CoinAccount associated with this transaction. (Relationship: CoinAccount 1:N CoinTransaction)"
+        },
+        "type": {
+          "type": "string",
+          "description": "The type of coin transaction (e.g., 'purchase', 'chat_unlock', 'video_call_cost')."
+        },
+        "amount": {
+          "type": "number",
+          "description": "The amount of coins involved in the transaction. Positive for gains, negative for deductions."
+        },
+        "transactionDate": {
+          "type": "string",
+          "description": "Timestamp when the transaction occurred.",
+          "format": "date-time"
+        },
+        "description": {
+          "type": "string",
+          "description": "A human-readable description of the transaction."
+        },
+        "relatedEntityId": {
+          "type": "string",
+          "description": "Optional: Reference to another entity (e.g., ChatSession, VideoCall) that this transaction relates to."
+        }
+      },
+      "required": [
+        "id",
+        "coinAccountId",
+        "type",
+        "amount",
+        "transactionDate"
+      ]
+    },
+    "Like": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Like",
+      "type": "object",
+      "description": "Records a user's action of liking another user, a precursor to a potential match.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Like entity."
+        },
+        "likerId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who performed the 'like' action. (Relationship: UserProfile 1:N Like)"
+        },
+        "likedId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who was 'liked'. (Relationship: UserProfile 1:N Like)"
+        },
+        "likeDate": {
+          "type": "string",
+          "description": "Timestamp when the 'like' action occurred.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "likerId",
+        "likedId",
+        "likeDate"
+      ]
+    },
+    "Match": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "Match",
+      "type": "object",
+      "description": "Represents a mutual 'like' between two users, indicating a successful match.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the Match entity."
+        },
+        "user1Id": {
+          "type": "string",
+          "description": "Reference to the first UserProfile in the match. (Relationship: UserProfile N:N Match)"
+        },
+        "user2Id": {
+          "type": "string",
+          "description": "Reference to the second UserProfile in the match. (Relationship: UserProfile N:N Match)"
+        },
+        "matchDate": {
+          "type": "string",
+          "description": "Timestamp when the mutual match occurred.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "user1Id",
+        "user2Id",
+        "matchDate"
+      ]
+    },
+    "ChatSession": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatSession",
+      "type": "object",
+      "description": "Represents an active text conversation thread between two matched users, unlocked by coins.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ChatSession entity."
+        },
+        "matchId": {
+          "type": "string",
+          "description": "Reference to the Match entity that initiated this chat session. (Relationship: Match 1:1 ChatSession)"
+        },
+        "unlockedByUserId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who paid coins to unlock this chat session. (Relationship: UserProfile 1:N ChatSession)"
+        },
+        "unlockedAt": {
+          "type": "string",
+          "description": "Timestamp when the chat session was unlocked by a user.",
+          "format": "date-time"
+        },
+        "isActive": {
+          "type": "boolean",
+          "description": "Indicates if the chat session is currently active or has been closed/blocked."
+        },
+        "createdAt": {
+          "type": "string",
+          "description": "Timestamp when the chat session was created.",
+          "format": "date-time"
+        },
+        "updatedAt": {
+          "type": "string",
+          "description": "Timestamp when the chat session was last updated (e.g., last message sent).",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "matchId",
+        "unlockedByUserId",
+        "unlockedAt",
+        "isActive",
+        "createdAt"
+      ]
+    },
+    "ChatMessage": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "ChatMessage",
+      "type": "object",
+      "description": "Represents an individual text message sent within a ChatSession.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the ChatMessage entity."
+        },
+        "chatSessionId": {
+          "type": "string",
+          "description": "Reference to the ChatSession this message belongs to. (Relationship: ChatSession 1:N ChatMessage)"
+        },
+        "senderId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who sent this message. (Relationship: UserProfile 1:N ChatMessage)"
+        },
+        "messageText": {
+          "type": "string",
+          "description": "The content of the chat message."
+        },
+        "sentAt": {
+          "type": "string",
+          "description": "Timestamp when the message was sent.",
+          "format": "date-time"
+        },
+        "readAt": {
+          "type": "string",
+          "description": "Optional: Timestamp when the message was read by the recipient.",
+          "format": "date-time"
+        }
+      },
+      "required": [
+        "id",
+        "chatSessionId",
+        "senderId",
+        "messageText",
+        "sentAt"
+      ]
+    },
+    "VideoCall": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "VideoCall",
+      "type": "object",
+      "description": "Records details of a one-on-one video call between two users, costing coins.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the VideoCall entity."
+        },
+        "chatSessionId": {
+          "type": "string",
+          "description": "Reference to the ChatSession during which this video call occurred. (Relationship: ChatSession 1:N VideoCall)"
+        },
+        "callerId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who initiated the video call. (Relationship: UserProfile 1:N VideoCall)"
+        },
+        "receiverId": {
+          "type": "string",
+          "description": "Reference to the UserProfile who was called. (Relationship: UserProfile 1:N VideoCall)"
+        },
+        "initiatedAt": {
+          "type": "string",
+          "description": "Timestamp when the video call was initiated.",
+          "format": "date-time"
+        },
+        "startedAt": {
+          "type": "string",
+          "description": "Optional: Timestamp when the video call actually started (was accepted).",
+          "format": "date-time"
+        },
+        "endedAt": {
+          "type": "string",
+          "description": "Optional: Timestamp when the video call ended.",
+          "format": "date-time"
+        },
+        "durationMinutes": {
+          "type": "number",
+          "description": "Optional: The duration of the video call in minutes."
+        },
+        "costCoins": {
+          "type": "number",
+          "description": "The number of coins deducted from the caller's balance for this video call."
+        },
+        "status": {
+          "type": "string",
+          "description": "The current status of the video call (e.g., 'initiated', 'ringing', 'accepted', 'declined', 'completed', 'failed')."
+        }
+      },
+      "required": [
+        "id",
+        "chatSessionId",
+        "callerId",
+        "receiverId",
+        "initiatedAt",
+        "costCoins",
+        "status"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/userProfiles/{userId}",
+        "definition": {
+          "entityName": "UserProfile",
+          "schema": {
+            "$ref": "#/backend/entities/UserProfile"
+          },
+          "description": "Stores user profiles. The document ID `{userId}` matches the `UserProfile.id` and `request.auth.uid`. Critical fields like `email` and `dateOfBirth` are typically restricted to the owner, while other fields facilitate match discovery.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching `request.auth.uid` and `UserProfile.id`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/coinAccount",
+        "definition": {
+          "entityName": "CoinAccount",
+          "schema": {
+            "$ref": "#/backend/entities/CoinAccount"
+          },
+          "description": "Stores a user's virtual coin balance. This is private data, exclusively accessible by the owner. The document's `userId` field matches the `{userId}` in the path for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching `request.auth.uid` and the `CoinAccount.userId`."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/coinAccount/transactions/{transactionId}",
+        "definition": {
+          "entityName": "CoinTransaction",
+          "schema": {
+            "$ref": "#/backend/entities/CoinTransaction"
+          },
+          "description": "Records individual coin transactions for a user. Accessible only by the `userId` in the path. Includes denormalized `userId` (from the parent user) for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user, matching `request.auth.uid` and implicitly linked to `CoinAccount.userId`."
+            },
+            {
+              "name": "transactionId",
+              "description": "The unique identifier for a specific coin transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/outgoingLikes/{likeId}",
+        "definition": {
+          "entityName": "Like",
+          "schema": {
+            "$ref": "#/backend/entities/Like"
+          },
+          "description": "Records a 'like' initiated by the `userId` in the path. The document includes both `likerId` (matching the path's `userId`) and `likedId` for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who performed the 'like' (the `likerId`)."
+            },
+            {
+              "name": "likeId",
+              "description": "The unique identifier for this specific 'like' action."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/incomingLikes/{likeId}",
+        "definition": {
+          "entityName": "Like",
+          "schema": {
+            "$ref": "#/backend/entities/Like"
+          },
+          "description": "Records a 'like' received by the `userId` in the path. The document includes both `likerId` and `likedId` (matching the path's `userId`) for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user who received the 'like' (the `likedId`)."
+            },
+            {
+              "name": "likeId",
+              "description": "The unique identifier for this specific 'like' action."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/matches/{matchId}",
+        "definition": {
+          "entityName": "Match",
+          "schema": {
+            "$ref": "#/backend/entities/Match"
+          },
+          "description": "Represents a mutual match for the `userId` in the path. Each match document is duplicated for both involved users. Includes denormalized `user1Id` and `user2Id` for authorization independence.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of one of the users involved in the match."
+            },
+            {
+              "name": "matchId",
+              "description": "The unique identifier for this specific match."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/chatSessions/{chatSessionId}",
+        "definition": {
+          "entityName": "ChatSession",
+          "schema": {
+            "$ref": "#/backend/entities/ChatSession"
+          },
+          "description": "Represents an active text conversation thread. Includes denormalized `user1Id` and `user2Id` (from the associated `Match`) for authorization independence, allowing direct access checks.",
+          "params": [
+            {
+              "name": "chatSessionId",
+              "description": "The unique identifier for the chat session."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/chatSessions/{chatSessionId}/messages/{messageId}",
+        "definition": {
+          "entityName": "ChatMessage",
+          "schema": {
+            "$ref": "#/backend/entities/ChatMessage"
+          },
+          "description": "Stores individual chat messages within a `ChatSession`. Includes `senderId` and denormalized `user1Id` and `user2Id` (from the parent `ChatSession`) for authorization independence.",
+          "params": [
+            {
+              "name": "chatSessionId",
+              "description": "The unique identifier of the parent chat session."
+            },
+            {
+              "name": "messageId",
+              "description": "The unique identifier for a specific chat message."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/chatSessions/{chatSessionId}/videoCalls/{videoCallId}",
+        "definition": {
+          "entityName": "VideoCall",
+          "schema": {
+            "$ref": "#/backend/entities/VideoCall"
+          },
+          "description": "Records details of a video call within a `ChatSession`. Includes `callerId`, `receiverId`, and denormalized `user1Id` and `user2Id` (from the parent `ChatSession`) for authorization independence.",
+          "params": [
+            {
+              "name": "chatSessionId",
+              "description": "The unique identifier of the parent chat session."
+            },
+            {
+              "name": "videoCallId",
+              "description": "The unique identifier for a specific video call."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The MatchFlow Firestore structure is designed to be secure, scalable, and highly debuggable, primarily by ensuring Authorization Independence and supporting Queryable Authorization Patterns (QAPs). This is achieved through a strategic combination of hierarchical data paths and extensive denormalization of authorization context.\n\n**Authorization Independence (CRITICAL):**\nThis design meticulously avoids the need for `get()` calls in security rules, which is paramount for atomic operations and rule debuggability. This is accomplished through two main strategies:\n\n1.  **Path-Based Ownership:** For user-specific private data, such as `CoinAccount` and `CoinTransaction`, the data is nested directly under a user's ID (`/users/{userId}/coinAccount` and `/users/{userId}/coinAccount/transactions/{transactionId}`). The `userId` within the document explicitly matches the `{userId}` wildcard in the path, allowing rules to authorize requests solely based on `request.auth.uid == userId` without needing to fetch parent documents.\n2.  **Denormalization of Participant IDs:** For collaborative or shared data (like `Like`, `Match`, `ChatSession`, `ChatMessage`, `VideoCall`), all participant IDs relevant for authorization are denormalized directly into the document being accessed. For instance:\n    *   `Like` documents (stored in `/users/{userId}/outgoingLikes/{likeId}` and `/users/{userId}/incomingLikes/{likeId}`) contain both `likerId` and `likedId`. The `userId` in the path is checked against the respective field (`likerId` or `likedId`) in the document.\n    *   `Match` documents (duplicated under `/users/{userId}/matches/{matchId}`) include both `user1Id` and `user2Id`. The `userId` in the path must match either `user1Id` or `user2Id` in the document.\n    *   `ChatSession` documents (`/chatSessions/{chatSessionId}`) denormalize `user1Id` and `user2Id` from the associated `Match` entity. This allows rules to grant access if `request.auth.uid` matches either of these IDs directly from the `ChatSession` document, without needing to `get()` the parent `Match`.\n    *   `ChatMessage` and `VideoCall` documents, nested under `ChatSession`, further denormalize `user1Id` and `user2Id` (from their parent `ChatSession`) into their own documents. This allows authorization for individual messages and video calls to be determined atomically by checking `request.auth.uid` against these denormalized participant IDs directly within the message or video call document, eliminating `get()` calls to the `ChatSession`.\n\n**QAPs (Queryable Authorization Patterns):**\nThis structure directly supports efficient and secure `list` operations:\n\n1.  **Structural Segregation:** The `UserProfile` collection (`/userProfiles/{userId}`) is designed to house discoverable user data. While some sensitive fields (e.g., email) would be restricted to the owner, the primary purpose of this collection is to allow users to `list` and filter other profiles for match discovery. Rules would enforce which fields are publicly readable and which require ownership.\n2.  **User-Centric Views:** Collections like `/users/{userId}/outgoingLikes`, `/users/{userId}/incomingLikes`, and `/users/{userId}/matches` provide pre-filtered, user-specific views. A user can query these collections by simply matching `request.auth.uid` to the `{userId}` wildcard in the path. This eliminates complex, multi-field `where` clauses on global collections which often struggle with index requirements or introduce security vulnerabilities if not carefully managed.\n3.  **Global Collections with Denormalized Context:** The `/chatSessions/{chatSessionId}` collection, while global, contains `user1Id` and `user2Id` (denormalized). This allows a user to efficiently `list` all their chat sessions by querying `where user1Id == request.auth.uid || user2Id == request.auth.uid`. This pattern enables secure listing while still allowing for a flat, global collection for chat sessions.\n\n**Debuggability and Clarity:**\n*   **Consistent Naming:** Semantic wildcards (`{userId}`, `{chatSessionId}`) and standardized field names (`likerId`, `likedId`, `user1Id`, `user2Id`, `senderId`, `callerId`, `receiverId`) make security rules intuitive and explicit.\n*   **Explicit State Modeling:** Using a `status` field for `VideoCall` provides clear state transitions, simplifying rules and application logic. Every collection is intended to have a homogeneous security posture, making rule writing less complex and prone to errors. This structure ensures that authorization intent is always clear and easily verifiable, simplifying development and maintenance of security rules."
+  }
+}
