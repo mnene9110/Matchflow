@@ -1,18 +1,35 @@
 
 "use client"
 
-import { Mail, Zap } from "lucide-react"
+import { useEffect } from "react"
+import { Mail, Zap, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import { useAuth, initiateAnonymousSignIn } from "@/firebase"
+import { useAuth, useUser, initiateAnonymousSignIn } from "@/firebase"
 
 export default function WelcomePage() {
   const router = useRouter()
   const auth = useAuth()
+  const { user, isUserLoading } = useUser()
+
+  useEffect(() => {
+    // If user is already logged in with email, skip welcome
+    if (user && !user.isAnonymous) {
+      router.push("/discover")
+    }
+  }, [user, router])
 
   const handleFastLogin = () => {
     initiateAnonymousSignIn(auth)
     router.push("/onboarding/fast")
+  }
+
+  if (isUserLoading) {
+    return (
+      <div className="flex flex-col h-svh bg-white items-center justify-center">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+      </div>
+    )
   }
 
   return (
@@ -44,7 +61,7 @@ export default function WelcomePage() {
 
           <Button 
             variant="secondary"
-            className="w-full h-16 rounded-full bg-[#1F2937] hover:bg-[#111827] text-white text-lg font-bold gap-3 shadow-lg"
+            className="w-full h-16 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-lg font-bold gap-3 shadow-md"
             onClick={handleFastLogin}
           >
             <Zap className="w-6 h-6 fill-current" />

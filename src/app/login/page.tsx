@@ -107,33 +107,33 @@ export default function LoginPage() {
 
         <div className="w-full space-y-6">
           <div className="space-y-2">
-            <label className="text-xs font-bold text-muted-foreground/30 ml-1 uppercase tracking-widest">
+            <label className="text-xs font-bold text-primary/40 ml-1 uppercase tracking-widest">
               Email Address
             </label>
             <div className="relative">
-              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/60" />
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/40" />
               <Input 
                 type="email" 
                 placeholder="name@example.com" 
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="h-16 pl-12 rounded-2xl bg-[#1F2937] border-none text-white placeholder:text-muted-foreground/30 text-lg focus-visible:ring-primary/50" 
+                className="h-16 pl-12 rounded-2xl bg-secondary/50 border-none text-gray-900 placeholder:text-muted-foreground/30 text-lg focus-visible:ring-primary/50" 
               />
             </div>
           </div>
 
           <div className="space-y-2">
-            <label className="text-xs font-bold text-muted-foreground/30 ml-1 uppercase tracking-widest">
+            <label className="text-xs font-bold text-primary/40 ml-1 uppercase tracking-widest">
               Password
             </label>
             <div className="relative">
-              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground/60" />
+              <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-primary/40" />
               <Input 
                 type="password" 
                 placeholder="........" 
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="h-16 pl-12 rounded-2xl bg-[#1F2937] border-none text-white placeholder:text-muted-foreground/30 text-lg focus-visible:ring-primary/50" 
+                className="h-16 pl-12 rounded-2xl bg-secondary/50 border-none text-gray-900 placeholder:text-muted-foreground/30 text-lg focus-visible:ring-primary/50" 
               />
             </div>
           </div>
@@ -150,7 +150,7 @@ export default function LoginPage() {
 
           <Button 
             variant="secondary"
-            className="w-full h-16 rounded-full bg-[#1F2937] hover:bg-[#111827] text-white text-xl font-bold shadow-lg transition-all active:scale-95 flex items-center justify-center"
+            className="w-full h-16 rounded-full bg-primary/5 hover:bg-primary/10 text-primary text-xl font-bold shadow-sm transition-all active:scale-95 flex items-center justify-center"
             onClick={handleSignUp}
             disabled={isPending}
           >

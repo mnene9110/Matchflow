@@ -26,9 +26,8 @@ export const metadata: Metadata = {
     telephone: false,
   },
   icons: {
-    apple: [
-      { url: 'https://picsum.photos/seed/mf-icon-192/192/192', sizes: '192x192' },
-    ],
+    icon: '/icon.png',
+    apple: '/icon-512.png',
   },
 };
 
