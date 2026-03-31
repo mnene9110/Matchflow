@@ -33,16 +33,18 @@ export default function ChatDetailPage() {
   
   // Call States
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'calling' | 'ongoing' | 'incoming'>('idle')
+  const [callType, setCallType] = useState<'video' | 'audio'>('video')
   const [hasCameraPermission, setHasCameraPermission] = useState(false)
   const [isMuted, setIsMuted] = useState(false)
   const [isVideoOff, setIsVideoOff] = useState(false)
+  const [stream, setStream] = useState<MediaStream | null>(null)
 
   const [messages, setMessages] = useState<any[]>([])
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
   
   const chatId = currentUser && otherUserId ? [currentUser.uid, otherUserId].sort().join("_") : ""
 
-  // Use 'users' collection as consolidated source
+  // Use unified 'users' collection
   const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "users", otherUserId) : null, [firestore, otherUserId])
   const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
 
@@ -53,15 +55,14 @@ export default function ChatDetailPage() {
     return onValue(callRef, (snap) => {
       const data = snap.val()
       if (!data) {
-        setCallStatus('idle')
-        // Stop camera if call ends
-        if (videoRef.current?.srcObject) {
-           const stream = videoRef.current.srcObject as MediaStream
-           stream.getTracks().forEach(track => track.stop())
-           videoRef.current.srcObject = null
+        if (callStatus !== 'idle') {
+          stopStream()
+          setCallStatus('idle')
         }
         return
       }
+
+      setCallType(data.callType || 'video')
 
       if (data.status === 'ringing' && data.callerId !== currentUser.uid) {
         setCallStatus('incoming')
@@ -70,61 +71,102 @@ export default function ChatDetailPage() {
       } else if (data.status === 'accepted') {
         setCallStatus('ongoing')
       } else if (data.status === 'declined') {
+        stopStream()
         setCallStatus('idle')
         remove(callRef)
         toast({ title: "Call Declined", description: `${otherUser?.username || 'User'} is busy.` })
       }
     })
-  }, [database, chatId, currentUser, otherUser])
+  }, [database, chatId, currentUser, otherUser, callStatus])
 
   // Camera Access
-  const enableCamera = async () => {
+  const enableMedia = async (type: 'video' | 'audio') => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      const constraints = { 
+        video: type === 'video', 
+        audio: true 
+      }
+      const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
+      setStream(mediaStream)
       setHasCameraPermission(true)
       if (videoRef.current) {
-        videoRef.current.srcObject = stream
+        videoRef.current.srcObject = mediaStream
       }
+      
+      // Initialize states
+      if (type === 'audio') setIsVideoOff(true)
     } catch (error) {
-      console.error('Error accessing camera:', error)
+      console.error('Error accessing media:', error)
       setHasCameraPermission(false)
       toast({
         variant: 'destructive',
-        title: 'Camera Access Denied',
-        description: 'Please enable camera permissions to use video calls.',
+        title: 'Media Access Denied',
+        description: 'Please enable camera/mic permissions to use calls.',
       })
     }
   }
 
-  const handleInitiateCall = () => {
+  const stopStream = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop())
+      setStream(null)
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+  }
+
+  // Toggle Mute
+  useEffect(() => {
+    if (stream) {
+      stream.getAudioTracks().forEach(track => {
+        track.enabled = !isMuted
+      })
+    }
+  }, [isMuted, stream])
+
+  // Toggle Video
+  useEffect(() => {
+    if (stream) {
+      stream.getVideoTracks().forEach(track => {
+        track.enabled = !isVideoOff
+      })
+    }
+  }, [isVideoOff, stream])
+
+  const handleInitiateCall = (type: 'video' | 'audio') => {
     if (!database || !chatId || !currentUser) return
+    setCallType(type)
     const callRef = ref(database, `calls/${chatId}`)
     set(callRef, {
       callerId: currentUser.uid,
       receiverId: otherUserId,
       status: 'ringing',
+      callType: type,
       timestamp: Date.now()
     })
-    enableCamera()
+    enableMedia(type)
   }
 
   const handleAcceptCall = () => {
     if (!database || !chatId) return
     const callRef = ref(database, `calls/${chatId}`)
     update(callRef, { status: 'accepted' })
-    enableCamera()
+    enableMedia(callType)
   }
 
   const handleDeclineCall = () => {
     if (!database || !chatId) return
     const callRef = ref(database, `calls/${chatId}`)
     update(callRef, { status: 'declined' })
+    stopStream()
   }
 
   const handleEndCall = () => {
     if (!database || !chatId) return
     const callRef = ref(database, `calls/${chatId}`)
     remove(callRef)
+    stopStream()
   }
 
   // Presence Listener
@@ -187,11 +229,12 @@ export default function ChatDetailPage() {
   if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   if (!otherUser) return <div className="flex flex-col items-center justify-center h-svh p-6"><h2 className="text-2xl font-bold mb-4 font-headline">User Offline</h2><Button onClick={() => router.push('/discover')}>Go Back</Button></div>
 
-  const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUser.id}/100/100`
+  const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUser.id}/400/600`
+  const currentUserImage = `https://picsum.photos/seed/${currentUser?.uid}/200/200`
 
   return (
     <div className="flex flex-col h-svh bg-slate-50 relative overflow-hidden">
-      {/* Immersive Video Call Overlay */}
+      {/* Immersive Call Overlay */}
       {callStatus !== 'idle' && (
         <div className="absolute inset-0 z-[100] bg-black flex flex-col animate-in fade-in zoom-in duration-500">
           <div className="relative flex-1 flex flex-col">
@@ -204,11 +247,13 @@ export default function ChatDetailPage() {
             <div className="flex-1 relative z-10 flex flex-col items-center justify-center p-6 text-center text-white">
               {callStatus === 'ongoing' ? (
                 <div className="w-full h-full bg-slate-900/50 rounded-[3rem] overflow-hidden relative shadow-2xl">
-                  {/* Placeholder for Remote Stream */}
+                  {/* Remote Stream Placeholder */}
                   <img src={otherUserImage} className="w-full h-full object-cover opacity-60" alt="Remote" />
                   <div className="absolute bottom-6 left-6 text-left">
                      <h2 className="text-2xl font-black font-headline">{otherUser.username}</h2>
-                     <p className="text-xs font-bold text-white/40 uppercase tracking-widest">Connected</p>
+                     <p className="text-xs font-bold text-white/40 uppercase tracking-widest">
+                       {callType === 'video' ? 'Video Connected' : 'Audio Connected'}
+                     </p>
                   </div>
                 </div>
               ) : (
@@ -219,7 +264,7 @@ export default function ChatDetailPage() {
                   <div className="space-y-2">
                     <h2 className="text-3xl font-black font-headline">{otherUser.username}</h2>
                     <p className="text-sm font-bold text-white/40 uppercase tracking-widest">
-                      {callStatus === 'incoming' ? 'Incoming Video Call...' : 'Ringing...'}
+                      {callStatus === 'incoming' ? `Incoming ${callType} Call...` : `Ringing ${callType}...`}
                     </p>
                   </div>
                 </div>
@@ -227,9 +272,17 @@ export default function ChatDetailPage() {
             </div>
 
             {/* Local Preview (PiP) */}
-            <div className="absolute top-10 right-6 w-32 aspect-[3/4] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-white/10 z-20">
-               <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
-               {!hasCameraPermission && (
+            <div className="absolute top-10 right-6 w-32 aspect-[3/4] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-white/10 z-20 transition-all">
+               {isVideoOff ? (
+                 <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+                    <Avatar className="w-16 h-16 border-2 border-white/20">
+                      <AvatarImage src={currentUserImage} className="object-cover" />
+                    </Avatar>
+                 </div>
+               ) : (
+                 <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+               )}
+               {!hasCameraPermission && !isVideoOff && (
                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
                     <Camera className="w-6 h-6 text-white/20" />
                  </div>
@@ -241,7 +294,7 @@ export default function ChatDetailPage() {
               {callStatus === 'incoming' ? (
                 <>
                   <Button onClick={handleAcceptCall} className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl scale-110">
-                    <Phone className="w-7 h-7 fill-white" />
+                    {callType === 'video' ? <Video className="w-7 h-7 fill-white" /> : <Phone className="w-7 h-7 fill-white" />}
                   </Button>
                   <Button onClick={handleDeclineCall} variant="destructive" className="w-16 h-16 rounded-full shadow-2xl scale-110">
                     <PhoneOff className="w-7 h-7" />
@@ -249,13 +302,25 @@ export default function ChatDetailPage() {
                 </>
               ) : (
                 <div className="bg-white/10 backdrop-blur-2xl rounded-full px-6 py-4 flex items-center gap-6 shadow-2xl border border-white/10">
-                  <Button variant="ghost" size="icon" onClick={() => setIsMuted(!isMuted)} className={cn("rounded-full w-12 h-12 text-white", isMuted && "bg-red-500/50")}>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setIsMuted(!isMuted)} 
+                    className={cn("rounded-full w-12 h-12 transition-all", isMuted ? "bg-red-500 text-white" : "text-white hover:bg-white/10")}
+                  >
                     {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                   </Button>
-                  <Button onClick={handleEndCall} variant="destructive" className="rounded-full w-16 h-16 shadow-2xl">
+                  
+                  <Button onClick={handleEndCall} variant="destructive" className="rounded-full w-16 h-16 shadow-2xl transition-transform hover:scale-105 active:scale-95">
                     <PhoneOff className="w-7 h-7" />
                   </Button>
-                  <Button variant="ghost" size="icon" onClick={() => setIsVideoOff(!isVideoOff)} className={cn("rounded-full w-12 h-12 text-white", isVideoOff && "bg-red-500/50")}>
+
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    onClick={() => setIsVideoOff(!isVideoOff)} 
+                    className={cn("rounded-full w-12 h-12 transition-all", isVideoOff ? "bg-red-500 text-white" : "text-white hover:bg-white/10")}
+                  >
                     {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
                   </Button>
                 </div>
@@ -286,7 +351,10 @@ export default function ChatDetailPage() {
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary rounded-full" onClick={handleInitiateCall}>
+          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary rounded-full" onClick={() => handleInitiateCall('audio')}>
+            <Phone className="w-5 h-5" />
+          </Button>
+          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary rounded-full" onClick={() => handleInitiateCall('video')}>
             <Video className="w-5 h-5" />
           </Button>
           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary rounded-full">
