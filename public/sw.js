@@ -1,18 +1,28 @@
 const CACHE_NAME = 'matchflow-v1';
+const ASSETS_TO_CACHE = [
+  '/',
+  '/manifest.json'
+];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(['/', '/manifest.json']);
+      return cache.addAll(ASSETS_TO_CACHE);
     })
   );
 });
 
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 self.addEventListener('fetch', (event) => {
-  // A fetch handler is required for PWA installation
+  // A fetch event handler is required for PWA installability
   event.respondWith(
     caches.match(event.request).then((response) => {
-      return response || fetch(event.request);
+      return response || fetch(event.request).catch(() => {
+        // Fallback or silence error if offline and not in cache
+      });
     })
   );
 });
