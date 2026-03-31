@@ -30,16 +30,15 @@ export default function FastOnboardingPage() {
   const handleConfirm = () => {
     if (!user || !gender || !country) return
 
-    // Generate a unique 8-digit numeric ID
     const numericId = Math.floor(10000000 + Math.random() * 90000000);
 
-    const userProfileRef = doc(firestore, "userProfiles", user.uid)
+    // Save all details in unified 'users' collection
+    const userRef = doc(firestore, "users", user.uid)
     const profileData = {
       id: user.uid,
       numericId,
       authProviderId: "anonymous",
       username: `Guest_${user.uid.slice(0, 5)}`,
-      email: null,
       gender,
       location: country,
       profilePhotoUrls: [`https://picsum.photos/seed/${user.uid}/600/800`],
@@ -48,9 +47,9 @@ export default function FastOnboardingPage() {
       interests: ["Nature", "Travel"]
     }
 
-    setDocumentNonBlocking(userProfileRef, profileData, { merge: true })
+    setDocumentNonBlocking(userRef, profileData, { merge: true })
     
-    // Fixed path to ensure even number of segments: /users/{userId}/coinAccount/primary
+    // Coin account remains structured as per blueprint but linked to the user
     const coinAccountRef = doc(firestore, "users", user.uid, "coinAccount", "primary")
     setDocumentNonBlocking(coinAccountRef, {
       id: user.uid,
@@ -102,7 +101,7 @@ export default function FastOnboardingPage() {
         </div>
 
         <Button 
-          className="w-full h-16 rounded-full bg-primary text-white text-xl font-bold mb-8 shadow-xl shadow-primary/20 active:scale-95 transition-transform"
+          className="w-full h-16 rounded-full bg-primary text-white text-xl font-bold mb-8 shadow-xl active:scale-95 transition-transform"
           disabled={!gender || !country}
           onClick={handleConfirm}
         >

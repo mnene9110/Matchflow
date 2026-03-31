@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, MoreHorizontal, Phone, Plus, Globe, GraduationCap, CigaretteOff, GlassWater, Sparkles, Loader2 } from "lucide-react"
+import { ChevronLeft, MoreHorizontal, Phone, Plus, Globe, GraduationCap, CigaretteOff, GlassWater, Sparkles, Loader2, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { useDoc, useFirestore, useFirebase, useMemoFirebase } from "@/firebase"
@@ -17,7 +17,7 @@ export default function ProfileDetailPage() {
   const firestore = useFirestore()
   const { database } = useFirebase()
   
-  const docRef = useMemoFirebase(() => doc(firestore, "userProfiles", id as string), [firestore, id])
+  const docRef = useMemoFirebase(() => doc(firestore, "users", id as string), [firestore, id])
   const { data: userProfile, isLoading } = useDoc(docRef)
 
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
@@ -27,92 +27,44 @@ export default function ProfileDetailPage() {
     const presenceRef = ref(database, `users/${id}/presence`)
     return onValue(presenceRef, (snap) => {
       const val = snap.val()
-      if (val) setPresence(val)
-      else setPresence({ online: false })
+      setPresence(val || { online: false })
     })
   }, [database, id])
 
   const presenceText = useMemo(() => {
     if (presence.online) return "Online";
     if (!presence.lastSeen) return "Offline";
-    
     const date = new Date(presence.lastSeen);
     const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
-
+    const diffInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
     if (diffInDays > 2) return "Offline";
-
-    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (date.toDateString() === now.toDateString()) {
-      return `Last seen at ${timeStr}`;
-    }
-    return `Last seen ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
+    return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }, [presence]);
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center h-svh bg-white">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  if (!userProfile) {
-    return (
-      <div className="flex flex-col items-center justify-center h-svh bg-white p-6 text-center">
-        <h2 className="text-2xl font-bold mb-4">User Not Found</h2>
-        <Button onClick={() => router.back()}>Go Back</Button>
-      </div>
-    )
-  }
+  if (isLoading) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+  if (!userProfile) return <div className="flex flex-col items-center justify-center h-svh p-6 text-center"><h2 className="text-2xl font-bold mb-4">User Not Found</h2><Button onClick={() => router.back()}>Go Back</Button></div>
 
   const infoTags = [
     { label: "Sometimes", icon: Globe },
     { label: "Undergraduate", icon: GraduationCap },
     { label: "Never", icon: CigaretteOff },
     { label: "Socially", icon: GlassWater },
-    { label: "Change the world with one click", icon: Sparkles },
+    { label: "Change the world", icon: Sparkles },
   ]
 
   const userImage = (userProfile.profilePhotoUrls && userProfile.profilePhotoUrls[0]) || `https://picsum.photos/seed/${userProfile.id}/600/800`
-  const displayNumericId = userProfile.numericId || userProfile.id.slice(-8).toUpperCase();
 
   return (
     <div className="flex flex-col min-h-svh bg-black relative">
       <div className="relative aspect-[3/4] w-full shrink-0">
-        <Image 
-          src={userImage} 
-          alt={userProfile.username} 
-          fill 
-          className="object-cover"
-        />
-        
+        <Image src={userImage} alt={userProfile.username} fill className="object-cover" />
         <div className="absolute top-12 left-4 right-4 flex justify-between items-center z-10">
-          <Button variant="ghost" size="icon" className="text-white hover:bg-black/20" onClick={() => router.back()}>
-            <ChevronLeft className="w-8 h-8" />
-          </Button>
-          <Button variant="ghost" size="icon" className="text-white hover:bg-black/20">
-            <MoreHorizontal className="w-8 h-8" />
-          </Button>
+          <Button variant="ghost" size="icon" className="text-white hover:bg-black/20" onClick={() => router.back()}><ChevronLeft className="w-8 h-8" /></Button>
+          <Button variant="ghost" size="icon" className="text-white hover:bg-black/20"><MoreHorizontal className="w-8 h-8" /></Button>
         </div>
-
         <div className="absolute bottom-32 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
-          <div className={cn(
-            "w-2.5 h-2.5 rounded-full transition-all duration-500",
-            presence.online ? "bg-green-500 shadow-[0_0_8px_rgba(34,197,94,0.8)] animate-pulse" : "bg-gray-400"
-          )} />
-          <span className="text-white text-[10px] font-black uppercase tracking-tight">
-            {presenceText}
-          </span>
-        </div>
-
-        <div className="absolute bottom-24 right-4 flex gap-2">
-          {[1,2,3,4,5].map((i) => (
-            <div key={i} className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white/20 shadow-lg">
-               <img src={`https://picsum.photos/seed/${userProfile.id}-${i}/100/100`} className="w-full h-full object-cover" alt="gallery" />
-            </div>
-          ))}
+          <div className={cn("w-2.5 h-2.5 rounded-full", presence.online ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
+          <span className="text-white text-[10px] font-black uppercase tracking-tight">{presenceText}</span>
         </div>
       </div>
 
@@ -120,45 +72,16 @@ export default function ProfileDetailPage() {
         <div className="space-y-6">
           <div className="space-y-1">
             <h1 className="text-3xl font-black font-headline text-gray-900 leading-tight">{userProfile.username}</h1>
-            <p className="text-xs font-bold text-gray-400">ID:{displayNumericId}</p>
+            <p className="text-xs font-bold text-gray-400">ID: {userProfile.numericId || '...'}</p>
           </div>
-
-          <div className="flex flex-wrap gap-2">
-             <div className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-md text-[10px] font-black italic">
-                <span>👤</span> 🪙 20
-             </div>
-             <div className="bg-amber-100/50 text-amber-600 px-2.5 py-1 rounded-md text-[10px] font-black italic">
-                {presenceText} · {userProfile.location || 'Nearby'}
-             </div>
-             <div className="bg-primary/5 text-primary/70 px-2.5 py-1 rounded-md text-[10px] font-black italic">
-                {userProfile.location}
-             </div>
-             <div className="flex items-center gap-1 bg-primary/10 text-primary px-2.5 py-1 rounded-md text-[10px] font-black italic">
-                <span className="bg-primary text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] not-italic">A</span> 2
-             </div>
-          </div>
-
-          <p className="text-sm text-gray-500 font-medium leading-relaxed">
-            {userProfile.bio || "No biography provided."}
-          </p>
-
+          <p className="text-sm text-gray-500 font-medium leading-relaxed">{userProfile.bio || "No biography provided."}</p>
           <div className="pt-8 border-t border-gray-50">
-             <div className="flex gap-8 mb-6 overflow-x-auto pb-2 scrollbar-hide no-scrollbar">
-                <span className="font-headline font-black text-xl text-gray-900 relative shrink-0">
-                  Basic Information
-                  <div className="absolute -bottom-1 left-0 right-0 h-1 bg-primary rounded-full" />
-                </span>
-                <span className="font-headline font-black text-xl text-gray-300 shrink-0">Moments</span>
-                <span className="font-headline font-black text-xl text-gray-300 shrink-0">Honor</span>
-             </div>
-
              <div className="space-y-4">
                 <h3 className="text-[11px] font-black uppercase text-gray-400 tracking-widest">Basic Information</h3>
                 <div className="flex flex-wrap gap-2.5">
                    {infoTags.map((tag) => (
                      <div key={tag.label} className="flex items-center gap-2 px-3.5 py-2 border-2 border-primary/20 rounded-full text-[11px] font-bold text-primary bg-primary/5">
-                        <tag.icon className="w-3.5 h-3.5" />
-                        {tag.label}
+                        <tag.icon className="w-3.5 h-3.5" />{tag.label}
                      </div>
                    ))}
                 </div>
@@ -168,17 +91,9 @@ export default function ProfileDetailPage() {
       </div>
 
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-50 flex items-center gap-4">
-        <Button 
-          className="flex-1 h-14 rounded-full bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl shadow-primary/20 transition-transform active:scale-95"
-          onClick={() => router.push(`/chat/${id}`)}
-        >
-          Chat
-        </Button>
-        <Button variant="secondary" size="icon" className="w-14 h-14 rounded-full bg-gray-100 shadow-inner shrink-0 transition-transform active:scale-95">
-          <Phone className="w-6 h-6 text-gray-600 fill-current" />
-        </Button>
-        <Button variant="secondary" size="icon" className="w-14 h-14 rounded-full bg-gray-100 shadow-inner shrink-0 transition-transform active:scale-95">
-          <Plus className="w-6 h-6 text-gray-600" />
+        <Button className="flex-1 h-14 rounded-full bg-primary text-white font-black text-lg" onClick={() => router.push(`/chat/${id}`)}>Chat</Button>
+        <Button variant="secondary" size="icon" className="w-14 h-14 rounded-full bg-gray-100" onClick={() => router.push(`/chat/${id}`)}>
+          <Video className="w-6 h-6 text-gray-600" />
         </Button>
       </div>
     </div>

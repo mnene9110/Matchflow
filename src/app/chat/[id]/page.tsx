@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Video, Send, Mic, Image as ImageIcon, Phone, Gift, Hash, Smile, Loader2, MoreVertical } from "lucide-react"
+import { ChevronLeft, Video, Send, Mic, Image as ImageIcon, Phone, Gift, Hash, Smile, Loader2, MoreVertical, X, PhoneOff, MicOff, Camera, VideoOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -12,8 +12,9 @@ import { generateConversationStarters } from "@/ai/flows/ai-conversation-starter
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update } from "firebase/database"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, remove } from "firebase/database"
 import { Badge } from "@/components/ui/badge"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 
 export default function ChatDetailPage() {
@@ -24,18 +25,107 @@ export default function ChatDetailPage() {
   const router = useRouter()
   const { toast } = useToast()
   const scrollRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   
   const [inputText, setInputText] = useState("")
   const [isAiLoading, setIsAiLoading] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<string[]>(["Hey! How's your day?", "What are your hobbies?", "Tell me something interesting!"])
-  const [isVideoActive, setIsVideoActive] = useState(false)
+  
+  // Call States
+  const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'calling' | 'ongoing' | 'incoming'>('idle')
+  const [hasCameraPermission, setHasCameraPermission] = useState(false)
+  const [isMuted, setIsMuted] = useState(false)
+  const [isVideoOff, setIsVideoOff] = useState(false)
+
   const [messages, setMessages] = useState<any[]>([])
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
   
   const chatId = currentUser && otherUserId ? [currentUser.uid, otherUserId].sort().join("_") : ""
 
-  const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "userProfiles", otherUserId) : null, [firestore, otherUserId])
+  // Use 'users' collection as consolidated source
+  const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "users", otherUserId) : null, [firestore, otherUserId])
   const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
+
+  // Signaling Listener for Calls
+  useEffect(() => {
+    if (!database || !chatId || !currentUser) return
+    const callRef = ref(database, `calls/${chatId}`)
+    return onValue(callRef, (snap) => {
+      const data = snap.val()
+      if (!data) {
+        setCallStatus('idle')
+        // Stop camera if call ends
+        if (videoRef.current?.srcObject) {
+           const stream = videoRef.current.srcObject as MediaStream
+           stream.getTracks().forEach(track => track.stop())
+           videoRef.current.srcObject = null
+        }
+        return
+      }
+
+      if (data.status === 'ringing' && data.callerId !== currentUser.uid) {
+        setCallStatus('incoming')
+      } else if (data.status === 'ringing' && data.callerId === currentUser.uid) {
+        setCallStatus('calling')
+      } else if (data.status === 'accepted') {
+        setCallStatus('ongoing')
+      } else if (data.status === 'declined') {
+        setCallStatus('idle')
+        remove(callRef)
+        toast({ title: "Call Declined", description: `${otherUser?.username || 'User'} is busy.` })
+      }
+    })
+  }, [database, chatId, currentUser, otherUser])
+
+  // Camera Access
+  const enableCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      setHasCameraPermission(true)
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream
+      }
+    } catch (error) {
+      console.error('Error accessing camera:', error)
+      setHasCameraPermission(false)
+      toast({
+        variant: 'destructive',
+        title: 'Camera Access Denied',
+        description: 'Please enable camera permissions to use video calls.',
+      })
+    }
+  }
+
+  const handleInitiateCall = () => {
+    if (!database || !chatId || !currentUser) return
+    const callRef = ref(database, `calls/${chatId}`)
+    set(callRef, {
+      callerId: currentUser.uid,
+      receiverId: otherUserId,
+      status: 'ringing',
+      timestamp: Date.now()
+    })
+    enableCamera()
+  }
+
+  const handleAcceptCall = () => {
+    if (!database || !chatId) return
+    const callRef = ref(database, `calls/${chatId}`)
+    update(callRef, { status: 'accepted' })
+    enableCamera()
+  }
+
+  const handleDeclineCall = () => {
+    if (!database || !chatId) return
+    const callRef = ref(database, `calls/${chatId}`)
+    update(callRef, { status: 'declined' })
+  }
+
+  const handleEndCall = () => {
+    if (!database || !chatId) return
+    const callRef = ref(database, `calls/${chatId}`)
+    remove(callRef)
+  }
 
   // Presence Listener
   useEffect(() => {
@@ -43,15 +133,11 @@ export default function ChatDetailPage() {
     const presenceRef = ref(database, `users/${otherUserId}/presence`)
     return onValue(presenceRef, (snap) => {
       const val = snap.val()
-      if (val) {
-        setPresence(val)
-      } else {
-        setPresence({ online: false })
-      }
+      setPresence(val || { online: false })
     })
   }, [database, otherUserId])
 
-  // Realtime Database Messages Listener
+  // Messages Listener
   useEffect(() => {
     if (!database || !chatId) return
     const messagesRef = ref(database, `chats/${chatId}/messages`)
@@ -79,104 +165,107 @@ export default function ChatDetailPage() {
   const presenceText = useMemo(() => {
     if (presence.online) return "Online";
     if (!presence.lastSeen) return "Offline";
-    
     const date = new Date(presence.lastSeen);
     const now = new Date();
-    const diffInMs = now.getTime() - date.getTime();
-    const diffInDays = diffInMs / (1000 * 60 * 60 * 24);
-
+    const diffInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
     if (diffInDays > 2) return "Offline";
-
-    const timeStr = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-    if (date.toDateString() === now.toDateString()) {
-      return `Last seen at ${timeStr}`;
-    }
-    return `Last seen ${date.toLocaleDateString([], { month: 'short', day: 'numeric' })} at ${timeStr}`;
+    return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }, [presence]);
 
   const handleSendMessage = (text = inputText) => {
     if (!text.trim() || !currentUser || !chatId || !database || !otherUserId) return
-    
-    const messagesRef = ref(database, `chats/${chatId}/messages`)
-    const newMessageKey = push(messagesRef).key
-
-    const messageData = {
-      messageText: text,
-      senderId: currentUser.uid,
-      sentAt: Date.now(),
-    }
-
     const updates: any = {}
-    updates[`/chats/${chatId}/messages/${newMessageKey}`] = {
-      ...messageData,
-      sentAt: rtdbTimestamp()
-    }
-    updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = {
-      lastMessage: text,
-      timestamp: rtdbTimestamp(),
-      otherUserId: otherUserId,
-      chatId: chatId
-    }
-    updates[`/users/${otherUserId}/chats/${currentUser.uid}`] = {
-      lastMessage: text,
-      timestamp: rtdbTimestamp(),
-      otherUserId: currentUser.uid,
-      chatId: chatId
-    }
-    
-    update(ref(database), updates).catch((err) => {
-       console.error("RTDB Write Failed:", err)
-       toast({
-         variant: "destructive",
-         title: "Sync Error",
-         description: "Failed to send message. Please check your connection."
-       })
-    })
-
+    const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
+    const msgData = { messageText: text, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
+    updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
+    updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: text, timestamp: rtdbTimestamp(), otherUserId, chatId }
+    updates[`/users/${otherUserId}/chats/${currentUser.uid}`] = { lastMessage: text, timestamp: rtdbTimestamp(), otherUserId: currentUser.uid, chatId }
+    update(ref(database), updates)
     setInputText("")
   }
 
-  if (isOtherUserLoading) {
-    return (
-      <div className="flex items-center justify-center h-svh bg-white">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
-      </div>
-    )
-  }
-
-  if (!otherUser) {
-    return (
-      <div className="flex flex-col items-center justify-center h-svh bg-white p-6 text-center">
-        <h2 className="text-2xl font-bold mb-4 font-headline">Chat Unavailable</h2>
-        <Button onClick={() => router.push('/discover')}>Go Back</Button>
-      </div>
-    )
-  }
+  if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+  if (!otherUser) return <div className="flex flex-col items-center justify-center h-svh p-6"><h2 className="text-2xl font-bold mb-4 font-headline">User Offline</h2><Button onClick={() => router.push('/discover')}>Go Back</Button></div>
 
   const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUser.id}/100/100`
-  const displayNumericId = otherUser.numericId || otherUser.id?.slice(-8).toUpperCase();
 
   return (
     <div className="flex flex-col h-svh bg-slate-50 relative overflow-hidden">
-      {/* Immersive Video Overlay */}
-      {isVideoActive && (
+      {/* Immersive Video Call Overlay */}
+      {callStatus !== 'idle' && (
         <div className="absolute inset-0 z-[100] bg-black flex flex-col animate-in fade-in zoom-in duration-500">
-           <div className="relative flex-1">
-             <img src={otherUserImage} className="w-full h-full object-cover opacity-80" alt="Video Call" />
-             <div className="absolute top-10 left-6 text-white">
-                <h2 className="text-3xl font-bold font-logo">{otherUser.username}</h2>
-                <p className="text-white/60 font-medium">Connecting...</p>
-             </div>
-             <div className="absolute bottom-12 left-1/2 -translate-x-1/2 flex gap-6">
-                <Button onClick={() => setIsVideoActive(false)} variant="destructive" className="rounded-full w-16 h-16 shadow-2xl scale-110">
-                  End
-                </Button>
-             </div>
-           </div>
+          <div className="relative flex-1 flex flex-col">
+            {/* Background Blur */}
+            <div className="absolute inset-0 z-0">
+               <img src={otherUserImage} className="w-full h-full object-cover blur-3xl opacity-40 scale-110" alt="bg" />
+            </div>
+
+            {/* Remote/Main Video Area */}
+            <div className="flex-1 relative z-10 flex flex-col items-center justify-center p-6 text-center text-white">
+              {callStatus === 'ongoing' ? (
+                <div className="w-full h-full bg-slate-900/50 rounded-[3rem] overflow-hidden relative shadow-2xl">
+                  {/* Placeholder for Remote Stream */}
+                  <img src={otherUserImage} className="w-full h-full object-cover opacity-60" alt="Remote" />
+                  <div className="absolute bottom-6 left-6 text-left">
+                     <h2 className="text-2xl font-black font-headline">{otherUser.username}</h2>
+                     <p className="text-xs font-bold text-white/40 uppercase tracking-widest">Connected</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-6 animate-pulse">
+                  <Avatar className="w-32 h-32 border-4 border-white/20 shadow-2xl mx-auto ring-4 ring-primary/20">
+                    <AvatarImage src={otherUserImage} className="object-cover" />
+                  </Avatar>
+                  <div className="space-y-2">
+                    <h2 className="text-3xl font-black font-headline">{otherUser.username}</h2>
+                    <p className="text-sm font-bold text-white/40 uppercase tracking-widest">
+                      {callStatus === 'incoming' ? 'Incoming Video Call...' : 'Ringing...'}
+                    </p>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Local Preview (PiP) */}
+            <div className="absolute top-10 right-6 w-32 aspect-[3/4] bg-black rounded-3xl overflow-hidden shadow-2xl border-2 border-white/10 z-20">
+               <video ref={videoRef} className="w-full h-full object-cover" autoPlay muted playsInline />
+               {!hasCameraPermission && (
+                 <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                    <Camera className="w-6 h-6 text-white/20" />
+                 </div>
+               )}
+            </div>
+
+            {/* Call Controls */}
+            <div className="relative z-20 px-8 pb-12 pt-6 flex justify-center gap-6">
+              {callStatus === 'incoming' ? (
+                <>
+                  <Button onClick={handleAcceptCall} className="w-16 h-16 rounded-full bg-green-500 hover:bg-green-600 shadow-2xl scale-110">
+                    <Phone className="w-7 h-7 fill-white" />
+                  </Button>
+                  <Button onClick={handleDeclineCall} variant="destructive" className="w-16 h-16 rounded-full shadow-2xl scale-110">
+                    <PhoneOff className="w-7 h-7" />
+                  </Button>
+                </>
+              ) : (
+                <div className="bg-white/10 backdrop-blur-2xl rounded-full px-6 py-4 flex items-center gap-6 shadow-2xl border border-white/10">
+                  <Button variant="ghost" size="icon" onClick={() => setIsMuted(!isMuted)} className={cn("rounded-full w-12 h-12 text-white", isMuted && "bg-red-500/50")}>
+                    {isMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  </Button>
+                  <Button onClick={handleEndCall} variant="destructive" className="rounded-full w-16 h-16 shadow-2xl">
+                    <PhoneOff className="w-7 h-7" />
+                  </Button>
+                  <Button variant="ghost" size="icon" onClick={() => setIsVideoOff(!isVideoOff)} className={cn("rounded-full w-12 h-12 text-white", isVideoOff && "bg-red-500/50")}>
+                    {isVideoOff ? <VideoOff className="w-5 h-5" /> : <Video className="w-5 h-5" />}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
 
-      {/* Modern Floating Header */}
+      {/* Main Chat Layout */}
       <header className="px-4 py-3 bg-white/80 backdrop-blur-md flex items-center justify-between sticky top-0 z-10 border-b border-gray-100 shadow-sm">
         <div className="flex items-center gap-2">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="rounded-full hover:bg-gray-100">
@@ -191,15 +280,13 @@ export default function ChatDetailPage() {
               <h3 className="font-bold text-sm leading-none font-headline">{otherUser.username}</h3>
               <div className="flex items-center gap-1.5 mt-1">
                 <span className={cn("w-2 h-2 rounded-full transition-all duration-500", presence.online ? "bg-green-500 animate-pulse shadow-[0_0_8px_rgba(34,197,94,0.6)]" : "bg-gray-300")} />
-                <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tight">
-                  {presenceText}
-                </span>
+                <span className="text-[10px] text-muted-foreground font-black uppercase tracking-tight">{presenceText}</span>
               </div>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary rounded-full" onClick={() => setIsVideoActive(true)}>
+          <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary rounded-full" onClick={handleInitiateCall}>
             <Video className="w-5 h-5" />
           </Button>
           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary rounded-full">
@@ -208,17 +295,15 @@ export default function ChatDetailPage() {
         </div>
       </header>
 
-      {/* Messages Scroll Area */}
       <ScrollArea className="flex-1 px-4 py-4">
         <div className="space-y-6">
-          {/* Info Card - High Polish */}
           <div className="mx-auto max-w-[95%] bg-white rounded-[2rem] p-5 shadow-sm border border-gray-100 space-y-3">
             <div className="flex items-center justify-center gap-2">
                <Badge className="bg-primary hover:bg-primary text-white text-[10px] rounded-full px-3 py-0.5">
                   {otherUser.gender === 'female' ? '♀' : '♂'} · {otherUser.location || "Nearby"}
                </Badge>
                <Badge variant="outline" className="text-[10px] rounded-full px-3 py-0.5 border-primary/20 text-primary">
-                 ID: {displayNumericId}
+                 ID: {otherUser.numericId || '...'}
                </Badge>
             </div>
             <p className="text-[11px] text-center text-gray-500 font-medium leading-relaxed italic">
@@ -227,33 +312,16 @@ export default function ChatDetailPage() {
           </div>
 
           <div className="flex flex-col gap-4">
-            {messages.length === 0 && (
-               <div className="text-center py-10 opacity-40">
-                  <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <Smile className="w-6 h-6 text-gray-300" />
-                  </div>
-                  <p className="text-xs font-bold uppercase tracking-widest">Send a greeting to {otherUser.username}</p>
-               </div>
-            )}
             {messages.map((msg) => {
               const isMe = msg.senderId === currentUser?.uid
               return (
                 <div key={msg.id} className={cn("flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300", isMe ? "justify-end" : "justify-start")}>
                   <div className={cn(
                     "max-w-[75%] px-4 py-3 shadow-md text-sm relative transition-all",
-                    isMe 
-                    ? "bg-primary text-white rounded-3xl rounded-tr-none" 
-                    : "bg-white text-gray-800 rounded-3xl rounded-tl-none border border-gray-100"
+                    isMe ? "bg-primary text-white rounded-3xl rounded-tr-none" : "bg-white text-gray-800 rounded-3xl rounded-tl-none border border-gray-100"
                   )}>
                     <p className="leading-relaxed font-medium whitespace-pre-wrap">{msg.messageText}</p>
-                    {msg.sentAt && (
-                      <span className={cn(
-                        "text-[9px] block mt-1 text-right",
-                        isMe ? "text-white/60" : "text-gray-400"
-                      )}>
-                        {new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </span>
-                    )}
+                    {msg.sentAt && <span className={cn("text-[9px] block mt-1 text-right", isMe ? "text-white/60" : "text-gray-400")}>{new Date(msg.sentAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>}
                   </div>
                 </div>
               )
@@ -263,89 +331,26 @@ export default function ChatDetailPage() {
         </div>
       </ScrollArea>
 
-      {/* Footer / Enhanced Input */}
       <footer className="p-4 bg-white border-t border-gray-100 shadow-[0_-4px_10px_rgba(0,0,0,0.02)] space-y-4">
-        {/* AI Icebreakers - Horizontal Scroll */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
           {aiSuggestions.map((suggestion, idx) => (
-            <button 
-              key={idx} 
-              className="rounded-full border border-primary/20 text-primary text-[11px] h-8 px-4 font-bold shrink-0 hover:bg-primary/5 active:scale-95 transition-all whitespace-nowrap bg-white shadow-sm"
-              onClick={() => setInputText(suggestion)}
-            >
-              {suggestion}
-            </button>
+            <button key={idx} className="rounded-full border border-primary/20 text-primary text-[11px] h-8 px-4 font-bold shrink-0 hover:bg-primary/5 transition-all bg-white shadow-sm" onClick={() => setInputText(suggestion)}>{suggestion}</button>
           ))}
-          <Button 
-            variant="ghost"
-            size="sm"
-            className="bg-primary/10 hover:bg-primary/20 text-primary rounded-full h-8 px-4 font-black text-xs shrink-0 flex items-center gap-1.5"
-            onClick={async () => {
+          <Button variant="ghost" size="sm" className="bg-primary/10 hover:bg-primary/20 text-primary rounded-full h-8 px-4 font-black text-xs shrink-0 flex items-center gap-1.5" onClick={async () => {
               setIsAiLoading(true)
               try {
-                const res = await generateConversationStarters({ 
-                  otherUserBio: otherUser.bio || "A new MatchFlow user.", 
-                  otherUserInterests: otherUser.interests || ["Nature"] 
-                })
+                const res = await generateConversationStarters({ otherUserBio: otherUser.bio || "A new user.", otherUserInterests: otherUser.interests || [] })
                 setAiSuggestions(res.suggestions)
-              } catch (e) {
-                console.error("AI failed", e)
-                toast({ variant: "destructive", title: "AI Offline", description: "Couldn't generate suggestions." })
-              } finally {
-                setIsAiLoading(false)
-              }
-            }}
-            disabled={isAiLoading}
-          >
+              } finally { setIsAiLoading(false) }
+            }} disabled={isAiLoading}>
             {isAiLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : "Spark it ✨"}
           </Button>
         </div>
 
-        {/* Input Controls */}
         <div className="flex items-center gap-2">
-          <Button size="icon" variant="ghost" className="rounded-full text-gray-400 hover:text-primary shrink-0">
-            <Mic className="w-5 h-5" />
-          </Button>
-          <div className="flex-1 relative flex items-center">
-            <Input 
-              value={inputText}
-              onChange={(e) => setInputText(e.target.value)}
-              placeholder="Start typing..."
-              className="rounded-full h-12 bg-slate-50 border-none pr-12 pl-5 focus-visible:ring-primary/20 text-sm font-medium shadow-inner"
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault()
-                  handleSendMessage()
-                }
-              }}
-            />
-            <Button size="icon" variant="ghost" className="absolute right-1 text-amber-400 hover:bg-transparent">
-               <Smile className="w-5 h-5 fill-current" />
-            </Button>
-          </div>
-          <Button 
-            size="icon" 
-            className={cn(
-              "rounded-full w-12 h-12 transition-all shadow-xl",
-              inputText.trim() ? "bg-primary text-white scale-100" : "bg-gray-200 text-gray-400 scale-90"
-            )}
-            onClick={() => handleSendMessage()}
-            disabled={!inputText.trim()}
-          >
-            <Send className="w-5 h-5 rotate-45 relative left-[-2px] fill-current" />
-          </Button>
-        </div>
-
-        {/* Rapid Feature Actions */}
-        <div className="flex justify-between items-center px-4 pt-1">
-           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary"><ImageIcon className="w-5 h-5" /></Button>
-           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary"><Phone className="w-5 h-5" /></Button>
-           <Button variant="ghost" size="icon" className="text-amber-400 hover:text-amber-500"><Gift className="w-5 h-5 fill-current" /></Button>
-           <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary" onClick={() => setIsVideoActive(true)}><Video className="w-5 h-5" /></Button>
-           <div className="relative">
-              <Button variant="ghost" size="icon" className="text-gray-400 hover:text-primary"><Hash className="w-5 h-5" /></Button>
-              <span className="absolute -top-1 -right-1 bg-primary text-white text-[7px] font-black px-1.5 rounded-full shadow-sm animate-bounce ring-2 ring-white">!</span>
-           </div>
+          <Button size="icon" variant="ghost" className="rounded-full text-gray-400 hover:text-primary shrink-0"><Mic className="w-5 h-5" /></Button>
+          <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Start typing..." className="rounded-full h-12 bg-slate-50 border-none px-5 text-sm font-medium" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
+          <Button size="icon" className={cn("rounded-full w-12 h-12 transition-all shadow-xl", inputText.trim() ? "bg-primary text-white" : "bg-gray-200 text-gray-400")} onClick={() => handleSendMessage()} disabled={!inputText.trim()}><Send className="w-5 h-5 rotate-45" /></Button>
         </div>
       </footer>
     </div>
