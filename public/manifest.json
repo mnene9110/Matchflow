@@ -1,11 +1,10 @@
-
 {
   "name": "MatchFlow",
   "short_name": "MatchFlow",
-  "description": "Find your perfect match with video calls and AI icebreakers.",
-  "start_url": "/",
+  "description": "Connect through voice, video, and meaningful conversations.",
+  "start_url": "/welcome",
   "display": "standalone",
-  "background_color": "#800000",
+  "background_color": "#ffffff",
   "theme_color": "#800000",
   "icons": [
     {

@@ -1,10 +1,9 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
 import { Navbar } from "@/components/Navbar"
 import Image from "next/image"
-import { Mic, CircleDollarSign, Loader2, MessageCircle } from "lucide-react"
+import { Mic, CircleDollarSign, Loader2 } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -20,7 +19,6 @@ export default function DiscoverPage() {
   const router = useRouter()
   const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
   
-  // Fetch from unified 'users' collection
   const profilesQuery = useMemoFirebase(() => collection(firestore, 'users'), [firestore])
   const { data: firestoreUsers, isLoading } = useCollection(profilesQuery)
   
@@ -55,7 +53,7 @@ export default function DiscoverPage() {
     : users;
 
   return (
-    <div className="flex flex-col min-h-svh pb-24 bg-transparent">
+    <div className="flex flex-col min-h-svh pb-24 bg-immersive with-watermark">
       <div className="pt-8 px-4 pb-6">
         <div className="grid grid-cols-2 gap-4">
           <div className="relative group overflow-hidden bg-gradient-to-br from-primary via-primary/90 to-maroon-900 rounded-[2.5rem] p-6 shadow-2xl h-36 flex flex-col justify-center border border-white/20">
@@ -77,7 +75,7 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      <div className="px-6 flex items-center gap-8 mb-4 sticky top-0 bg-transparent backdrop-blur-md z-20 py-4">
+      <div className="px-6 flex items-center gap-8 mb-4 sticky top-0 z-20 py-4 bg-white/10 backdrop-blur-md rounded-b-[2.5rem]">
         {['recommend', 'nearby'].map((tab) => (
           <button key={tab} onClick={() => setActiveTab(tab as any)} className="relative pb-1">
             <span className={cn("text-3xl font-logo transition-all", activeTab === tab ? "text-primary scale-105" : "text-gray-400")}>

@@ -16,7 +16,7 @@
     --secondary-foreground: 0 100% 25%;
     --muted: 0 0% 94%;
     --muted-foreground: 0 0% 45%;
-    --accent: 74 94% 62%; /* Lime accent from Me screen */
+    --accent: 74 94% 62%; /* Lime accent */
     --accent-foreground: 0 0% 0%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
@@ -36,13 +36,13 @@
   }
 }
 
-/* Custom Background with Neon Maroon Gradient and MatchFlow Stamp */
+/* Base App Container */
 .app-container {
-  @apply relative min-h-svh w-full max-w-md mx-auto shadow-2xl overflow-hidden flex flex-col;
-  background: linear-gradient(180deg, #800000 0%, #ffffff 45%);
+  @apply relative min-h-svh w-full max-w-md mx-auto shadow-2xl overflow-hidden flex flex-col bg-white;
 }
 
-.app-container::before {
+/* MatchFlow Branding Watermark (Hidden by default, shown on specific pages) */
+.with-watermark::before {
   content: 'MatchFlow';
   position: absolute;
   top: 15%;
@@ -50,7 +50,7 @@
   transform: translate(-50%, -50%) rotate(-10deg);
   font-size: 5rem;
   font-weight: 400;
-  color: rgba(255, 255, 255, 0.08);
+  color: rgba(128, 0, 0, 0.05);
   white-space: nowrap;
   pointer-events: none;
   z-index: 0;
@@ -58,7 +58,11 @@
   letter-spacing: -0.02em;
 }
 
-/* Ensure content stays above the watermark */
+/* Immersive Gradient for Discover/Profile */
+.bg-immersive {
+  background: linear-gradient(180deg, #800000 0%, #ffffff 45%);
+}
+
 .app-content {
   @apply relative z-10 flex flex-col flex-1;
 }
@@ -69,7 +73,6 @@
 }
 
 .font-logo {
-  @apply font-headline; /* Fallback */
   font-family: 'Pacifico', cursive !important;
 }
 

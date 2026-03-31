@@ -1,28 +1,13 @@
-const CACHE_NAME = 'matchflow-v1';
-const ASSETS_TO_CACHE = [
-  '/',
-  '/manifest.json'
-];
-
+// Basic Service Worker for PWA compliance
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => {
-      return cache.addAll(ASSETS_TO_CACHE);
-    })
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(self.clients.claim());
+  event.waitUntil(clients.claim());
 });
 
 self.addEventListener('fetch', (event) => {
-  // A fetch event handler is required for PWA installability
-  event.respondWith(
-    caches.match(event.request).then((response) => {
-      return response || fetch(event.request).catch(() => {
-        // Fallback or silence error if offline and not in cache
-      });
-    })
-  );
+  // Pass-through strategy for now
+  event.respondWith(fetch(event.request));
 });
