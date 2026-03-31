@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -70,12 +71,12 @@ export default function DiscoverPage() {
   const currentUser = users[currentIndex]
 
   if (isLoading && !users.length) {
-    return <div className="flex items-center justify-center h-svh">Loading profiles...</div>
+    return <div className="flex items-center justify-center h-svh bg-white">Loading profiles...</div>
   }
 
   return (
-    <div className="flex flex-col min-h-svh pb-20">
-      <header className="p-6 flex justify-between items-center">
+    <div className="flex flex-col min-h-svh pb-20 bg-white">
+      <header className="p-6 flex justify-between items-center bg-white">
         <h1 className="text-2xl font-headline font-bold text-primary">MatchFlow</h1>
         <Badge variant="secondary" className="bg-primary/10 text-primary border-none">
           <Heart className="w-3 h-3 mr-1 fill-current" />
@@ -83,7 +84,7 @@ export default function DiscoverPage() {
         </Badge>
       </header>
 
-      <main className="flex-1 px-4 relative flex flex-col justify-center">
+      <main className="flex-1 px-4 relative flex flex-col justify-center bg-white">
         {currentUser && (
           <>
             <div className="relative w-full aspect-[3/4] rounded-3xl overflow-hidden shadow-2xl transition-all duration-500 transform">
@@ -121,7 +122,7 @@ export default function DiscoverPage() {
               <Button 
                 size="icon" 
                 variant="outline" 
-                className="w-14 h-14 rounded-full border-2 border-muted-foreground/20 text-muted-foreground hover:text-red-500 hover:border-red-500 transition-colors"
+                className="w-14 h-14 rounded-full border-2 border-muted-foreground/20 text-muted-foreground hover:text-red-500 hover:border-red-500 transition-colors bg-white"
                 onClick={handleNext}
               >
                 <X className="w-8 h-8" />
@@ -139,7 +140,7 @@ export default function DiscoverPage() {
               <Button 
                 size="icon" 
                 variant="outline" 
-                className="w-14 h-14 rounded-full border-2 border-muted-foreground/20 text-muted-foreground hover:text-blue-500 hover:border-blue-500"
+                className="w-14 h-14 rounded-full border-2 border-muted-foreground/20 text-muted-foreground hover:text-blue-500 hover:border-blue-500 bg-white"
               >
                 <Info className="w-8 h-8" />
               </Button>

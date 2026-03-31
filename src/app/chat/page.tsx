@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Navbar } from "@/components/Navbar"
@@ -16,8 +17,8 @@ const CHATS = [
 
 export default function ChatListPage() {
   return (
-    <div className="flex flex-col min-h-svh pb-20">
-      <header className="p-6 space-y-4">
+    <div className="flex flex-col min-h-svh pb-20 bg-white">
+      <header className="p-6 space-y-4 bg-white">
         <h1 className="text-3xl font-headline font-bold text-primary">Messages</h1>
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground w-4 h-4" />
@@ -25,7 +26,7 @@ export default function ChatListPage() {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main className="flex-1 bg-white">
         <section className="px-6 mb-6">
           <h2 className="text-xs font-bold text-muted-foreground uppercase tracking-widest mb-4">New Matches</h2>
           <div className="flex gap-4 overflow-x-auto pb-2 scrollbar-hide">
