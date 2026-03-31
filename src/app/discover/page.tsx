@@ -4,10 +4,11 @@
 import { useState, useEffect } from "react"
 import { Navbar } from "@/components/Navbar"
 import Image from "next/image"
-import { Mic, CircleDollarSign, Loader2, Sparkles, TrendingUp } from "lucide-react"
+import { Mic, CircleDollarSign, Loader2, Sparkles, TrendingUp, MessageCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { useCollection, useFirestore, useFirebase, useMemoFirebase, useUser } from "@/firebase"
+import { useRouter } from "next/navigation"
+import { useCollection, useFirebase, useMemoFirebase, useUser } from "@/firebase"
 import { collection } from "firebase/firestore"
 import { ref, onValue } from "firebase/database"
 import { cn } from "@/lib/utils"
@@ -16,6 +17,7 @@ export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
   const { firestore, database } = useFirebase()
   const { user: currentUser } = useUser()
+  const router = useRouter()
   const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
   
   const profilesQuery = useMemoFirebase(() => collection(firestore, 'userProfiles'), [firestore])
@@ -134,23 +136,34 @@ export default function DiscoverPage() {
           </div>
         ) : displayUsers.length > 0 ? (
           displayUsers.map((user) => (
-            <Link 
+            <div 
               key={user.id} 
-              href={`/profile/${user.id}`} 
               className="group relative aspect-[3/4] rounded-[2.5rem] overflow-hidden shadow-2xl bg-gray-100 border-4 border-white/20 transition-all hover:shadow-primary/20"
             >
-              <Image
-                src={user.image}
-                alt={user.name}
-                fill
-                className="object-cover group-hover:scale-110 transition-transform duration-1000 ease-out"
-                data-ai-hint="nature river"
-              />
-              <div className="absolute top-4 right-4 px-5 py-2 bg-primary/90 backdrop-blur-md text-white rounded-full flex items-center justify-center font-headline font-black text-[10px] uppercase tracking-tighter shadow-2xl group-hover:bg-primary transition-colors z-10 border border-white/10">
+              {/* Profile Navigation Area */}
+              <Link href={`/profile/${user.id}`} className="absolute inset-0 z-0">
+                <Image
+                  src={user.image}
+                  alt={user.name}
+                  fill
+                  className="object-cover group-hover:scale-110 transition-transform duration-1000 ease-out"
+                  data-ai-hint="nature river"
+                />
+              </Link>
+
+              {/* Chat Button (Isolated) */}
+              <button 
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/chat/${user.id}`);
+                }}
+                className="absolute top-4 right-4 px-4 py-2 bg-primary/90 backdrop-blur-md text-white rounded-full flex items-center justify-center font-headline font-black text-[10px] uppercase tracking-tighter shadow-2xl hover:bg-primary transition-all z-10 border border-white/10 active:scale-90"
+              >
+                <MessageCircle className="w-3 h-3 mr-1" />
                 Chat
-              </div>
+              </button>
               
-              <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black/95 via-black/50 to-transparent flex flex-col gap-2">
+              <div className="absolute inset-x-0 bottom-0 p-5 bg-gradient-to-t from-black/95 via-black/50 to-transparent flex flex-col gap-2 pointer-events-none">
                 <div className="flex items-center justify-between">
                    <h3 className="text-white font-black text-base truncate flex items-center gap-2 max-w-[70%]">
                     {user.name} 
@@ -171,7 +184,7 @@ export default function DiscoverPage() {
                   </Badge>
                 </div>
               </div>
-            </Link>
+            </div>
           ))
         ) : (
           <div className="col-span-2 text-center py-20 space-y-4">

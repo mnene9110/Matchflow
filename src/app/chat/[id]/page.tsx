@@ -230,14 +230,13 @@ export default function ChatDetailPage() {
         {/* AI Icebreakers */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
           {aiSuggestions.map((suggestion, idx) => (
-            <Button 
+            <button 
               key={idx} 
-              variant="outline" 
-              className="rounded-full border-primary/20 text-primary text-[11px] h-8 px-4 font-bold shrink-0 hover:bg-primary/5 whitespace-nowrap"
+              className="rounded-full border border-primary/20 text-primary text-[11px] h-8 px-4 font-bold shrink-0 hover:bg-primary/5 active:scale-95 transition-all whitespace-nowrap bg-white"
               onClick={() => setInputText(suggestion)}
             >
               {suggestion}
-            </Button>
+            </button>
           ))}
           <Button 
             className="bg-primary/10 hover:bg-primary/20 text-primary rounded-full h-8 px-4 font-black text-xs shrink-0 flex items-center gap-1.5"
