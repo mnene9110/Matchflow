@@ -1,10 +1,10 @@
 {
   "name": "MatchFlow",
   "short_name": "MatchFlow",
-  "description": "Connect through voice, video, and meaningful conversations.",
-  "start_url": "/welcome",
+  "description": "Genuine Connections through Voice and Video",
+  "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
+  "background_color": "#800000",
   "theme_color": "#800000",
   "icons": [
     {
