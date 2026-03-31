@@ -44,7 +44,7 @@ export async function initiatePesaPalPayment(amount: number, email: string, user
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
     if (!ipnId) {
-      return { error: 'Payment setup incomplete: PESAPAL_IPN_ID is missing.' };
+      return { error: 'Payment setup incomplete: PESAPAL_IPN_ID is required for PesaPal V3.' };
     }
     
     const orderData = {
