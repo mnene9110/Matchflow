@@ -10,16 +10,16 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { generateConversationStarters } from "@/ai/flows/ai-conversation-starter"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useFirebase, useUser, useDoc, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit, doc, serverTimestamp as firestoreTimestamp } from "firebase/firestore"
-import { addDocumentNonBlocking } from "@/firebase/non-blocking-updates"
+import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { doc } from "firebase/firestore"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, set } from "firebase/database"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
 export default function ChatDetailPage() {
   const { id: otherUserId } = useParams()
   const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { firestore, database } = useFirebase()
   const router = useRouter()
   const { toast } = useToast()
   
@@ -27,32 +27,70 @@ export default function ChatDetailPage() {
   const [isAiLoading, setIsAiLoading] = useState(false)
   const [aiSuggestions, setAiSuggestions] = useState<string[]>(["Good to meet you here", "Nice to meet you", "What's your plan?"])
   const [isVideoActive, setIsVideoActive] = useState(false)
+  const [messages, setMessages] = useState<any[]>([])
+  const [isOnline, setIsOnline] = useState(false)
   
   const chatId = [currentUser?.uid, otherUserId].sort().join("_")
 
   const otherUserRef = useMemoFirebase(() => doc(firestore, "userProfiles", otherUserId as string), [firestore, otherUserId])
   const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
 
-  const messagesQuery = useMemoFirebase(() => {
-    if (!chatId) return null;
-    return query(
-      collection(firestore, `chatSessions/${chatId}/messages`),
-      orderBy("sentAt", "asc"),
-      limit(50)
-    );
-  }, [firestore, chatId])
+  // Presence Listener
+  useEffect(() => {
+    if (!database || !otherUserId) return
+    const presenceRef = ref(database, `users/${otherUserId}/presence/online`)
+    return onValue(presenceRef, (snap) => {
+      setIsOnline(!!snap.val())
+    })
+  }, [database, otherUserId])
 
-  const { data: messages } = useCollection(messagesQuery)
+  // Realtime Database Messages Listener
+  useEffect(() => {
+    if (!database || !chatId) return
+    const messagesRef = ref(database, `chats/${chatId}/messages`)
+    return onValue(messagesRef, (snapshot) => {
+      const data = snapshot.val()
+      if (data) {
+        const msgList = Object.entries(data).map(([key, val]: [string, any]) => ({
+          id: key,
+          ...val
+        }))
+        setMessages(msgList)
+      } else {
+        setMessages([])
+      }
+    })
+  }, [database, chatId])
 
   const handleSendMessage = (text = inputText) => {
-    if (!text.trim() || !currentUser || !chatId) return
+    if (!text.trim() || !currentUser || !chatId || !database) return
     
-    addDocumentNonBlocking(collection(firestore, `chatSessions/${chatId}/messages`), {
+    const messageData = {
       messageText: text,
       senderId: currentUser.uid,
-      sentAt: firestoreTimestamp(),
+      sentAt: rtdbTimestamp(),
       chatSessionId: chatId
-    })
+    }
+
+    // Push message to chat room
+    push(ref(database, `chats/${chatId}/messages`), messageData)
+
+    // Update session summaries for both users
+    const updates: any = {}
+    updates[`users/${currentUser.uid}/chats/${otherUserId}`] = {
+      lastMessage: text,
+      timestamp: rtdbTimestamp(),
+      otherUserId: otherUserId
+    }
+    updates[`users/${otherUserId}/chats/${currentUser.uid}`] = {
+      lastMessage: text,
+      timestamp: rtdbTimestamp(),
+      otherUserId: currentUser.uid
+    }
+    
+    // Using simple set for atomic-like behavior on shallow paths
+    set(ref(database, `users/${currentUser.uid}/chats/${otherUserId}`), updates[`users/${currentUser.uid}/chats/${otherUserId}`])
+    set(ref(database, `users/${otherUserId}/chats/${currentUser.uid}`), updates[`users/${otherUserId}/chats/${currentUser.uid}`])
 
     setInputText("")
   }
@@ -108,8 +146,8 @@ export default function ChatDetailPage() {
           <div className="flex flex-col items-center flex-1">
             <h3 className="font-bold text-base leading-none">{otherUser.username}</h3>
             <div className="flex items-center gap-1 mt-1">
-               <div className="w-2 h-2 bg-green-500 rounded-full" />
-               <span className="text-[10px] text-muted-foreground font-medium">Online</span>
+               <div className={cn("w-2 h-2 rounded-full", isOnline ? "bg-green-500" : "bg-gray-300")} />
+               <span className="text-[10px] text-muted-foreground font-medium">{isOnline ? 'Online' : 'Offline'}</span>
             </div>
           </div>
         </div>
@@ -157,7 +195,7 @@ export default function ChatDetailPage() {
           </div>
 
           <div className="flex flex-col gap-4">
-            {messages?.map((msg) => {
+            {messages.map((msg) => {
               const isMe = msg.senderId === currentUser?.uid
               return (
                 <div key={msg.id} className={cn("flex gap-2", isMe ? "flex-row-reverse" : "flex-row")}>

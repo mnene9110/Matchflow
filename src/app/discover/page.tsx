@@ -1,24 +1,42 @@
 
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Navbar } from "@/components/Navbar"
 import Image from "next/image"
 import { Mic, CircleDollarSign, Loader2, Sparkles, TrendingUp } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
-import { useCollection, useFirestore, useMemoFirebase, useUser } from "@/firebase"
+import { useCollection, useFirestore, useFirebase, useMemoFirebase, useUser } from "@/firebase"
 import { collection } from "firebase/firestore"
+import { ref, onValue } from "firebase/database"
 import { cn } from "@/lib/utils"
 
 export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
-  const { firestore } = useFirestore()
+  const { firestore, database } = useFirebase()
   const { user: currentUser } = useUser()
+  const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
   
   const profilesQuery = useMemoFirebase(() => collection(firestore, 'userProfiles'), [firestore])
   const { data: firestoreUsers, isLoading } = useCollection(profilesQuery)
   
+  // Presence Listener for all users
+  useEffect(() => {
+    if (!database) return
+    const presenceRef = ref(database, 'users')
+    return onValue(presenceRef, (snapshot) => {
+      const users = snapshot.val()
+      if (users) {
+        const statuses: Record<string, boolean> = {}
+        Object.entries(users).forEach(([uid, data]: [string, any]) => {
+          statuses[uid] = !!data.presence?.online
+        })
+        setPresenceData(statuses)
+      }
+    })
+  }, [database])
+
   // Filter out the current user from the discovery list
   const filteredUsers = firestoreUsers?.filter(u => u.id !== currentUser?.uid) || []
 
@@ -27,7 +45,7 @@ export default function DiscoverPage() {
     name: u.username || "MatchFlow User",
     coins: 20,
     distance: u.location || "Nearby",
-    status: "Online",
+    isOnline: !!presenceData[u.id],
     image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/600/800`
   }))
 
@@ -137,7 +155,12 @@ export default function DiscoverPage() {
                    <h3 className="text-white font-black text-base truncate flex items-center gap-2 max-w-[70%]">
                     {user.name} 
                   </h3>
-                  <span className="w-2.5 h-2.5 bg-green-400 rounded-full shadow-[0_0_10px_rgba(74,222,128,0.8)]" />
+                  <span className={cn(
+                    "w-2.5 h-2.5 rounded-full transition-shadow duration-500",
+                    user.isOnline 
+                      ? "bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.8)]" 
+                      : "bg-gray-500 shadow-none"
+                  )} />
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   <Badge className="bg-white/10 backdrop-blur-md text-white border-none font-black h-6 px-2.5 text-[9px] rounded-lg flex items-center gap-1 shadow-inner">

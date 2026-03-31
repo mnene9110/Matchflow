@@ -1,30 +1,39 @@
 
 "use client"
 
+import { useState, useEffect } from "react"
 import { Navbar } from "@/components/Navbar"
 import { Mail, Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
-import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where } from "firebase/firestore"
+import { useFirebase, useUser } from "@/firebase"
+import { ref, onValue } from "firebase/database"
 import { cn } from "@/lib/utils"
 
 export default function ChatListPage() {
-  const { firestore } = useFirebase()
+  const { database } = useFirebase()
   const { user: currentUser } = useUser()
+  const [sessions, setSessions] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const sessionsQuery = useMemoFirebase(() => {
-    if (!firestore || !currentUser) return null;
-    // Note: In a real app, you might want to query for user1Id OR user2Id. 
-    // For simplicity, we'll fetch all sessions where either participant is the current user.
-    // Ideally we'd have a 'participants' array.
-    return collection(firestore, 'chatSessions');
-  }, [firestore, currentUser])
+  useEffect(() => {
+    if (!database || !currentUser) return
 
-  const { data: allSessions, isLoading } = useCollection(sessionsQuery)
-  
-  // Filter sessions where the current user is part of the ID or participants
-  const mySessions = allSessions?.filter(s => s.id.includes(currentUser?.uid || "")) || []
+    const userChatsRef = ref(database, `users/${currentUser.uid}/chats`)
+    return onValue(userChatsRef, (snapshot) => {
+      const data = snapshot.val()
+      if (data) {
+        const sessionList = Object.entries(data).map(([key, val]: [string, any]) => ({
+          otherUserId: key,
+          ...val
+        }))
+        setSessions(sessionList)
+      } else {
+        setSessions([])
+      }
+      setIsLoading(false)
+    })
+  }, [database, currentUser])
 
   return (
     <div className="flex flex-col min-h-svh pb-24 bg-transparent">
@@ -43,15 +52,15 @@ export default function ChatListPage() {
             <div className="flex justify-center py-20">
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
             </div>
-          ) : mySessions.length > 0 ? (
-            mySessions.map((session) => {
-              const otherUserId = session.id.replace(currentUser?.uid || "", "").replace("_", "")
+          ) : sessions.length > 0 ? (
+            sessions.map((session) => {
+              const otherUserId = session.otherUserId
               const sessionName = `User ${otherUserId.slice(0, 4)}`
               const sessionImage = `https://picsum.photos/seed/${otherUserId}/100/100`
 
               return (
                 <Link 
-                  key={session.id} 
+                  key={session.otherUserId} 
                   href={`/chat/${otherUserId}`} 
                   className="flex items-center gap-4 py-4 hover:bg-gray-50/50 rounded-2xl px-2 transition-colors group"
                 >
@@ -65,7 +74,7 @@ export default function ChatListPage() {
                   <div className="flex-1 min-w-0">
                     <h3 className="font-bold text-sm text-gray-900 truncate">{sessionName}</h3>
                     <p className="text-[13px] text-gray-400 truncate font-medium">
-                      Active session
+                      {session.lastMessage || "Start a conversation"}
                     </p>
                   </div>
                 </Link>
