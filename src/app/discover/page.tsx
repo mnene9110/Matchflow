@@ -1,6 +1,7 @@
 
 "use client"
 
+import { useState } from "react"
 import { Navbar } from "@/components/Navbar"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import Image from "next/image"
@@ -9,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
 import { collection } from "firebase/firestore"
+import { cn } from "@/lib/utils"
 
 const MOCK_USERS = [
   {
@@ -46,6 +48,7 @@ const MOCK_USERS = [
 ]
 
 export default function DiscoverPage() {
+  const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
   const firestore = useFirestore()
   const profilesQuery = useMemoFirebase(() => collection(firestore, 'userProfiles'), [firestore])
   const { data: firestoreUsers } = useCollection(profilesQuery)
@@ -59,12 +62,17 @@ export default function DiscoverPage() {
     image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || "https://picsum.photos/seed/1/600/800"
   })) : MOCK_USERS
 
+  // In a real app, you would filter based on proximity for 'nearby'
+  const displayUsers = activeTab === 'nearby' 
+    ? users.filter(u => u.distance.includes('km') && parseInt(u.distance) < 20)
+    : users;
+
   return (
     <div className="flex flex-col min-h-svh pb-24 bg-transparent">
       {/* Top Banner Area */}
       <div className="pt-8 px-4 pb-6">
         <div className="grid grid-cols-2 gap-4">
-          {/* Voice Chat Button - Refined */}
+          {/* Voice Chat Button */}
           <div className="relative group overflow-hidden bg-gradient-to-br from-[#FFCF4D] to-[#FFB13B] rounded-[2.5rem] p-6 shadow-xl hover:scale-[1.02] active:scale-95 transition-all cursor-pointer h-32 flex flex-col justify-center border border-white/20">
             <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/20 rounded-full blur-2xl group-hover:bg-white/30 transition-colors" />
             <div className="flex items-center gap-3">
@@ -78,7 +86,7 @@ export default function DiscoverPage() {
             </div>
           </div>
 
-          {/* Tasks Button - Refined */}
+          {/* Tasks Button */}
           <div className="relative group overflow-hidden bg-primary rounded-[2.5rem] p-6 shadow-xl hover:scale-[1.02] active:scale-95 transition-all cursor-pointer h-32 flex flex-col justify-center border border-white/10 backdrop-blur-sm">
             <div className="absolute -bottom-6 -left-6 w-20 h-20 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-colors" />
             <div className="flex items-center gap-3">
@@ -94,9 +102,42 @@ export default function DiscoverPage() {
         </div>
       </div>
 
+      {/* Tabs Navigation */}
+      <div className="px-6 flex items-center gap-8 mb-4">
+        <button 
+          onClick={() => setActiveTab('recommend')}
+          className="relative group pb-2"
+        >
+          <span className={cn(
+            "text-2xl font-logo transition-colors",
+            activeTab === 'recommend' ? "text-primary" : "text-gray-400 group-hover:text-gray-600"
+          )}>
+            Recommend
+          </span>
+          {activeTab === 'recommend' && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-full" />
+          )}
+        </button>
+
+        <button 
+          onClick={() => setActiveTab('nearby')}
+          className="relative group pb-2"
+        >
+          <span className={cn(
+            "text-2xl font-logo transition-colors",
+            activeTab === 'nearby' ? "text-primary" : "text-gray-400 group-hover:text-gray-600"
+          )}>
+            Nearby
+          </span>
+          {activeTab === 'nearby' && (
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-primary rounded-full" />
+          )}
+        </button>
+      </div>
+
       {/* Users Grid */}
       <main className="px-4 grid grid-cols-2 gap-4 mt-2 pb-10 flex-1">
-        {users.map((user) => (
+        {displayUsers.map((user) => (
           <Link key={user.id} href={`/profile/${user.id}`} className="group relative aspect-[3/4] rounded-[2.5rem] overflow-hidden shadow-2xl bg-gray-100 border-4 border-white/10">
             <Image
               src={user.image}
