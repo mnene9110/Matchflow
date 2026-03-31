@@ -5,7 +5,6 @@ import { Navbar } from "@/components/Navbar"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import Image from "next/image"
 import { Mic, CircleDollarSign } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useCollection, useFirestore, useMemoFirebase } from "@/firebase"
@@ -65,7 +64,7 @@ export default function DiscoverPage() {
       {/* Top Banner Area */}
       <div className="bg-maroon-800/5 pt-8 px-4 pb-6">
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-[#FFCF4D] rounded-3xl p-5 flex items-center gap-4 shadow-md hover:scale-[1.02] transition-transform cursor-pointer h-24">
+          <div className="bg-[#FFCF4D] rounded-3xl p-5 flex items-center gap-4 shadow-md hover:scale-[1.02] transition-transform cursor-pointer h-28">
             <div className="w-12 h-12 bg-white/40 rounded-full flex items-center justify-center shrink-0">
               <Mic className="w-6 h-6 text-black" />
             </div>
@@ -74,7 +73,7 @@ export default function DiscoverPage() {
               <p className="text-xs text-black/60 font-medium">Connect now</p>
             </div>
           </div>
-          <div className="bg-maroon-700 rounded-3xl p-5 flex items-center gap-4 shadow-md hover:scale-[1.02] transition-transform cursor-pointer h-24">
+          <div className="bg-maroon-700 rounded-3xl p-5 flex items-center gap-4 shadow-md hover:scale-[1.02] transition-transform cursor-pointer h-28">
             <div className="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center shrink-0">
               <CircleDollarSign className="w-6 h-6 text-white" />
             </div>
@@ -97,9 +96,9 @@ export default function DiscoverPage() {
               className="object-cover group-hover:scale-105 transition-transform duration-500"
               data-ai-hint="person portrait"
             />
-            {/* Hi Badge */}
-            <div className="absolute top-3 right-3 w-10 h-10 bg-maroon-800 text-white rounded-xl flex items-center justify-center font-headline font-black text-base rotate-6 shadow-lg group-hover:rotate-0 transition-transform">
-              Hi
+            {/* Chat Button (Replaces Hi Badge) */}
+            <div className="absolute top-3 right-3 px-3 py-1.5 bg-maroon-800 text-white rounded-full flex items-center justify-center font-headline font-black text-[10px] uppercase tracking-tighter shadow-lg group-hover:scale-110 transition-transform">
+              Chat
             </div>
             
             {/* Bottom Overlay */}
