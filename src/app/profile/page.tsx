@@ -17,33 +17,70 @@ import {
   Award, 
   Headset, 
   MessageSquareText,
-  Gamepad2
+  Gamepad2,
+  Loader2
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { PlaceHolderImages } from "@/lib/placeholder-images"
 import Image from "next/image"
-import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
+import { doc } from "firebase/firestore"
+import { useToast } from "@/hooks/use-toast"
 
 export default function ProfilePage() {
   const router = useRouter()
+  const { user: currentUser, isUserLoading } = useUser()
+  const firestore = useFirestore()
+  const { toast } = useToast()
+
+  const userProfileRef = useMemoFirebase(() => {
+    if (!firestore || !currentUser) return null;
+    return doc(firestore, "userProfiles", currentUser.uid);
+  }, [firestore, currentUser])
+
+  const coinAccountRef = useMemoFirebase(() => {
+    if (!firestore || !currentUser) return null;
+    return doc(firestore, "users", currentUser.uid, "coinAccount", "default");
+  }, [firestore, currentUser])
+
+  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef)
+  const { data: coinAccount, isLoading: isCoinsLoading } = useDoc(coinAccountRef)
+
+  const copyId = () => {
+    if (currentUser?.uid) {
+      navigator.clipboard.writeText(currentUser.uid);
+      toast({
+        title: "Copied!",
+        description: "User ID copied to clipboard.",
+      });
+    }
+  }
+
+  if (isUserLoading || isProfileLoading) {
+    return (
+      <div className="flex items-center justify-center h-svh bg-white">
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      </div>
+    )
+  }
+
   const stats = [
     { label: "Friends", value: 0 },
     { label: "Following", value: 0 },
-    { label: "Followers", value: 18 },
-    { label: "Visitors", value: "11,293", hasDot: true },
+    { label: "Followers", value: 0 },
+    { label: "Visitors", value: "0", hasDot: false },
   ]
 
   const games = [
-    { name: "DeepSea Treasure", image: "https://picsum.photos/seed/deepsea/200/150", hint: "underwater ocean" },
-    { name: "Gates Of Olympus", image: "https://picsum.photos/seed/olympus/200/150", hint: "mountain peak" },
-    { name: "Mr. Rich", image: "https://picsum.photos/seed/rich/200/150", hint: "serene river" },
+    { name: "DeepSea Treasure", image: "https://picsum.photos/seed/nature1/200/150", hint: "underwater ocean" },
+    { name: "Gates Of Olympus", image: "https://picsum.photos/seed/nature2/200/150", hint: "mountain peak" },
+    { name: "Mr. Rich", image: "https://picsum.photos/seed/nature3/200/150", hint: "serene river" },
   ]
 
   const actions = [
-    { label: "Tasks", icon: ClipboardList, color: "text-red-500", bg: "bg-red-50" },
-    { label: "Income", icon: Wallet, color: "text-primary", bg: "bg-red-50" },
-    { label: "Store", icon: Store, color: "text-red-500", bg: "bg-red-50" },
+    { label: "Tasks", icon: ClipboardList, color: "text-primary", bg: "bg-primary/5" },
+    { label: "Income", icon: Wallet, color: "text-primary", bg: "bg-primary/5" },
+    { label: "Store", icon: Store, color: "text-primary", bg: "bg-primary/5" },
     { label: "Aristocracy", icon: Crown, color: "text-amber-600", bg: "bg-amber-50" },
   ]
 
@@ -57,6 +94,8 @@ export default function ProfilePage() {
     { label: "Settings", icon: SettingsIcon, href: "/settings" },
   ]
 
+  const userImage = (userProfile?.profilePhotoUrls && userProfile?.profilePhotoUrls[0]) || `https://picsum.photos/seed/${currentUser?.uid}/200/200`
+
   return (
     <div className="flex flex-col min-h-svh bg-transparent pb-24">
       {/* Header Area */}
@@ -66,27 +105,30 @@ export default function ProfilePage() {
         <div className="flex justify-between items-start">
           <div className="space-y-4">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-black font-headline text-white">MCC🤨</h1>
+              <h1 className="text-xl font-black font-headline text-white">{userProfile?.username || "Guest User"}</h1>
               <ChevronRight className="w-4 h-4 text-white/60" />
             </div>
             
             <div className="flex gap-1.5">
               <span className="bg-white/10 px-1.5 py-0.5 rounded-md text-[8px] font-black text-white italic backdrop-blur-sm">SVIP1</span>
-              <span className="bg-white/10 px-1.5 py-0.5 rounded-md text-[8px] font-black text-white italic backdrop-blur-sm">V VIP4</span>
-              <span className="bg-white/10 px-1.5 py-0.5 rounded-md text-[8px] font-black text-white italic backdrop-blur-sm">✦ 16.</span>
+              <span className="bg-white/10 px-1.5 py-0.5 rounded-md text-[8px] font-black text-white italic backdrop-blur-sm">V VIP1</span>
+              <span className="bg-white/10 px-1.5 py-0.5 rounded-md text-[8px] font-black text-white italic backdrop-blur-sm">✦ 1.</span>
             </div>
 
             <div className="flex items-center gap-1.5 text-white/40">
-              <span className="text-[10px] font-bold tracking-tight">ID:667541426</span>
-              <div className="p-0.5 hover:bg-white/5 rounded transition-colors cursor-pointer">
+              <span className="text-[10px] font-bold tracking-tight">ID:{currentUser?.uid.slice(-8).toUpperCase()}</span>
+              <div 
+                className="p-0.5 hover:bg-white/5 rounded transition-colors cursor-pointer"
+                onClick={copyId}
+              >
                 <Copy className="w-3 h-3" />
               </div>
             </div>
           </div>
 
-          <Avatar className="w-16 h-16 shadow-2xl border-none">
-            <AvatarImage src={PlaceHolderImages.find(i => i.id === 'nature-1')?.imageUrl} className="object-cover" />
-            <AvatarFallback>M</AvatarFallback>
+          <Avatar className="w-16 h-16 shadow-2xl border-2 border-white/20">
+            <AvatarImage src={userImage} className="object-cover" />
+            <AvatarFallback>{userProfile?.username?.[0] || '?'}</AvatarFallback>
           </Avatar>
         </div>
 
@@ -108,19 +150,24 @@ export default function ProfilePage() {
       <main className="px-4 mt-6 space-y-6">
         {/* Wallet Cards */}
         <div className="grid grid-cols-2 gap-3">
-          <div className="bg-primary rounded-[2rem] p-5 flex items-center gap-3 shadow-lg hover:scale-[1.01] transition-transform cursor-pointer">
+          <div 
+            className="bg-primary rounded-[2rem] p-5 flex items-center gap-3 shadow-lg hover:scale-[1.01] transition-transform cursor-pointer"
+            onClick={() => router.push('/coins')}
+          >
             <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
               <Coins className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-black text-white">98</span>
+            <span className="text-2xl font-black text-white">
+              {isCoinsLoading ? "..." : (coinAccount?.balance || 0)}
+            </span>
           </div>
-          <div className="bg-white/80 backdrop-blur-sm rounded-[2rem] p-5 flex items-center justify-center shadow-lg hover:scale-[1.01] transition-transform cursor-pointer">
-             <span className="text-2xl font-black text-primary italic tracking-tighter">VIP4</span>
+          <div className="bg-white/80 backdrop-blur-sm rounded-[2rem] p-5 flex items-center justify-center shadow-lg hover:scale-[1.01] transition-transform cursor-pointer border border-gray-100">
+             <span className="text-2xl font-black text-primary italic tracking-tighter">VIP1</span>
           </div>
         </div>
 
         {/* Recommended Games */}
-        <section className="bg-white/60 backdrop-blur-md rounded-[2.5rem] p-6 space-y-4">
+        <section className="bg-white/60 backdrop-blur-md rounded-[2.5rem] p-6 space-y-4 border border-white/20">
           <div className="flex items-center justify-between px-1">
             <h2 className="font-headline font-black text-base">Recommended Games</h2>
             <ChevronRight className="w-4 h-4 text-gray-300" />
@@ -138,7 +185,7 @@ export default function ProfilePage() {
         </section>
 
         {/* Icon Grid (Action Center) */}
-        <section className="bg-white/80 rounded-[2.5rem] p-6 grid grid-cols-4 gap-y-8">
+        <section className="bg-white/80 rounded-[2.5rem] p-6 grid grid-cols-4 gap-y-8 border border-gray-50 shadow-sm">
           {actions.map((action) => (
             <div key={action.label} className="flex flex-col items-center gap-2 group cursor-pointer">
               <div className={`w-12 h-12 ${action.bg} rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}>
@@ -159,7 +206,7 @@ export default function ProfilePage() {
                 className="flex flex-col items-center gap-2 group cursor-pointer"
                 onClick={() => tool.href && router.push(tool.href)}
               >
-                <div className="w-11 h-11 flex items-center justify-center rounded-full group-hover:bg-primary/10 transition-colors">
+                <div className="w-11 h-11 flex items-center justify-center rounded-full group-hover:bg-primary/5 transition-colors">
                   <tool.icon className="w-6 h-6 text-gray-400 group-hover:text-primary transition-colors" />
                 </div>
                 <span className="text-[10px] font-black text-gray-400 group-hover:text-primary text-center transition-colors">{tool.label}</span>
