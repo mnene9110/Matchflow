@@ -25,12 +25,13 @@ export default function ProfilePage() {
 
   const userRef = useMemoFirebase(() => {
     if (!firestore || !currentUser) return null;
-    return doc(firestore, "users", currentUser.uid);
+    return doc(firestore, "userProfiles", currentUser.uid);
   }, [firestore, currentUser])
 
   const coinAccountRef = useMemoFirebase(() => {
     if (!firestore || !currentUser) return null;
-    return doc(firestore, "users", currentUser.uid, "coinAccount", "primary");
+    // Path corrected to match backend.json: /users/{userId}/coinAccount (Document)
+    return doc(firestore, "users", currentUser.uid, "coinAccount");
   }, [firestore, currentUser])
 
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(userRef)
@@ -104,7 +105,7 @@ export default function ProfilePage() {
           </div>
           <div className="flex flex-col">
             <span className="text-2xl font-black text-white leading-none">
-              {isCoinsLoading ? "..." : (coinAccount?.balance || 0)}
+              {isCoinsLoading ? "..." : (coinAccount?.balance || 0).toLocaleString()}
             </span>
             <span className="text-[10px] text-white/60 font-black uppercase tracking-widest mt-1">Recharge</span>
           </div>

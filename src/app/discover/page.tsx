@@ -19,7 +19,7 @@ export default function DiscoverPage() {
   const router = useRouter()
   const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
   
-  const profilesQuery = useMemoFirebase(() => collection(firestore, 'users'), [firestore])
+  const profilesQuery = useMemoFirebase(() => collection(firestore, 'userProfiles'), [firestore])
   const { data: firestoreUsers, isLoading } = useCollection(profilesQuery)
   
   useEffect(() => {

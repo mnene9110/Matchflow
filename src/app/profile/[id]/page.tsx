@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -17,7 +16,7 @@ export default function ProfileDetailPage() {
   const firestore = useFirestore()
   const { database } = useFirebase()
   
-  const docRef = useMemoFirebase(() => doc(firestore, "users", id as string), [firestore, id])
+  const docRef = useMemoFirebase(() => doc(firestore, "userProfiles", id as string), [firestore, id])
   const { data: userProfile, isLoading } = useDoc(docRef)
 
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })

@@ -20,7 +20,7 @@ function ChatSessionItem({ session }: { session: any }) {
     async function fetchUser() {
       if (!firestore || !session.otherUserId) return
       try {
-        const userDoc = await getDoc(doc(firestore, "users", session.otherUserId))
+        const userDoc = await getDoc(doc(firestore, "userProfiles", session.otherUserId))
         if (userDoc.exists()) {
           setOtherUserData(userDoc.data())
         }

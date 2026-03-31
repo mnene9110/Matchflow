@@ -31,7 +31,7 @@ export default function FastOnboardingPage() {
 
     const numericId = Math.floor(10000000 + Math.random() * 90000000);
 
-    const userRef = doc(firestore, "users", user.uid)
+    const userRef = doc(firestore, "userProfiles", user.uid)
     const profileData = {
       id: user.uid,
       numericId,
