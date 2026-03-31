@@ -1,8 +1,7 @@
-
 "use client"
 
-import { useState } from "react"
-import { useRouter } from "next/navigation"
+import { useState, useEffect } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, List, Check, Loader2, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
@@ -24,9 +23,11 @@ const COIN_PACKAGES = [
 
 export default function WalletPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { user } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
+  
   const [selectedPackage, setSelectedPackage] = useState(COIN_PACKAGES[0])
   const [isProcessing, setIsProcessing] = useState(false)
   
@@ -37,57 +38,45 @@ export default function WalletPage() {
   
   const { data: coinAccount, isLoading } = useDoc(coinAccountRef)
 
+  useEffect(() => {
+    const status = searchParams.get('status')
+    if (status === 'success') {
+      toast({
+        title: "Payment Received",
+        description: "Your balance will be updated once the transaction is processed.",
+      })
+    }
+  }, [searchParams, toast])
+
   const handlePay = async () => {
     if (!coinAccountRef || !coinAccount || !user || !firestore) return;
 
     setIsProcessing(true)
     
     try {
-      // Initiate PesaPal Payment
       const result = await initiatePesaPalPayment(
         selectedPackage.price, 
-        user.email || 'guest@matchflow.app', 
+        user.email || `${user.uid}@matchflow.app`, 
         user.uid
       );
 
       if (result.error) {
-        // Fallback for demo purposes if PesaPal isn't configured in Vercel yet
+        setIsProcessing(false);
         toast({
-          title: "Demo Mode",
-          description: "PesaPal configuration not detected. Simulating successful purchase...",
+          variant: "destructive",
+          title: "Payment Error",
+          description: result.error,
         });
-        
-        const amount = selectedPackage.amount;
-        const newBalance = (coinAccount.balance || 0) + amount;
-        
-        updateDocumentNonBlocking(coinAccountRef, {
-          balance: newBalance,
-          updatedAt: new Date().toISOString()
-        });
-
-        const transactionsRef = collection(firestore, "users", user.uid, "coinAccount", "primary", "transactions");
-        addDocumentNonBlocking(transactionsRef, {
-          type: 'purchase',
-          amount: amount,
-          transactionDate: new Date().toISOString(),
-          description: `Recharged ${amount} coins via PesaPal Sim`,
-          coinAccountId: user.uid
-        });
-
-        setTimeout(() => {
-          setIsProcessing(false);
-          toast({ title: "Success", description: `${amount} coins added.` });
-        }, 1500);
       } else if (result.redirect_url) {
-        // Redirect to PesaPal Checkout
+        // Redirect to live PesaPal checkout
         window.location.href = result.redirect_url;
       }
     } catch (e) {
       setIsProcessing(false);
       toast({
         variant: "destructive",
-        title: "Payment Error",
-        description: "Could not connect to payment provider.",
+        title: "Connection Error",
+        description: "Could not connect to payment server.",
       });
     }
   }
@@ -124,7 +113,7 @@ export default function WalletPage() {
             <h2 className="text-lg font-bold">Select Package</h2>
             <div className="flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full border border-green-100">
               <ShieldCheck className="w-3 h-3" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">PesaPal Secure</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider">PesaPal Live</span>
             </div>
           </div>
 
@@ -164,7 +153,9 @@ export default function WalletPage() {
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-50">
         <div className="flex flex-col gap-4">
           <div className="flex items-center justify-center gap-2 opacity-40">
-            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest">Secured by PesaPal V3</p>
+            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">
+              Secured by PesaPal V3 Production Gateway
+            </p>
           </div>
           <Button 
             className="w-full h-14 rounded-full bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl active:scale-95 transition-all"
