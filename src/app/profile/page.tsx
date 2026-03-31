@@ -35,7 +35,6 @@ export default function ProfilePage() {
 
   const userRef = useMemoFirebase(() => {
     if (!firestore || !currentUser) return null;
-    // Consolidated to 'users' collection
     return doc(firestore, "users", currentUser.uid);
   }, [firestore, currentUser])
 
@@ -156,9 +155,12 @@ export default function ProfilePage() {
             <div className="w-10 h-10 bg-white/20 rounded-full flex items-center justify-center">
               <Coins className="w-6 h-6 text-white" />
             </div>
-            <span className="text-2xl font-black text-white">
-              {isCoinsLoading ? "..." : (coinAccount?.balance || 0)}
-            </span>
+            <div className="flex flex-col">
+              <span className="text-2xl font-black text-white leading-none">
+                {isCoinsLoading ? "..." : (coinAccount?.balance || 0)}
+              </span>
+              <span className="text-[10px] text-white/60 font-black uppercase tracking-widest mt-1">Recharge</span>
+            </div>
           </div>
           <div className="bg-white/80 backdrop-blur-sm rounded-[2rem] p-5 flex items-center justify-center shadow-lg hover:scale-[1.01] transition-transform cursor-pointer border border-gray-100">
              <span className="text-2xl font-black text-primary italic tracking-tighter">VIP1</span>
