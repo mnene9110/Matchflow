@@ -1,0 +1,41 @@
+
+{
+  "placeholderImages": [
+    {
+      "id": "user-1",
+      "description": "Attractive person smiling in a park",
+      "imageUrl": "https://picsum.photos/seed/user1/600/800",
+      "imageHint": "person smiling"
+    },
+    {
+      "id": "user-2",
+      "description": "Person drinking coffee in a cafe",
+      "imageUrl": "https://picsum.photos/seed/user2/600/800",
+      "imageHint": "person coffee"
+    },
+    {
+      "id": "user-3",
+      "description": "Person hiking with mountain background",
+      "imageUrl": "https://picsum.photos/seed/user3/600/800",
+      "imageHint": "person hiking"
+    },
+    {
+      "id": "user-4",
+      "description": "Person playing guitar on a porch",
+      "imageUrl": "https://picsum.photos/seed/user4/600/800",
+      "imageHint": "person guitar"
+    },
+    {
+      "id": "user-5",
+      "description": "Person reading a book in a library",
+      "imageUrl": "https://picsum.photos/seed/user5/600/800",
+      "imageHint": "person reading"
+    },
+    {
+      "id": "coin-icon",
+      "description": "Shiny gold coin",
+      "imageUrl": "https://picsum.photos/seed/coin/200/200",
+      "imageHint": "gold coin"
+    }
+  ]
+}
