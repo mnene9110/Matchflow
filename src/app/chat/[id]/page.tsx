@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -12,7 +11,7 @@ import { generateConversationStarters } from "@/ai/flows/ai-conversation-starter
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update } from "firebase/database"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set } from "firebase/database"
 import { Badge } from "@/components/ui/badge"
 import { cn } from "@/lib/utils"
 
@@ -84,7 +83,7 @@ export default function ChatDetailPage() {
       sentAt: rtdbTimestamp(),
     }
 
-    // Atomic updates across RTDB paths
+    // Atomic updates across RTDB paths to ensure consistency
     const updates: any = {}
     updates[`/chats/${chatId}/messages/${newMessageKey}`] = messageData
     updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = {
@@ -100,7 +99,17 @@ export default function ChatDetailPage() {
       chatId: chatId
     }
     
-    update(ref(database), updates)
+    update(ref(database), updates).then(() => {
+       console.log("Message sent successfully")
+    }).catch((err) => {
+       console.error("Failed to send message", err)
+       toast({
+         variant: "destructive",
+         title: "Message Failed",
+         description: "Check your Realtime Database rules and region settings."
+       })
+    })
+
     setInputText("")
   }
 
