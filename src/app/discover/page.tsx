@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Navbar } from "@/components/Navbar"
@@ -63,22 +64,31 @@ export default function DiscoverPage() {
       {/* Top Banner Area */}
       <div className="pt-8 px-4 pb-6">
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-[#FFCF4D] rounded-[2.5rem] p-7 flex items-center gap-4 shadow-xl hover:scale-[1.02] transition-transform cursor-pointer h-36">
-            <div className="w-16 h-16 bg-white/40 rounded-full flex items-center justify-center shrink-0">
-              <Mic className="w-8 h-8 text-black" />
-            </div>
-            <div>
-              <p className="font-headline font-black text-xl text-black leading-tight">Voice Chat</p>
-              <p className="text-xs text-black/60 font-medium">Connect now</p>
+          {/* Voice Chat Button - Refined */}
+          <div className="relative group overflow-hidden bg-gradient-to-br from-[#FFCF4D] to-[#FFB13B] rounded-[2.5rem] p-6 shadow-xl hover:scale-[1.02] active:scale-95 transition-all cursor-pointer h-32 flex flex-col justify-center border border-white/20">
+            <div className="absolute -top-4 -right-4 w-16 h-16 bg-white/20 rounded-full blur-2xl group-hover:bg-white/30 transition-colors" />
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/30 backdrop-blur-md rounded-full flex items-center justify-center shrink-0 shadow-inner">
+                <Mic className="w-6 h-6 text-black" />
+              </div>
+              <div>
+                <p className="font-headline font-black text-lg text-black leading-tight tracking-tight">Voice Chat</p>
+                <p className="text-[10px] text-black/60 font-bold uppercase tracking-widest">Connect Now</p>
+              </div>
             </div>
           </div>
-          <div className="bg-primary/90 rounded-[2.5rem] p-7 flex items-center gap-4 shadow-xl hover:scale-[1.02] transition-transform cursor-pointer h-36 backdrop-blur-md">
-            <div className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center shrink-0 border border-white/10">
-              <CircleDollarSign className="w-8 h-8 text-white" />
-            </div>
-            <div>
-              <p className="font-headline font-black text-xl text-white leading-tight">Tasks</p>
-              <p className="text-xs text-white/60 font-medium">Earn rewards</p>
+
+          {/* Tasks Button - Refined */}
+          <div className="relative group overflow-hidden bg-primary rounded-[2.5rem] p-6 shadow-xl hover:scale-[1.02] active:scale-95 transition-all cursor-pointer h-32 flex flex-col justify-center border border-white/10 backdrop-blur-sm">
+            <div className="absolute -bottom-6 -left-6 w-20 h-20 bg-white/5 rounded-full blur-3xl group-hover:bg-white/10 transition-colors" />
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 bg-white/10 border border-white/10 backdrop-blur-md rounded-full flex items-center justify-center shrink-0 shadow-lg">
+                <CircleDollarSign className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <p className="font-headline font-black text-lg text-white leading-tight tracking-tight">Tasks</p>
+                <p className="text-[10px] text-white/60 font-bold uppercase tracking-widest">Earn Coins</p>
+              </div>
             </div>
           </div>
         </div>
@@ -92,11 +102,11 @@ export default function DiscoverPage() {
               src={user.image}
               alt={user.name}
               fill
-              className="object-cover group-hover:scale-105 transition-transform duration-500"
+              className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
               data-ai-hint="person portrait"
             />
             {/* Chat Button */}
-            <div className="absolute top-4 right-4 px-4 py-2 bg-primary text-white rounded-full flex items-center justify-center font-headline font-black text-[10px] uppercase tracking-tighter shadow-2xl group-hover:scale-110 transition-transform z-10">
+            <div className="absolute top-4 right-4 px-4 py-1.5 bg-primary text-white rounded-full flex items-center justify-center font-headline font-black text-[10px] uppercase tracking-tighter shadow-2xl group-hover:scale-110 transition-transform z-10">
               Chat
             </div>
             

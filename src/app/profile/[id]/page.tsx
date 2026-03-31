@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useParams, useRouter } from "next/navigation"
@@ -72,17 +73,17 @@ export default function ProfileDetailPage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-             <div className="flex items-center gap-1.5 bg-cyan-100/50 text-cyan-600 px-2.5 py-1 rounded-md text-[10px] font-black italic">
+             <div className="flex items-center gap-1.5 bg-primary/10 text-primary px-2.5 py-1 rounded-md text-[10px] font-black italic">
                 <span>👤</span> 🪙 20
              </div>
              <div className="bg-amber-100/50 text-amber-600 px-2.5 py-1 rounded-md text-[10px] font-black italic">
                 Online · {user.distance}
              </div>
-             <div className="bg-teal-100/50 text-teal-600 px-2.5 py-1 rounded-md text-[10px] font-black italic">
+             <div className="bg-primary/5 text-primary/70 px-2.5 py-1 rounded-md text-[10px] font-black italic">
                 {user.country}
              </div>
-             <div className="flex items-center gap-1 bg-green-100/50 text-green-600 px-2.5 py-1 rounded-md text-[10px] font-black italic">
-                <span className="bg-green-600 text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] not-italic">A</span> 2
+             <div className="flex items-center gap-1 bg-primary/10 text-primary px-2.5 py-1 rounded-md text-[10px] font-black italic">
+                <span className="bg-primary text-white rounded-full w-3.5 h-3.5 flex items-center justify-center text-[8px] not-italic">A</span> 2
              </div>
           </div>
 
@@ -94,7 +95,7 @@ export default function ProfileDetailPage() {
              <div className="flex gap-8 mb-6 overflow-x-auto pb-2 scrollbar-hide no-scrollbar">
                 <span className="font-headline font-black text-xl text-gray-900 relative shrink-0">
                   Basic Information
-                  <div className="absolute -bottom-1 left-0 right-0 h-1 bg-green-400 rounded-full" />
+                  <div className="absolute -bottom-1 left-0 right-0 h-1 bg-primary rounded-full" />
                 </span>
                 <span className="font-headline font-black text-xl text-gray-300 shrink-0">Moments</span>
                 <span className="font-headline font-black text-xl text-gray-300 shrink-0">Honor</span>
@@ -104,7 +105,7 @@ export default function ProfileDetailPage() {
                 <h3 className="text-[11px] font-black uppercase text-gray-400 tracking-widest">Basic Information</h3>
                 <div className="flex flex-wrap gap-2.5">
                    {infoTags.map((tag) => (
-                     <div key={tag.label} className="flex items-center gap-2 px-3.5 py-2 border-2 border-green-400/30 rounded-full text-[11px] font-bold text-green-600 bg-green-50/50">
+                     <div key={tag.label} className="flex items-center gap-2 px-3.5 py-2 border-2 border-primary/20 rounded-full text-[11px] font-bold text-primary bg-primary/5">
                         <tag.icon className="w-3.5 h-3.5" />
                         {tag.label}
                      </div>
@@ -118,10 +119,10 @@ export default function ProfileDetailPage() {
       {/* Floating Bottom Bar */}
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-50 flex items-center gap-4">
         <Button 
-          className="flex-1 h-14 rounded-full bg-accent hover:bg-accent/90 text-black font-black text-lg shadow-xl shadow-accent/20 transition-transform active:scale-95"
+          className="flex-1 h-14 rounded-full bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl shadow-primary/20 transition-transform active:scale-95"
           onClick={() => router.push(`/chat/${id}`)}
         >
-          Say hi
+          Chat
         </Button>
         <Button variant="secondary" size="icon" className="w-14 h-14 rounded-full bg-gray-100 shadow-inner shrink-0 transition-transform active:scale-95">
           <Phone className="w-6 h-6 text-gray-600 fill-current" />

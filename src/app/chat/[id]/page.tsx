@@ -150,7 +150,7 @@ export default function ChatDetailPage() {
           <div className="bg-[#E0F2FE] rounded-[2rem] p-5 shadow-sm space-y-4 relative overflow-hidden">
             <div className="flex items-center justify-between">
               <div className="flex flex-wrap gap-2">
-                 <Badge className="bg-[#FF719A] hover:bg-[#FF719A] text-white border-none text-[10px] px-3 py-0.5 rounded-full font-black">
+                 <Badge className="bg-primary hover:bg-primary text-white border-none text-[10px] px-3 py-0.5 rounded-full font-black">
                     ♀ 20
                  </Badge>
                  <Badge className="bg-[#FFB13B] hover:bg-[#FFB13B] text-white border-none text-[10px] px-3 py-0.5 rounded-full font-black">
@@ -171,7 +171,7 @@ export default function ChatDetailPage() {
 
             <div className="flex items-center gap-2 bg-[#FCF8B4] w-fit px-2.5 py-1 rounded-lg">
                <span className="text-[10px]">👤✅</span>
-               <span className="text-[10px] font-black uppercase tracking-tighter">Real Person</span>
+               <span className="text-[10px] font-black uppercase tracking-tighter text-black">Real Person</span>
             </div>
 
             <div className="flex gap-2">
@@ -183,7 +183,7 @@ export default function ChatDetailPage() {
             </div>
 
             <div className="space-y-1">
-              <div className="flex items-center gap-2 text-[#4ADE80] font-black text-sm">
+              <div className="flex items-center gap-2 text-primary font-black text-sm">
                 <span>👥</span> Personality similarity: 86%
               </div>
               <p className="text-xs text-gray-500 font-medium">
@@ -251,7 +251,7 @@ export default function ChatDetailPage() {
             </Button>
           ))}
           <Button 
-            className="bg-[#4ADE80] hover:bg-[#22C55E] text-white rounded-full h-8 px-5 font-black text-xs shrink-0"
+            className="bg-primary hover:bg-primary/90 text-white rounded-full h-8 px-5 font-black text-xs shrink-0"
             onClick={async () => {
               setIsAiLoading(true)
               const res = await generateConversationStarters({ otherUserBio: user.bio, otherUserInterests: user.interests })
