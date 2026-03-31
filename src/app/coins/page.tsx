@@ -1,16 +1,14 @@
-
 "use client"
 
-import { useState, useEffect } from "react"
-import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, List, Check, Loader2, ShieldCheck } from "lucide-react"
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { ChevronLeft, List, Check, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { initiatePesaPalPayment } from "@/app/actions/pesapal"
 
 const COIN_PACKAGES = [
   { amount: 500, price: 50, label: "KES 50" },
@@ -26,12 +24,11 @@ const COIN_PACKAGES = [
 
 export default function WalletPage() {
   const router = useRouter()
-  const searchParams = useSearchParams()
   const { user } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
   
-  const [selectedPackage, setSelectedPackage] = useState(COIN_PACKAGES[1]) // Default to 1000 coins
+  const [selectedPackage, setSelectedPackage] = useState(COIN_PACKAGES[1])
   const [isProcessing, setIsProcessing] = useState(false)
   
   const coinAccountRef = useMemoFirebase(() => {
@@ -41,47 +38,16 @@ export default function WalletPage() {
   
   const { data: coinAccount, isLoading } = useDoc(coinAccountRef)
 
-  useEffect(() => {
-    const status = searchParams.get('status')
-    if (status === 'success') {
-      toast({
-        title: "Payment Received",
-        description: "Your balance will be updated once the transaction is processed.",
-      })
-    }
-  }, [searchParams, toast])
-
   const handlePay = async () => {
-    if (!coinAccountRef || !coinAccount || !user || !firestore) return;
-
     setIsProcessing(true)
-    
-    try {
-      const result = await initiatePesaPalPayment(
-        selectedPackage.price, 
-        user.email || `${user.uid}@matchflow.app`, 
-        user.uid
-      );
-
-      if (result.error) {
-        setIsProcessing(false);
-        toast({
-          variant: "destructive",
-          title: "Payment Error",
-          description: result.error,
-        });
-      } else if (result.redirect_url) {
-        // Redirect to live PesaPal checkout
-        window.location.href = result.redirect_url;
-      }
-    } catch (e) {
-      setIsProcessing(false);
+    // Simulate processing
+    setTimeout(() => {
+      setIsProcessing(false)
       toast({
-        variant: "destructive",
-        title: "Connection Error",
-        description: "Could not connect to payment server.",
-      });
-    }
+        title: "Payment Unavailable",
+        description: "Direct top-up is currently being updated. Please contact support.",
+      })
+    }, 1000)
   }
 
   return (
@@ -114,10 +80,6 @@ export default function WalletPage() {
         <section className="space-y-6">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold">Select Package</h2>
-            <div className="flex items-center gap-1.5 px-3 py-1 bg-green-50 text-green-700 rounded-full border border-green-100">
-              <ShieldCheck className="w-3 h-3" />
-              <span className="text-[10px] font-bold uppercase tracking-wider">PesaPal Live</span>
-            </div>
           </div>
 
           <div className="grid grid-cols-3 gap-3">
@@ -155,17 +117,12 @@ export default function WalletPage() {
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-50">
         <div className="flex flex-col gap-4">
-          <div className="flex items-center justify-center gap-2 opacity-40">
-            <p className="text-[10px] font-bold text-gray-500 uppercase tracking-widest text-center">
-              Secured by PesaPal V3 Production Gateway
-            </p>
-          </div>
           <Button 
             className="w-full h-14 rounded-full bg-primary hover:bg-primary/90 text-white font-black text-lg shadow-xl active:scale-95 transition-all"
             onClick={handlePay}
             disabled={isProcessing || isLoading}
           >
-            {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : `Pay ${selectedPackage.label}`}
+            {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : `Purchase Coins`}
           </Button>
         </div>
       </footer>
