@@ -3,7 +3,7 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { MessageCircle, User, Zap, Orbit, Home } from "lucide-react"
+import { MessageCircle, User, Home } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function Navbar() {
@@ -14,7 +14,6 @@ export function Navbar() {
 
   const navItems = [
     { icon: Home, label: "Home", href: "/discover" },
-    { icon: Orbit, label: "Moment", href: "/moment" },
     { icon: MessageCircle, label: "Chat", href: "/chat", badge: "99+" },
     { icon: User, label: "Me", href: "/profile", dot: true },
   ]
