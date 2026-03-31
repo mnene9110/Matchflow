@@ -4,7 +4,7 @@
 import { useState, useEffect } from "react"
 import { Navbar } from "@/components/Navbar"
 import Image from "next/image"
-import { Mic, CircleDollarSign, Loader2, Sparkles, TrendingUp, MessageCircle } from "lucide-react"
+import { Mic, CircleDollarSign, Loader2, MessageCircle } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
@@ -98,8 +98,11 @@ export default function DiscoverPage() {
                 <Image src={user.image} alt={user.name} fill className="object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent" />
               </Link>
-              <button onClick={(e) => { e.preventDefault(); router.push(`/chat/${user.id}`); }} className="absolute top-4 right-4 w-12 h-12 bg-primary/95 backdrop-blur-md text-white rounded-2xl flex items-center justify-center shadow-2xl z-10 border border-white/20">
-                <MessageCircle className="w-6 h-6 fill-white" />
+              <button 
+                onClick={(e) => { e.preventDefault(); router.push(`/chat/${user.id}`); }} 
+                className="absolute top-4 right-4 px-4 h-9 bg-primary/95 backdrop-blur-md text-white rounded-full flex items-center justify-center shadow-2xl z-10 border border-white/20 text-[10px] font-black uppercase tracking-widest"
+              >
+                Chat
               </button>
               <div className="absolute inset-x-0 bottom-0 p-5 z-10">
                 <div className="flex items-center justify-between">
