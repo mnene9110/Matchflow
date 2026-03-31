@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -52,8 +53,8 @@ export default function FullOnboardingPage() {
 
     setDocumentNonBlocking(userProfileRef, profileData, { merge: true })
     
-    // Initialize coin account matching backend.json path: /users/{userId}/coinAccount
-    const coinAccountRef = doc(firestore, "users", user.uid, "coinAccount")
+    // Fixed path to ensure even number of segments: /users/{userId}/coinAccount/primary
+    const coinAccountRef = doc(firestore, "users", user.uid, "coinAccount", "primary")
     setDocumentNonBlocking(coinAccountRef, {
       id: user.uid,
       userId: user.uid,

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Navbar } from "@/components/Navbar"
@@ -22,13 +23,14 @@ export default function CoinsPage() {
   
   const coinAccountRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return doc(firestore, "users", user.uid, "coinAccount");
+    // Fixed path to ensure even number of segments
+    return doc(firestore, "users", user.uid, "coinAccount", "primary");
   }, [firestore, user])
   
   const { data: coinAccount, isLoading } = useDoc(coinAccountRef)
 
   const handlePurchase = (amount: number, price: string) => {
-    if (!coinAccountRef || !coinAccount || !user) return;
+    if (!coinAccountRef || !coinAccount || !user || !firestore) return;
 
     const newBalance = (coinAccount.balance || 0) + amount;
     
@@ -38,8 +40,8 @@ export default function CoinsPage() {
       updatedAt: new Date().toISOString()
     });
 
-    // Log transaction in subcollection: /users/{userId}/coinAccount/transactions
-    const transactionsRef = collection(firestore, "users", user.uid, "coinAccount", "transactions");
+    // Log transaction in subcollection: /users/{userId}/coinAccount/primary/transactions
+    const transactionsRef = collection(firestore, "users", user.uid, "coinAccount", "primary", "transactions");
     addDocumentNonBlocking(transactionsRef, {
       type: 'purchase',
       amount: amount,
