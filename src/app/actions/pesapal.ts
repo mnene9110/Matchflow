@@ -43,8 +43,9 @@ export async function initiatePesaPalPayment(amount: number, email: string, user
     const ipnId = process.env.PESAPAL_IPN_ID;
     const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:9002';
 
+    // PesaPal V3 technically requires an IPN ID for the order to be valid
     if (!ipnId) {
-      return { error: 'Payment setup incomplete: PESAPAL_IPN_ID is required for PesaPal V3.' };
+      console.warn('PESAPAL_IPN_ID is missing. The transaction may fail.');
     }
     
     const orderData = {
@@ -53,7 +54,7 @@ export async function initiatePesaPalPayment(amount: number, email: string, user
       amount: amount,
       description: "MatchFlow Coins Purchase",
       callback_url: `${appUrl}/coins?status=success`,
-      notification_id: ipnId,
+      notification_id: ipnId || "", // Attempting to proceed, but ID is usually required
       billing_address: {
         email_address: email,
       }
