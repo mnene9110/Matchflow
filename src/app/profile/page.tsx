@@ -21,7 +21,6 @@ import {
   Loader2
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
@@ -66,19 +65,6 @@ export default function ProfilePage() {
     )
   }
 
-  const stats = [
-    { label: "Friends", value: 0 },
-    { label: "Following", value: 0 },
-    { label: "Followers", value: 0 },
-    { label: "Visitors", value: "0", hasDot: false },
-  ]
-
-  const games = [
-    { name: "DeepSea Treasure", image: "https://picsum.photos/seed/nature1/200/150", hint: "underwater ocean" },
-    { name: "Gates Of Olympus", image: "https://picsum.photos/seed/nature2/200/150", hint: "mountain peak" },
-    { name: "Mr. Rich", image: "https://picsum.photos/seed/nature3/200/150", hint: "serene river" },
-  ]
-
   const actions = [
     { label: "Tasks", icon: ClipboardList, color: "text-primary", bg: "bg-primary/5" },
     { label: "Income", icon: Wallet, color: "text-primary", bg: "bg-primary/5" },
@@ -100,7 +86,7 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-transparent pb-24">
-      <header className="relative pt-12 pb-8 px-6 overflow-hidden bg-primary rounded-b-[3rem] shadow-xl">
+      <header className="relative pt-12 pb-10 px-6 overflow-hidden bg-primary rounded-b-[3rem] shadow-xl">
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -mr-20 -mt-20 blur-3xl" />
         
         <div className="flex justify-between items-start">
@@ -132,18 +118,6 @@ export default function ProfilePage() {
             <AvatarFallback>{userProfile?.username?.[0] || '?'}</AvatarFallback>
           </Avatar>
         </div>
-
-        <div className="flex justify-between mt-6 pr-6">
-          {stats.map((stat) => (
-            <div key={stat.label} className="flex flex-col">
-              <div className="flex items-center gap-0.5">
-                <span className="text-lg font-black text-white">{stat.value}</span>
-                {stat.hasDot && <div className="w-1.5 h-1.5 bg-accent rounded-full border border-primary" />}
-              </div>
-              <span className="text-[9px] text-white/50 font-black uppercase tracking-widest">{stat.label}</span>
-            </div>
-          ))}
-        </div>
       </header>
 
       <main className="px-4 mt-6 space-y-6">
@@ -166,23 +140,6 @@ export default function ProfilePage() {
              <span className="text-2xl font-black text-primary italic tracking-tighter">VIP1</span>
           </div>
         </div>
-
-        <section className="bg-white/60 backdrop-blur-md rounded-[2.5rem] p-6 space-y-4 border border-white/20">
-          <div className="flex items-center justify-between px-1">
-            <h2 className="font-headline font-black text-base">Recommended Games</h2>
-            <ChevronRight className="w-4 h-4 text-gray-300" />
-          </div>
-          <div className="grid grid-cols-3 gap-3">
-            {games.map((game) => (
-              <div key={game.name} className="flex flex-col items-center gap-2 group cursor-pointer">
-                <div className="relative w-full aspect-[4/3] rounded-2xl overflow-hidden shadow-sm group-hover:shadow-md transition-shadow">
-                  <Image src={game.image} alt={game.name} fill className="object-cover group-hover:scale-105 transition-transform duration-500" data-ai-hint={game.hint} />
-                </div>
-                <span className="text-[9px] font-black text-gray-700 text-center leading-tight px-0.5">{game.name}</span>
-              </div>
-            ))}
-          </div>
-        </section>
 
         <section className="bg-white/80 rounded-[2.5rem] p-6 grid grid-cols-4 gap-y-8 border border-gray-50 shadow-sm">
           {actions.map((action) => (
