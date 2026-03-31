@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -35,10 +34,8 @@ export default function FullOnboardingPage() {
   const handleSave = () => {
     if (!user || !name || !dob || !gender || !country || !lookingFor) return
 
-    // Generate a unique 8-digit numeric ID
     const numericId = Math.floor(10000000 + Math.random() * 90000000);
 
-    // Consolidated to 'users' collection
     const userRef = doc(firestore, "users", user.uid)
     const profileData = {
       id: user.uid,
@@ -58,8 +55,8 @@ export default function FullOnboardingPage() {
 
     setDocumentNonBlocking(userRef, profileData, { merge: true })
     
-    // Coin account remains structured as per blueprint linked to user
-    const coinAccountRef = doc(firestore, "users", user.uid, "coinAccount", "primary")
+    // Path corrected to match backend.json: /users/{userId}/coinAccount (Document)
+    const coinAccountRef = doc(firestore, "users", user.uid, "coinAccount")
     setDocumentNonBlocking(coinAccountRef, {
       id: user.uid,
       userId: user.uid,

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
@@ -36,7 +35,8 @@ function WalletContent() {
   
   const coinAccountRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    return doc(firestore, "users", user.uid, "coinAccount", "primary");
+    // Path corrected to match backend.json: /users/{userId}/coinAccount (Document)
+    return doc(firestore, "users", user.uid, "coinAccount");
   }, [firestore, user])
   
   const { data: coinAccount, isLoading } = useDoc(coinAccountRef)
@@ -62,7 +62,6 @@ function WalletContent() {
 
     setIsProcessing(true)
     
-    // Default email for anonymous users to satisfy Paystack
     const email = user?.email || `guest_${user?.uid.slice(0, 8)}@matchflow.app`
     
     const result = await initializePaystackTransaction(email, selectedPackage.price, {
