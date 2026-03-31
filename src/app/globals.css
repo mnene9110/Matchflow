@@ -47,16 +47,15 @@
   position: absolute;
   top: 15%;
   left: 50%;
-  transform: translate(-50%, -50%) rotate(-15deg);
-  font-size: 5.5rem;
-  font-weight: 900;
-  color: rgba(255, 255, 255, 0.05);
+  transform: translate(-50%, -50%) rotate(-10deg);
+  font-size: 5rem;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.08);
   white-space: nowrap;
   pointer-events: none;
   z-index: 0;
-  font-family: 'Space Grotesk', sans-serif;
-  text-transform: uppercase;
-  letter-spacing: -0.05em;
+  font-family: 'Pacifico', cursive;
+  letter-spacing: -0.02em;
 }
 
 /* Ensure content stays above the watermark */
