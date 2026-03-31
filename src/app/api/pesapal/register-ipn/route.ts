@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 
 /**
- * @fileOverview Temporary debug route to register the PesaPal IPN URL.
- * This should be called once to get an IPN_ID from PesaPal Sandbox.
+ * @fileOverview Temporary debug route to register the PesaPal IPN URL in Production.
+ * This should be called once to get a production IPN_ID from PesaPal.
  */
 
 export async function GET() {
@@ -12,7 +12,7 @@ export async function GET() {
 
   try {
     // Step 1: get token
-    const tokenRes = await fetch("https://cybqa.pesapal.com/pesapalv3/api/Auth/RequestToken", {
+    const tokenRes = await fetch("https://pay.pesapal.com/pesapalv3/api/Auth/RequestToken", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -31,14 +31,14 @@ export async function GET() {
     }
 
     // Step 2: register IPN
-    const ipnRes = await fetch("https://cybqa.pesapal.com/pesapalv3/api/URLSetup/RegisterIPN", {
+    const ipnRes = await fetch("https://pay.pesapal.com/pesapalv3/api/URLSetup/RegisterIPN", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        url: "https://matchflow-ecru.vercel.app/api/pesapal/ipn",
+        url: `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`,
         ipn_notification_type: "GET",
       }),
     });

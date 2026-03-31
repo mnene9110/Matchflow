@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 
 /**
- * @fileOverview Temporary debug route to test PesaPal Sandbox token generation.
+ * @fileOverview Temporary debug route to test PesaPal Production token generation.
  */
 
 export async function GET() {
@@ -10,7 +10,7 @@ export async function GET() {
   }
 
   try {
-    const response = await fetch("https://cybqa.pesapal.com/pesapalv3/api/Auth/RequestToken", {
+    const response = await fetch("https://pay.pesapal.com/pesapalv3/api/Auth/RequestToken", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
