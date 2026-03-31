@@ -14,7 +14,6 @@ import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, remove } from "firebase/database"
 import { Badge } from "@/components/ui/badge"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { cn } from "@/lib/utils"
 
 export default function ChatDetailPage() {
@@ -48,6 +47,30 @@ export default function ChatDetailPage() {
   const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "users", otherUserId) : null, [firestore, otherUserId])
   const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
 
+  // signaling logic: stop stream helper
+  const stopStream = () => {
+    if (stream) {
+      stream.getTracks().forEach(track => {
+        track.stop()
+        console.log(`Track ${track.kind} stopped`)
+      })
+      setStream(null)
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null
+    }
+    setHasCameraPermission(false)
+  }
+
+  // Cleanup stream on unmount
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach(track => track.stop())
+      }
+    }
+  }, [stream])
+
   // Signaling Listener for Calls
   useEffect(() => {
     if (!database || !chatId || !currentUser) return
@@ -77,9 +100,9 @@ export default function ChatDetailPage() {
         toast({ title: "Call Declined", description: `${otherUser?.username || 'User'} is busy.` })
       }
     })
-  }, [database, chatId, currentUser, otherUser, callStatus])
+  }, [database, chatId, currentUser, otherUser, callStatus, stream])
 
-  // Camera Access
+  // Media Access
   const enableMedia = async (type: 'video' | 'audio') => {
     try {
       const constraints = { 
@@ -88,12 +111,11 @@ export default function ChatDetailPage() {
       }
       const mediaStream = await navigator.mediaDevices.getUserMedia(constraints)
       setStream(mediaStream)
-      setHasCameraPermission(true)
+      setHasCameraPermission(type === 'video')
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream
       }
       
-      // Initialize states
       if (type === 'audio') setIsVideoOff(true)
     } catch (error) {
       console.error('Error accessing media:', error)
@@ -103,16 +125,6 @@ export default function ChatDetailPage() {
         title: 'Media Access Denied',
         description: 'Please enable camera/mic permissions to use calls.',
       })
-    }
-  }
-
-  const stopStream = () => {
-    if (stream) {
-      stream.getTracks().forEach(track => track.stop())
-      setStream(null)
-    }
-    if (videoRef.current) {
-      videoRef.current.srcObject = null
     }
   }
 
@@ -160,6 +172,7 @@ export default function ChatDetailPage() {
     const callRef = ref(database, `calls/${chatId}`)
     update(callRef, { status: 'declined' })
     stopStream()
+    setCallStatus('idle')
   }
 
   const handleEndCall = () => {
@@ -167,6 +180,7 @@ export default function ChatDetailPage() {
     const callRef = ref(database, `calls/${chatId}`)
     remove(callRef)
     stopStream()
+    setCallStatus('idle')
   }
 
   // Presence Listener
