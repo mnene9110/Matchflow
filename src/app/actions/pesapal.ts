@@ -1,24 +1,24 @@
 'use server';
 
 /**
- * @fileOverview Server actions for PesaPal V3 Production integration.
+ * @fileOverview Server actions for PesaPal V3 Sandbox/Staging integration.
  * Handles authentication and transaction initialization.
  */
 
-const PESAPAL_BASE_URL = 'https://pay.pesapal.com/v3';
+const PESAPAL_BASE_URL = 'https://cybqa.pesapal.com/pesapalv3';
 const CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY;
 const CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
 const IPN_ID = process.env.PESAPAL_IPN_ID;
 
 /**
- * Authenticates with PesaPal and returns an access token.
+ * Authenticates with PesaPal Sandbox and returns an access token.
  */
 async function getAuthToken() {
   if (!CONSUMER_KEY || !CONSUMER_SECRET) {
     throw new Error('PesaPal Consumer Key or Secret is missing.');
   }
 
-  const response = await fetch(`${PESAPAL_BASE_URL}/api/Auth/RegisterProcess`, {
+  const response = await fetch(`${PESAPAL_BASE_URL}/api/Auth/RequestToken`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -32,13 +32,13 @@ async function getAuthToken() {
 
   const data = await response.json();
   if (!data.token) {
-    throw new Error(data.message || 'Failed to authenticate with PesaPal.');
+    throw new Error(data.message || 'Failed to authenticate with PesaPal Sandbox.');
   }
   return data.token;
 }
 
 /**
- * Initializes a transaction with PesaPal.
+ * Initializes a transaction with PesaPal Sandbox.
  */
 export async function initializePesaPalTransaction(email: string, amount: number, metadata: any) {
   try {
@@ -48,7 +48,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
       return { error: 'PESAPAL_IPN_ID is required for V3 transactions.' };
     }
 
-    const orderId = `MF-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+    const orderId = `MF-SANDBOX-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
 
     const response = await fetch(`${PESAPAL_BASE_URL}/api/Transactions/SubmitOrderRequest`, {
       method: 'POST',
@@ -61,13 +61,13 @@ export async function initializePesaPalTransaction(email: string, amount: number
         id: orderId,
         currency: 'KES',
         amount: amount,
-        description: `Purchase of ${metadata.packageAmount} coins`,
+        description: `Sandbox: Purchase of ${metadata.packageAmount} coins`,
         callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/recharge/callback/pesapal`,
         notification_id: IPN_ID,
         billing_address: {
           email_address: email,
           phone_number: metadata.phone || '',
-          first_name: metadata.username || 'User',
+          first_name: metadata.username || 'SandboxUser',
         },
       }),
     });
@@ -78,15 +78,15 @@ export async function initializePesaPalTransaction(email: string, amount: number
       return { redirect_url: data.redirect_url, orderTrackingId: data.order_tracking_id };
     }
 
-    return { error: data.message || 'Failed to initialize PesaPal order.' };
+    return { error: data.message || 'Failed to initialize PesaPal Sandbox order.' };
   } catch (error: any) {
-    console.error('PesaPal Initialization Error:', error);
+    console.error('PesaPal Sandbox Initialization Error:', error);
     return { error: error.message || 'An internal error occurred.' };
   }
 }
 
 /**
- * Checks transaction status.
+ * Checks transaction status in Sandbox.
  */
 export async function getTransactionStatus(orderTrackingId: string) {
   try {
@@ -101,7 +101,7 @@ export async function getTransactionStatus(orderTrackingId: string) {
 
     return await response.json();
   } catch (error) {
-    console.error('PesaPal Status Error:', error);
-    return { error: 'Failed to verify transaction status.' };
+    console.error('PesaPal Sandbox Status Error:', error);
+    return { error: 'Failed to verify Sandbox transaction status.' };
   }
 }
