@@ -20,7 +20,7 @@ export default function DiscoverPage() {
   const users = firestoreUsers?.map(u => ({
     id: u.id,
     name: u.username || "Unknown",
-    coins: 20, // Default value if not in profile
+    coins: 20,
     distance: u.location || "Nearby",
     status: "Online",
     image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/600/800`
@@ -108,7 +108,7 @@ export default function DiscoverPage() {
                 alt={user.name}
                 fill
                 className="object-cover group-hover:scale-105 transition-transform duration-700 ease-out"
-                data-ai-hint="person portrait"
+                data-ai-hint="nature water"
               />
               <div className="absolute top-4 right-4 px-4 py-1.5 bg-primary text-white rounded-full flex items-center justify-center font-headline font-black text-[10px] uppercase tracking-tighter shadow-2xl group-hover:scale-110 transition-transform z-10">
                 Chat

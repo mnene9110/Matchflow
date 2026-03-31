@@ -2,40 +2,40 @@
 {
   "placeholderImages": [
     {
-      "id": "user-1",
-      "description": "Attractive person smiling in a park",
-      "imageUrl": "https://picsum.photos/seed/user1/600/800",
-      "imageHint": "person smiling"
+      "id": "nature-1",
+      "description": "Deep blue ocean waves crashing",
+      "imageUrl": "https://picsum.photos/seed/nature1/600/800",
+      "imageHint": "ocean waves"
     },
     {
-      "id": "user-2",
-      "description": "Person drinking coffee in a cafe",
-      "imageUrl": "https://picsum.photos/seed/user2/600/800",
-      "imageHint": "person coffee"
+      "id": "nature-2",
+      "description": "Mist-covered pine forest at dawn",
+      "imageUrl": "https://picsum.photos/seed/nature2/600/800",
+      "imageHint": "misty forest"
     },
     {
-      "id": "user-3",
-      "description": "Person hiking with mountain background",
-      "imageUrl": "https://picsum.photos/seed/user3/600/800",
-      "imageHint": "person hiking"
+      "id": "nature-3",
+      "description": "Serene alpine lake reflecting mountains",
+      "imageUrl": "https://picsum.photos/seed/nature3/600/800",
+      "imageHint": "mountain lake"
     },
     {
-      "id": "user-4",
-      "description": "Person playing guitar on a porch",
-      "imageUrl": "https://picsum.photos/seed/user4/600/800",
-      "imageHint": "person guitar"
+      "id": "nature-4",
+      "description": "Hidden tropical waterfall in lush valley",
+      "imageUrl": "https://picsum.photos/seed/nature4/600/800",
+      "imageHint": "tropical waterfall"
     },
     {
-      "id": "user-5",
-      "description": "Person reading a book in a library",
-      "imageUrl": "https://picsum.photos/seed/user5/600/800",
-      "imageHint": "person reading"
+      "id": "nature-5",
+      "description": "Sunlight filtering through ancient forest canopy",
+      "imageUrl": "https://picsum.photos/seed/nature5/600/800",
+      "imageHint": "forest sunlight"
     },
     {
-      "id": "coin-icon",
-      "description": "Shiny gold coin",
-      "imageUrl": "https://picsum.photos/seed/coin/200/200",
-      "imageHint": "gold coin"
+      "id": "nature-6",
+      "description": "Crystal clear turquoise tropical lagoon",
+      "imageUrl": "https://picsum.photos/seed/nature6/600/800",
+      "imageHint": "clear water"
     }
   ]
 }

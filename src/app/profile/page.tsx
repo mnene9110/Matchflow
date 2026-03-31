@@ -35,9 +35,9 @@ export default function ProfilePage() {
   ]
 
   const games = [
-    { name: "DeepSea Treasure", image: "https://picsum.photos/seed/deepsea/200/150", hint: "underwater treasure" },
-    { name: "Gates Of Olympus", image: "https://picsum.photos/seed/olympus/200/150", hint: "greek god" },
-    { name: "Mr. Rich", image: "https://picsum.photos/seed/rich/200/150", hint: "wealthy man" },
+    { name: "DeepSea Treasure", image: "https://picsum.photos/seed/deepsea/200/150", hint: "underwater ocean" },
+    { name: "Gates Of Olympus", image: "https://picsum.photos/seed/olympus/200/150", hint: "mountain peak" },
+    { name: "Mr. Rich", image: "https://picsum.photos/seed/rich/200/150", hint: "serene river" },
   ]
 
   const actions = [
@@ -84,8 +84,8 @@ export default function ProfilePage() {
             </div>
           </div>
 
-          <Avatar className="w-16 h-16 shadow-2xl">
-            <AvatarImage src={PlaceHolderImages.find(i => i.id === 'user-1')?.imageUrl} className="object-cover" />
+          <Avatar className="w-16 h-16 shadow-2xl border-none">
+            <AvatarImage src={PlaceHolderImages.find(i => i.id === 'nature-1')?.imageUrl} className="object-cover" />
             <AvatarFallback>M</AvatarFallback>
           </Avatar>
         </div>
