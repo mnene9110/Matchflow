@@ -8,14 +8,8 @@ import {
   Copy, 
   Coins, 
   ClipboardList, 
-  Wallet, 
-  Store, 
   ShieldCheck, 
-  Briefcase, 
-  TrendingUp, 
-  Award, 
   Headset, 
-  MessageSquareText,
   Gamepad2,
   Loader2
 } from "lucide-react"
@@ -66,8 +60,6 @@ export default function ProfilePage() {
 
   const actions = [
     { label: "Tasks", icon: ClipboardList, color: "text-primary", bg: "bg-primary/5" },
-    { label: "Income", icon: Wallet, color: "text-primary", bg: "bg-primary/5" },
-    { label: "Store", icon: Store, color: "text-primary", bg: "bg-primary/5" },
   ]
 
   const otherTools = [
@@ -126,7 +118,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        <section className="bg-white/80 rounded-[2.5rem] p-6 grid grid-cols-3 gap-y-8 border border-gray-50 shadow-sm">
+        <section className="bg-white/80 rounded-[2.5rem] p-6 flex justify-center border border-gray-50 shadow-sm">
           {actions.map((action) => (
             <div key={action.label} className="flex flex-col items-center gap-2 group cursor-pointer">
               <div className={`w-12 h-12 ${action.bg} rounded-2xl flex items-center justify-center shadow-sm group-hover:scale-105 transition-transform`}>
