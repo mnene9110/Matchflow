@@ -7,7 +7,7 @@
 
 const PESAPAL_BASE_URL = process.env.NODE_ENV === 'production' 
   ? 'https://pay.pesapal.com/v3' 
-  : 'https://cyb3r.pesapal.com/v3';
+  : 'https://pay.pesapal.com/v3'; // Hardcoded to production as requested
 
 async function getAuthToken() {
   const consumerKey = process.env.PESAPAL_CONSUMER_KEY;
