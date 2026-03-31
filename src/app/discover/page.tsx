@@ -1,11 +1,10 @@
-
 "use client"
 
 import { useState } from "react"
 import { Navbar } from "@/components/Navbar"
 import { PlaceHolderImages } from "@/lib/placeholder-images"
 import Image from "next/image"
-import { Search, Mic, CircleDollarSign, Bell } from "lucide-react"
+import { Mic, CircleDollarSign } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
@@ -65,7 +64,7 @@ export default function DiscoverPage() {
   return (
     <div className="flex flex-col min-h-svh pb-24 bg-white">
       {/* Top Banner Area */}
-      <div className="bg-[#E9FF97]/30 pt-6 px-4 pb-4">
+      <div className="bg-maroon-800/10 pt-6 px-4 pb-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-[#FFCF4D] rounded-3xl p-4 flex flex-col items-center justify-between aspect-square shadow-sm hover:scale-[1.02] transition-transform cursor-pointer">
             <div className="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center">
@@ -76,13 +75,13 @@ export default function DiscoverPage() {
               <p className="text-xs text-black/60">Connect now</p>
             </div>
           </div>
-          <div className="bg-[#97E797] rounded-3xl p-4 flex flex-col items-center justify-between aspect-square shadow-sm hover:scale-[1.02] transition-transform cursor-pointer">
+          <div className="bg-maroon-700 rounded-3xl p-4 flex flex-col items-center justify-between aspect-square shadow-sm hover:scale-[1.02] transition-transform cursor-pointer">
             <div className="w-12 h-12 bg-white/30 rounded-full flex items-center justify-center">
-              <CircleDollarSign className="w-7 h-7 text-black" />
+              <CircleDollarSign className="w-7 h-7 text-white" />
             </div>
             <div className="text-center">
-              <p className="font-headline font-bold text-base text-black leading-tight">Tasks Center</p>
-              <p className="text-xs text-black/60">Earn rewards</p>
+              <p className="font-headline font-bold text-base text-white leading-tight">Tasks Center</p>
+              <p className="text-xs text-white/60">Earn rewards</p>
             </div>
           </div>
         </div>
@@ -90,7 +89,7 @@ export default function DiscoverPage() {
 
       {/* Horizontal Notification Banner */}
       <div className="px-4 py-3">
-        <div className="bg-gradient-to-r from-[#69EAFF] to-[#A297FF] rounded-2xl p-4 flex items-center justify-between text-white shadow-lg">
+        <div className="bg-gradient-to-r from-maroon-800 to-maroon-600 rounded-2xl p-4 flex items-center justify-between text-white shadow-lg">
           <div className="flex-1 text-xs">
             <p className="font-bold opacity-90"><span className="text-yellow-200">New Match</span> for <span className="text-blue-100">Explorer</span></p>
             <p className="opacity-80 leading-tight">Someone special just joined nearby!</p>
@@ -106,15 +105,8 @@ export default function DiscoverPage() {
         <div className="flex items-center gap-6">
           <h2 className="relative text-xl font-headline font-bold text-black scale-110">
             Recommend
-            <div className="absolute -bottom-1 left-0 right-0 h-1.5 bg-[#E9FF97] -z-10 rounded-full" />
+            <div className="absolute -bottom-1 left-0 right-0 h-1.5 bg-maroon-800 -z-10 rounded-full" />
           </h2>
-        </div>
-        <div className="flex items-center gap-4">
-          <div className="relative cursor-pointer p-1">
-            <Bell className="w-6 h-6 text-black" />
-            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white" />
-          </div>
-          <Search className="w-6 h-6 text-black cursor-pointer p-1" />
         </div>
       </div>
 
@@ -130,7 +122,7 @@ export default function DiscoverPage() {
               data-ai-hint="person portrait"
             />
             {/* Hi Badge */}
-            <div className="absolute top-3 right-3 w-11 h-11 bg-[#E9FF97] rounded-2xl flex items-center justify-center font-headline font-black text-xl rotate-12 shadow-lg group-hover:rotate-0 transition-transform">
+            <div className="absolute top-3 right-3 w-11 h-11 bg-maroon-800 text-white rounded-2xl flex items-center justify-center font-headline font-black text-xl rotate-12 shadow-lg group-hover:rotate-0 transition-transform">
               H<span className="text-base">i</span>
             </div>
             
@@ -154,6 +146,15 @@ export default function DiscoverPage() {
       </main>
 
       <Navbar />
+      <style jsx global>{`
+        .bg-maroon-800 { background-color: #800000; }
+        .bg-maroon-700 { background-color: #990000; }
+        .bg-maroon-600 { background-color: #b30000; }
+        .bg-maroon-800\/10 { background-color: rgba(128, 0, 0, 0.1); }
+        .text-maroon-800 { color: #800000; }
+        .from-maroon-800 { --tw-gradient-from: #800000; --tw-gradient-to: rgb(128 0 0 / 0); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+        .to-maroon-600 { --tw-gradient-to: #b30000; }
+      `}</style>
     </div>
   )
 }

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Navbar } from "@/components/Navbar"
@@ -27,7 +26,7 @@ export function ChatListPage() {
   return (
     <div className="flex flex-col min-h-svh pb-24 bg-white">
       {/* Top Header Area */}
-      <header className="bg-[#E9FF97]/40 pt-10 pb-4 px-4 sticky top-0 z-20 backdrop-blur-sm border-b border-[#E9FF97]/20">
+      <header className="bg-maroon-800/10 pt-10 pb-4 px-4 sticky top-0 z-20 backdrop-blur-sm border-b border-maroon-800/20">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <button 
@@ -39,7 +38,7 @@ export function ChatListPage() {
             >
               Chat
               {activeTab === "Chat" && (
-                <div className="absolute -bottom-1 left-0 right-0 h-1.5 bg-[#4ADE80] rounded-full" />
+                <div className="absolute -bottom-1 left-0 right-0 h-1.5 bg-maroon-800 rounded-full" />
               )}
             </button>
             <button 
@@ -51,7 +50,7 @@ export function ChatListPage() {
             >
               Call
               {activeTab === "Call" && (
-                <div className="absolute -bottom-1 left-0 right-0 h-1.5 bg-[#4ADE80] rounded-full" />
+                <div className="absolute -bottom-1 left-0 right-0 h-1.5 bg-maroon-800 rounded-full" />
               )}
             </button>
           </div>
@@ -78,7 +77,7 @@ export function ChatListPage() {
               <div className="relative shrink-0">
                 <div className={cn(
                   "rounded-full p-0.5",
-                  chat.specialFrame ? "bg-gradient-to-tr from-green-400 to-emerald-500 ring-2 ring-emerald-200" : ""
+                  chat.specialFrame ? "bg-gradient-to-tr from-maroon-600 to-maroon-800 ring-2 ring-maroon-200" : ""
                 )}>
                   <Avatar className="w-14 h-14 border-2 border-white shadow-sm">
                     <AvatarImage src={chat.image} className="object-cover" />
@@ -130,6 +129,14 @@ export function ChatListPage() {
       </main>
 
       <Navbar />
+      <style jsx global>{`
+        .bg-maroon-800 { background-color: #800000; }
+        .bg-maroon-800\/10 { background-color: rgba(128, 0, 0, 0.1); }
+        .bg-maroon-800\/20 { background-color: rgba(128, 0, 0, 0.2); }
+        .from-maroon-600 { --tw-gradient-from: #b30000; --tw-gradient-to: rgb(179 0 0 / 0); --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to); }
+        .to-maroon-800 { --tw-gradient-to: #800000; }
+        .ring-maroon-200 { --tw-ring-color: rgba(128, 0, 0, 0.2); }
+      `}</style>
     </div>
   )
 }

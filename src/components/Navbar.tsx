@@ -1,4 +1,3 @@
-
 "use client"
 
 import Link from "next/link"
@@ -29,7 +28,7 @@ export function Navbar() {
             href={item.href}
             className={cn(
               "flex flex-col items-center gap-1 transition-all duration-300 relative py-2 px-4 rounded-2xl",
-              isActive ? "text-black bg-[#E9FF97]" : "text-gray-400 hover:text-black"
+              isActive ? "text-white bg-maroon-800" : "text-gray-400 hover:text-black"
             )}
           >
             <div className="relative">
@@ -47,6 +46,9 @@ export function Navbar() {
           </Link>
         )
       })}
+      <style jsx global>{`
+        .bg-maroon-800 { background-color: #800000; }
+      `}</style>
     </nav>
   )
 }
