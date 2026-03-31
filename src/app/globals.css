@@ -1,30 +1,29 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   :root {
-    --background: 321 43% 96%;
-    --foreground: 319 63% 10%;
+    --background: 0 0% 100%;
+    --foreground: 232 47% 20%;
     --card: 0 0% 100%;
-    --card-foreground: 319 63% 10%;
+    --card-foreground: 232 47% 20%;
     --popover: 0 0% 100%;
-    --popover-foreground: 319 63% 10%;
-    --primary: 319 63% 56%;
+    --popover-foreground: 232 47% 20%;
+    --primary: 232 82% 72%;
     --primary-foreground: 0 0% 100%;
-    --secondary: 319 20% 90%;
-    --secondary-foreground: 319 63% 30%;
-    --muted: 319 20% 92%;
-    --muted-foreground: 319 20% 45%;
-    --accent: 285 100% 72%;
+    --secondary: 232 20% 96%;
+    --secondary-foreground: 232 82% 40%;
+    --muted: 232 20% 94%;
+    --muted-foreground: 232 10% 45%;
+    --accent: 232 82% 72%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 319 20% 88%;
-    --input: 319 20% 88%;
-    --ring: 319 63% 56%;
-    --radius: 1rem;
+    --border: 232 20% 90%;
+    --input: 232 20% 90%;
+    --ring: 232 82% 72%;
+    --radius: 1.5rem;
   }
 }
 
@@ -42,9 +41,18 @@
 }
 
 .gradient-bg {
-  background: linear-gradient(135deg, #F9EDF5 0%, #F5D3E8 100%);
+  background: linear-gradient(135deg, #F0F2FF 0%, #FFFFFF 100%);
 }
 
 .text-gradient {
-  @apply bg-clip-text text-transparent bg-gradient-to-r from-[#D74CAA] to-[#DE72FF];
+  @apply bg-clip-text text-transparent bg-gradient-to-r from-[#7E8EF1] to-[#A0AFFF];
+}
+
+@font-face {
+  font-family: 'Pacifico';
+  src: url('https://fonts.gstatic.com/s/pacifico/v22/FwZY7WnLUMnv47W7-ohS.woff2') format('woff2');
+}
+
+.font-logo {
+  font-family: 'Pacifico', cursive;
 }

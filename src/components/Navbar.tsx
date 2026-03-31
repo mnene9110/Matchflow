@@ -1,19 +1,20 @@
-
 "use client"
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Heart, MessageCircle, User, Zap, Coins } from "lucide-react"
+import { MessageCircle, User, Zap } from "lucide-react"
 import { cn } from "@/lib/utils"
 
 export function Navbar() {
   const pathname = usePathname()
 
+  // Don't show navbar on welcome screen
+  if (pathname === "/welcome") return null
+
   const navItems = [
-    { icon: Zap, label: "Discover", href: "/discover" },
+    { icon: Zap, label: "Home", href: "/discover" },
     { icon: MessageCircle, label: "Chat", href: "/chat" },
-    { icon: Coins, label: "Coins", href: "/coins" },
-    { icon: User, label: "Profile", href: "/profile" },
+    { icon: User, label: "Me", href: "/profile" },
   ]
 
   return (
@@ -26,12 +27,12 @@ export function Navbar() {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex flex-col items-center gap-1 transition-all duration-300 px-4 py-1 rounded-2xl",
+              "flex flex-col items-center gap-1 transition-all duration-300 px-6 py-1 rounded-2xl",
               isActive ? "text-primary bg-primary/10" : "text-muted-foreground hover:text-primary"
             )}
           >
             <Icon className={cn("w-6 h-6", isActive && "fill-current")} />
-            <span className="text-[10px] font-medium uppercase tracking-wider">{item.label}</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">{item.label}</span>
           </Link>
         )
       })}
