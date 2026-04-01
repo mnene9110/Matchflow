@@ -21,11 +21,11 @@ import { cn } from "@/lib/utils"
 
 /**
  * @fileOverview Profile screen (Me).
- * Optimized to remove "Loading..." text glitching.
+ * Optimized to remove "Loading..." text glitching for a stable UI.
  */
 export default function ProfilePage() {
   const router = useRouter()
-  const { user: currentUser, isUserLoading } = useUser()
+  const { user: currentUser } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
 
@@ -34,12 +34,12 @@ export default function ProfilePage() {
     return doc(firestore, "userProfiles", currentUser.uid);
   }, [firestore, currentUser])
 
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userRef)
+  const { data: userProfile, isLoading } = useDoc(userRef)
 
   const displayNumericId = userProfile?.numericId || ".......";
 
   const copyId = () => {
-    if (displayNumericId) {
+    if (displayNumericId !== ".......") {
       navigator.clipboard.writeText(displayNumericId.toString());
       toast({
         title: "Copied!",
@@ -48,7 +48,6 @@ export default function ProfilePage() {
     }
   }
 
-  const isLoading = isUserLoading || isProfileLoading;
   const userImage = (userProfile?.profilePhotoUrls && userProfile?.profilePhotoUrls[0]) || `https://picsum.photos/seed/${currentUser?.uid}/400/400`
   const darkMaroon = "bg-[#5A1010]";
 
@@ -69,7 +68,8 @@ export default function ProfilePage() {
           )}
         </div>
 
-        <h1 className="text-2xl font-black mb-3 tracking-tight h-8">
+        {/* Stable text handling to prevent blinking */}
+        <h1 className="text-2xl font-black mb-3 tracking-tight h-8 min-w-[120px] text-center">
           {userProfile?.username || (isLoading ? "\u00A0" : "Guest User")}
         </h1>
 
@@ -84,7 +84,7 @@ export default function ProfilePage() {
       </header>
 
       <main className="px-6 space-y-3">
-        <div className="bg-white/40 backdrop-blur-md border border-white/30 rounded-[2.5rem] p-6 flex flex-col gap-5">
+        <div className="bg-white/40 backdrop-blur-md border border-white/40 rounded-[2.5rem] p-6 flex flex-col gap-5 shadow-sm">
           <div className="flex flex-col gap-2">
             <div className="flex items-center gap-2">
               <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center">
@@ -93,13 +93,12 @@ export default function ProfilePage() {
               <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">Wallet Balance</span>
             </div>
             <span className="text-2xl font-black text-gray-900">
-              {isLoading ? "0" : (userProfile?.coinBalance || 0).toLocaleString()}
+              {userProfile?.coinBalance?.toLocaleString() || "0"}
             </span>
           </div>
           
           <Button 
             onClick={() => router.push('/recharge')}
-            disabled={isLoading}
             className={cn("w-full h-14 rounded-[1.75rem] text-white font-black uppercase tracking-[0.1em] text-xs shadow-lg shadow-primary/20", darkMaroon)}
           >
             Recharge

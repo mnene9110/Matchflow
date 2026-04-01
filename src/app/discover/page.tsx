@@ -1,39 +1,41 @@
+
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import Image from "next/image"
-import { Sparkles, ClipboardList, RotateCcw, Globe } from "lucide-react"
-import { useCollection, useFirebase, useMemoFirebase, useUser } from "@/firebase"
-import { collection } from "firebase/firestore"
+import { Sparkles, ClipboardList, RotateCcw, Globe, Loader2 } from "lucide-react"
+import { useFirebase, useUser } from "@/firebase"
+import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot, onSnapshot } from "firebase/firestore"
 import { ref, onValue } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
+import { Button } from "@/components/ui/button"
 
 /**
  * @fileOverview Discovery screen for finding matches.
- * Navbar is now persistent in layout.tsx to prevent blinking.
+ * Implements pagination (10 users at a time) and optimized loading.
  */
 export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
   const { firestore, database } = useFirebase()
   const { user: currentUser } = useUser()
   const router = useRouter()
-  const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
-  
-  const profilesQuery = useMemoFirebase(() => collection(firestore, 'userProfiles'), [firestore])
-  const { data: firestoreUsers } = useCollection(profilesQuery)
 
-  const blockedQuery = useMemoFirebase(() => currentUser ? collection(firestore, 'userProfiles', currentUser.uid, 'blockedUsers') : null, [firestore, currentUser])
-  const { data: blockedUsers } = useCollection(blockedQuery)
-  
+  const [users, setUsers] = useState<any[]>([])
+  const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
+  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [hasMore, setHasMore] = useState(true)
+
+  // Fetch presence once
   useEffect(() => {
     if (!database) return
     const presenceRef = ref(database, 'users')
     return onValue(presenceRef, (snapshot) => {
-      const users = snapshot.val()
-      if (users) {
+      const usersVal = snapshot.val()
+      if (usersVal) {
         const statuses: Record<string, boolean> = {}
-        Object.entries(users).forEach(([uid, data]: [string, any]) => {
+        Object.entries(usersVal).forEach(([uid, data]: [string, any]) => {
           statuses[uid] = !!data.presence?.online
         })
         setPresenceData(statuses)
@@ -41,20 +43,74 @@ export default function DiscoverPage() {
     })
   }, [database])
 
-  const blockedIds = new Set(blockedUsers?.map(b => b.id) || [])
-  const filteredUsers = firestoreUsers?.filter(u => u.id !== currentUser?.uid && !blockedIds.has(u.id)) || []
+  // Initial Fetch (Paginated)
+  useEffect(() => {
+    if (!firestore || !currentUser) return
+    
+    async function fetchInitialUsers() {
+      const q = query(
+        collection(firestore, 'userProfiles'), 
+        orderBy('createdAt', 'desc'),
+        limit(10)
+      )
+      
+      const snap = await getDocs(q)
+      if (snap.empty) {
+        setHasMore(false)
+        return
+      }
 
-  const users = filteredUsers.map(u => ({
+      const fetchedUsers = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(u => u.id !== currentUser.uid)
+      
+      setUsers(fetchedUsers)
+      setLastVisible(snap.docs[snap.docs.length - 1])
+      if (snap.docs.length < 10) setHasMore(false)
+    }
+
+    fetchInitialUsers()
+  }, [firestore, currentUser])
+
+  const loadMore = async () => {
+    if (!firestore || !lastVisible || isLoadingMore || !hasMore) return
+    setIsLoadingMore(true)
+
+    const q = query(
+      collection(firestore, 'userProfiles'),
+      orderBy('createdAt', 'desc'),
+      startAfter(lastVisible),
+      limit(10)
+    )
+
+    const snap = await getDocs(q)
+    if (snap.empty) {
+      setHasMore(false)
+      setIsLoadingMore(false)
+      return
+    }
+
+    const nextUsers = snap.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .filter(u => u.id !== currentUser?.uid)
+
+    setUsers(prev => [...prev, ...nextUsers])
+    setLastVisible(snap.docs[snap.docs.length - 1])
+    if (snap.docs.length < 10) setHasMore(false)
+    setIsLoadingMore(false)
+  }
+
+  const mappedUsers = users.map(u => ({
     id: u.id,
-    name: u.username || "User",
+    name: u.username || "Match",
     location: u.location || "Kenya",
     isOnline: !!presenceData[u.id],
     image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/400/600`
   }))
 
   const displayUsers = activeTab === 'nearby' 
-    ? users.filter(u => u.location.toLowerCase().includes('kenya') || u.location.toLowerCase().includes('nearby'))
-    : users;
+    ? mappedUsers.filter(u => u.location.toLowerCase().includes('kenya') || u.location.toLowerCase().includes('nearby'))
+    : mappedUsers;
 
   const darkMaroon = "bg-[#5A1010]";
 
@@ -98,7 +154,7 @@ export default function DiscoverPage() {
               Nearby
             </button>
           </div>
-          <button className="w-14 h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center active:rotate-180 transition-all duration-500 shadow-lg shadow-black/5">
+          <button onClick={() => window.location.reload()} className="w-14 h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center active:rotate-180 transition-all duration-500 shadow-lg shadow-black/5">
             <RotateCcw className="w-4 h-4 text-gray-400" />
           </button>
         </div>
@@ -131,6 +187,19 @@ export default function DiscoverPage() {
             </div>
           </div>
         ))}
+
+        {hasMore && (
+          <div className="col-span-2 flex justify-center py-8">
+            <Button 
+              variant="ghost" 
+              onClick={loadMore} 
+              disabled={isLoadingMore}
+              className="h-12 px-8 rounded-full bg-white/40 backdrop-blur-md border border-white/30 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-white"
+            >
+              {isLoadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load More"}
+            </Button>
+          </div>
+        )}
       </main>
     </div>
   )

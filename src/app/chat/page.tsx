@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils"
 
 /**
  * @fileOverview Chat list screen. 
- * Optimized to remove "Loading..." glitches.
+ * Optimized for native-feel: persistent layout, no full-screen loading pops.
  */
 
 function ChatSessionItem({ session }: { session: any }) {
@@ -54,6 +54,7 @@ function ChatSessionItem({ session }: { session: any }) {
     return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
   }, [presence]);
 
+  // Handle name display stably
   const name = otherUserData?.username || `User ${session.otherUserId?.slice(0, 4)}`
   const image = (otherUserData?.profilePhotoUrls && otherUserData.profilePhotoUrls[0]) || `https://picsum.photos/seed/${session.otherUserId}/100/100`
 
@@ -106,10 +107,10 @@ export default function ChatListPage() {
   const { database, firestore } = useFirebase()
   const { user: currentUser } = useUser()
   const [sessions, setSessions] = useState<any[]>([])
-  const [isLoadingChats, setIsLoadingChats] = useState(true)
+  const [hasFetched, setHasFetched] = useState(false)
 
   const blockedQuery = useMemoFirebase(() => currentUser ? collection(firestore, 'userProfiles', currentUser.uid, 'blockedUsers') : null, [firestore, currentUser])
-  const { data: blockedUsers, isLoading: isBlockedLoading } = useCollection(blockedQuery)
+  const { data: blockedUsers } = useCollection(blockedQuery)
 
   useEffect(() => {
     if (!database || !currentUser) return
@@ -127,14 +128,12 @@ export default function ChatListPage() {
       } else {
         setSessions([])
       }
-      setIsLoadingChats(false)
+      setHasFetched(true)
     })
   }, [database, currentUser])
 
   const blockedIds = new Set(blockedUsers?.map(b => b.id) || [])
   const filteredSessions = sessions.filter(s => !blockedIds.has(s.otherUserId))
-
-  const isLoading = isLoadingChats || isBlockedLoading
 
   return (
     <div className="flex flex-col min-h-svh pb-20 bg-transparent">
@@ -155,7 +154,7 @@ export default function ChatListPage() {
                 <ChatSessionItem key={session.otherUserId} session={session} />
               ))}
             </div>
-          ) : !isLoading ? (
+          ) : hasFetched ? (
             <div className="flex flex-col items-center justify-center py-20 text-gray-400 font-medium gap-4">
               <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center border border-gray-100">
                 <MessageSquare className="w-8 h-8 text-gray-200" />
@@ -165,8 +164,9 @@ export default function ChatListPage() {
               </div>
             </div>
           ) : (
-            <div className="flex flex-col gap-4 py-4 animate-pulse px-3">
-               {[1,2,3,4,5].map(i => (
+            // Silent placeholder during first load
+            <div className="flex flex-col gap-4 py-4 px-3 opacity-0 animate-in fade-in duration-500 delay-300">
+               {[1,2,3,4].map(i => (
                  <div key={i} className="h-14 bg-gray-50 rounded-2xl w-full" />
                ))}
             </div>
