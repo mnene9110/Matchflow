@@ -70,6 +70,18 @@
           "type": "number",
           "description": "The current virtual coin balance of the user."
         },
+        "isAdmin": {
+          "type": "boolean",
+          "description": "Whether the user has administrative privileges."
+        },
+        "isCoinseller": {
+          "type": "boolean",
+          "description": "Whether the user is an official coin seller."
+        },
+        "isSupport": {
+          "type": "boolean",
+          "description": "Whether the user is an official support agent."
+        },
         "createdAt": {
           "type": "string",
           "description": "Timestamp when the user profile was created.",

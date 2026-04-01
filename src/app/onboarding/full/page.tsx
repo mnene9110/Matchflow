@@ -53,7 +53,10 @@ export default function FullOnboardingPage() {
       updatedAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
       interests: ["Nature", "Water sports", "Adventure"],
-      coinBalance: 100 // Initial bonus coins
+      coinBalance: 500, // New user reward: 500 coins
+      isAdmin: false,
+      isCoinseller: false,
+      isSupport: false
     }
 
     setDocumentNonBlocking(userRef, profileData, { merge: true })

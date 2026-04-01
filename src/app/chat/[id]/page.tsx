@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -9,7 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { doc, runTransaction, collection } from "firebase/firestore"
 import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, remove } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { getZegoConfig } from "@/app/actions/zego"
@@ -30,6 +31,7 @@ export default function ChatDetailPage() {
   const localStreamRef = useRef<MediaStream | null>(null)
   
   const [inputText, setInputText] = useState("")
+  const [isSending, setIsSending] = useState(false)
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'calling' | 'ongoing' | 'incoming'>('idle')
   const [callType, setCallType] = useState<'video' | 'audio'>('video')
   const [zegoInstance, setZegoInstance] = useState<any>(null)
@@ -38,8 +40,12 @@ export default function ChatDetailPage() {
   const [hasPermissionError, setHasPermissionError] = useState(false)
   
   const chatId = currentUser && otherUserId ? [currentUser.uid, otherUserId].sort().join("_") : ""
+  
   const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "userProfiles", otherUserId) : null, [firestore, otherUserId])
   const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
+
+  const currentUserProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const { data: currentUserProfile } = useDoc(currentUserProfileRef)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -50,11 +56,9 @@ export default function ChatDetailPage() {
   }, []);
 
   const stopAllMedia = () => {
-    // Stop local media tracks to ensure camera/mic are disabled
     if (localStreamRef.current) {
       localStreamRef.current.getTracks().forEach(track => {
         track.stop();
-        console.log(`Stopped track: ${track.kind}`);
       });
       localStreamRef.current = null;
     }
@@ -76,7 +80,6 @@ export default function ChatDetailPage() {
   const initiateZegoCall = async (roomID: string) => {
     if (!ZegoUIKitPrebuilt || !currentUser || !zegoContainerRef.current) return;
     
-    // Explicitly request camera and microphone permissions before joining
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: callType === 'video',
@@ -235,16 +238,69 @@ export default function ChatDetailPage() {
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  const handleSendMessage = () => {
-    if (!inputText.trim() || !currentUser || !chatId || !database || !otherUserId) return
-    const updates: any = {}
-    const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-    const msgData = { messageText: inputText, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
-    updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-    updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: inputText, timestamp: rtdbTimestamp(), otherUserId, chatId }
-    updates[`/users/${otherUserId}/chats/${currentUser.uid}`] = { lastMessage: inputText, timestamp: rtdbTimestamp(), otherUserId: currentUser.uid, chatId }
-    update(ref(database), updates)
-    setInputText("")
+  const handleSendMessage = async () => {
+    if (!inputText.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || !currentUserProfile || isSending) return
+    
+    setIsSending(true)
+
+    // Role-based free texting logic
+    // Admin, Support, and Coinsellers text for free
+    // Users texting Support or Coinsellers text for free
+    const isFree = currentUserProfile.isAdmin || 
+                   currentUserProfile.isSupport || 
+                   currentUserProfile.isCoinseller ||
+                   otherUser.isSupport ||
+                   otherUser.isCoinseller;
+
+    try {
+      if (!isFree) {
+        // Deduction logic
+        await runTransaction(firestore, async (transaction) => {
+          const userDoc = await transaction.get(doc(firestore, "userProfiles", currentUser.uid));
+          if (!userDoc.exists()) throw new Error("Profile not found");
+          
+          const currentBalance = userDoc.data().coinBalance || 0;
+          if (currentBalance < 1) throw new Error("INSUFFICIENT_COINS");
+          
+          transaction.update(doc(firestore, "userProfiles", currentUser.uid), {
+            coinBalance: currentBalance - 1,
+            updatedAt: new Date().toISOString()
+          });
+
+          // Log deduction
+          const txRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
+          transaction.set(txRef, {
+            id: txRef.id,
+            type: "deduction",
+            amount: -1,
+            transactionDate: new Date().toISOString(),
+            description: `Sent message to ${otherUser.username}`
+          });
+        });
+      }
+
+      const updates: any = {}
+      const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
+      const msgData = { messageText: inputText, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
+      updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: inputText, timestamp: rtdbTimestamp(), otherUserId, chatId }
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}`] = { lastMessage: inputText, timestamp: rtdbTimestamp(), otherUserId: currentUser.uid, chatId }
+      await update(ref(database), updates)
+      setInputText("")
+    } catch (error: any) {
+      if (error.message === "INSUFFICIENT_COINS") {
+        toast({
+          variant: "destructive",
+          title: "Insufficient Coins",
+          description: "Recharge to continue chatting.",
+          action: <Button onClick={() => router.push('/recharge')} size="sm">Recharge</Button>
+        });
+      } else {
+        console.error("Message send error", error);
+      }
+    } finally {
+      setIsSending(false)
+    }
   }
 
   if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
@@ -388,12 +444,12 @@ export default function ChatDetailPage() {
             size="icon" 
             className={cn(
               "absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9 transition-all",
-              inputText.trim() ? "bg-primary text-white" : "bg-gray-200 text-gray-400"
+              inputText.trim() && !isSending ? "bg-primary text-white" : "bg-gray-200 text-gray-400"
             )} 
             onClick={() => handleSendMessage()} 
-            disabled={!inputText.trim()}
+            disabled={!inputText.trim() || isSending}
           >
-            <Send className="w-4 h-4" />
+            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
 

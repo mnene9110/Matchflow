@@ -9,7 +9,9 @@ import {
   Headset, 
   Loader2,
   Pencil,
-  ShieldCheck
+  ShieldCheck,
+  Settings as SettingsIcon,
+  ShieldAlert
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
@@ -105,6 +107,25 @@ export default function ProfilePage() {
           </Button>
         </div>
 
+        {/* Admin Section */}
+        {userProfile?.isAdmin && (
+          <div className="pt-2">
+            <button 
+              onClick={() => router.push('/admin/roles')}
+              className="w-full h-16 rounded-[2rem] bg-zinc-900 border border-zinc-800 flex items-center px-6 gap-4 active:scale-[0.98] transition-all shadow-xl"
+            >
+              <div className="w-10 h-10 rounded-xl bg-primary/20 flex items-center justify-center">
+                <ShieldAlert className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 text-left">
+                <span className="text-white font-black uppercase tracking-[0.1em] text-[10px] block">Admin Panel</span>
+                <span className="text-zinc-500 text-[11px] font-bold">Manage Roles & Privileges</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-zinc-700" />
+            </button>
+          </div>
+        )}
+
         {/* Action Buttons */}
         <div className="flex flex-col gap-2.5 pt-2">
           <button className="w-full h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center gap-3 active:bg-white/60 transition-all">
@@ -123,6 +144,7 @@ export default function ProfilePage() {
             onClick={() => router.push('/settings')}
             className="w-full h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center gap-3 active:bg-white/60 transition-all"
           >
+            <SettingsIcon className="w-4 h-4 text-gray-400" />
             <span className="text-gray-400 font-black uppercase tracking-[0.1em] text-[10px]">Settings</span>
           </button>
         </div>

@@ -45,7 +45,10 @@ export default function FastOnboardingPage() {
       updatedAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
       interests: ["Nature", "Travel"],
-      coinBalance: 100 // Initial bonus coins
+      coinBalance: 500, // New user reward: 500 coins
+      isAdmin: false,
+      isCoinseller: false,
+      isSupport: false
     }
 
     setDocumentNonBlocking(userRef, profileData, { merge: true })

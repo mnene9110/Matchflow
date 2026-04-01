@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -13,7 +14,8 @@ import {
   Loader2, 
   Video,
   ShieldAlert,
-  UserX
+  UserX,
+  Copy
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
@@ -74,6 +76,13 @@ export default function ProfileDetailPage() {
     })
   }
 
+  const copyId = () => {
+    if (userProfile?.numericId) {
+      navigator.clipboard.writeText(userProfile.numericId.toString());
+      toast({ title: "ID Copied", description: "Numeric ID copied to clipboard." });
+    }
+  }
+
   if (isLoading) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   if (!userProfile) return <div className="flex flex-col items-center justify-center h-svh p-6 text-center"><h2 className="text-2xl font-bold mb-4">User Not Found</h2><Button onClick={() => router.back()}>Go Back</Button></div>
 
@@ -86,6 +95,9 @@ export default function ProfileDetailPage() {
   ]
 
   const userImage = (userProfile.profilePhotoUrls && userProfile.profilePhotoUrls[0]) || `https://picsum.photos/seed/${userProfile.id}/600/800`
+
+  // Admins cannot be blocked or reported
+  const isAdmin = userProfile.isAdmin === true;
 
   return (
     <div className="flex flex-col min-h-svh bg-black relative">
@@ -101,33 +113,35 @@ export default function ProfileDetailPage() {
             <ChevronLeft className="w-8 h-8" />
           </Button>
 
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="icon" 
-                className="text-white hover:bg-black/20 rounded-full"
-              >
-                <MoreHorizontal className="w-8 h-8" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-48 rounded-2xl bg-white border-none shadow-2xl p-2">
-              <DropdownMenuItem 
-                onClick={handleReport}
-                className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-700 rounded-xl focus:bg-gray-50 cursor-pointer"
-              >
-                <ShieldAlert className="w-4 h-4 text-amber-500" />
-                Report User
-              </DropdownMenuItem>
-              <DropdownMenuItem 
-                onClick={handleBlock}
-                className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-600 rounded-xl focus:bg-red-50 cursor-pointer"
-              >
-                <UserX className="w-4 h-4" />
-                Block User
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {!isAdmin && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button 
+                  variant="ghost" 
+                  size="icon" 
+                  className="text-white hover:bg-black/20 rounded-full"
+                >
+                  <MoreHorizontal className="w-8 h-8" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-48 rounded-2xl bg-white border-none shadow-2xl p-2">
+                <DropdownMenuItem 
+                  onClick={handleReport}
+                  className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-700 rounded-xl focus:bg-gray-50 cursor-pointer"
+                >
+                  <ShieldAlert className="w-4 h-4 text-amber-500" />
+                  Report User
+                </DropdownMenuItem>
+                <DropdownMenuItem 
+                  onClick={handleBlock}
+                  className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-600 rounded-xl focus:bg-red-50 cursor-pointer"
+                >
+                  <UserX className="w-4 h-4" />
+                  Block User
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
         </div>
         <div className="absolute bottom-32 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
           <div className={cn("w-2.5 h-2.5 rounded-full", presence.online ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
@@ -139,9 +153,23 @@ export default function ProfileDetailPage() {
         <div className="space-y-6">
           <div className="space-y-1">
             <h1 className="text-3xl font-black font-headline text-gray-900 leading-tight">{userProfile.username}</h1>
-            <p className="text-xs font-bold text-green-500">ID: {userProfile.numericId || '...'}</p>
+            <button 
+              onClick={copyId}
+              className="flex items-center gap-2 text-xs font-bold text-green-500 active:scale-95 transition-transform"
+            >
+              ID: {userProfile.numericId || '...'}
+              <Copy className="w-3 h-3 opacity-50" />
+            </button>
           </div>
           <p className="text-sm text-gray-500 font-medium leading-relaxed">{userProfile.bio || "No biography provided."}</p>
+          
+          {userProfile.isAdmin && (
+            <div className="px-3 py-1 bg-primary/10 rounded-full inline-flex items-center gap-1.5 border border-primary/20">
+              <Sparkles className="w-3 h-3 text-primary" />
+              <span className="text-[9px] font-black text-primary uppercase tracking-widest">Admin</span>
+            </div>
+          )}
+
           <div className="pt-8 border-t border-gray-50">
              <div className="space-y-4">
                 <h3 className="text-[11px] font-black uppercase text-gray-400 tracking-widest">Basic Information</h3>
