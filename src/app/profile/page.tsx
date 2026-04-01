@@ -8,7 +8,6 @@ import {
   Headset, 
   Loader2,
   Pencil,
-  Wallet,
   ShieldCheck
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -113,11 +112,6 @@ export default function ProfilePage() {
 
         {/* Action Buttons */}
         <div className="flex flex-col gap-2.5 pt-2">
-          <button className="w-full h-14 rounded-full bg-[#E8F5E9] border border-[#C8E6C9] flex items-center justify-center gap-3 active:scale-[0.98] transition-all group">
-            <Wallet className="w-4 h-4 text-[#2E7D32]" />
-            <span className="text-[#2E7D32] font-black uppercase tracking-[0.1em] text-[10px]">Income</span>
-          </button>
-
           <button className="w-full h-14 rounded-full bg-white border border-gray-100 flex items-center justify-center gap-3 active:bg-gray-50 transition-all">
             <Headset className="w-4 h-4 text-primary" />
             <span className="text-gray-900 font-black uppercase tracking-[0.1em] text-[10px]">Customer Support</span>
