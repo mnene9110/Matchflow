@@ -129,21 +129,25 @@ export default function ChatDetailPage() {
 
       zp.joinRoom({
         container: zegoContainerRef.current,
-        scenario: {
-          mode: ZegoUIKitPrebuilt.OneONoneCall,
-        },
         turnOnMicrophoneWhenJoining: true,
         turnOnCameraWhenJoining: callType === 'video',
         showMyCameraToggleButton: callType === 'video',
         showMyMicrophoneToggleButton: true,
         showAudioVideoSettingsButton: true,
-        showScreenSharingButton: false,
-        showTextChat: false,
-        showUserList: false,
-        showLeaveRoomConfirmDialog: true,
-        showOnlyAudioUser: true,
+        showScreenSharingButton: true,
+        showTextChat: true,
+        showUserList: true,
         maxUsers: 2,
         layout: "Auto",
+        showLayoutButton: false,
+        scenario: {
+          mode: ZegoUIKitPrebuilt.OneONoneCall,
+          config: {
+            role: "Host",
+          },
+        },
+        showLeaveRoomConfirmDialog: true,
+        showOnlyAudioUser: true,
         onJoinRoom: () => {
           console.log("Joined Zego room");
         },
