@@ -50,11 +50,14 @@ export default function DiscoverPage() {
     ? users.filter(u => u.location.toLowerCase().includes('kenya') || u.location.toLowerCase().includes('nearby'))
     : users;
 
+  // Dark Maroon specifically for Home Screen buttons
+  const darkMaroon = "bg-[#5A1010]";
+
   return (
     <div className="flex flex-col min-h-svh pb-24 bg-transparent">
       {/* Top Feature Cards */}
       <div className="pt-4 px-4 grid grid-cols-2 gap-3">
-        <button className="flex flex-col items-center justify-center gap-2 bg-primary rounded-[2rem] py-6 shadow-xl group active:scale-95 transition-all">
+        <button className={cn("flex flex-col items-center justify-center gap-2 rounded-[2rem] py-6 shadow-xl group active:scale-95 transition-all", darkMaroon)}>
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
@@ -63,9 +66,9 @@ export default function DiscoverPage() {
 
         <button className="flex flex-col items-center justify-center gap-2 bg-white/40 backdrop-blur-md border border-white/20 rounded-[2rem] py-6 group active:scale-95 transition-all">
           <div className="w-10 h-10 rounded-full bg-white/50 flex items-center justify-center">
-            <ClipboardList className="w-5 h-5 text-primary" />
+            <ClipboardList className="w-5 h-5 text-[#5A1010]" />
           </div>
-          <span className="text-primary font-black text-[9px] tracking-[0.1em] uppercase">Task Center</span>
+          <span className="text-[#5A1010] font-black text-[9px] tracking-[0.1em] uppercase">Task Center</span>
         </button>
       </div>
 
@@ -76,7 +79,7 @@ export default function DiscoverPage() {
             onClick={() => setActiveTab('recommend')}
             className={cn(
               "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
-              activeTab === 'recommend' ? "bg-primary text-white" : "text-gray-500"
+              activeTab === 'recommend' ? cn(darkMaroon, "text-white") : "text-gray-500"
             )}
           >
             Recommend
@@ -85,7 +88,7 @@ export default function DiscoverPage() {
             onClick={() => setActiveTab('nearby')}
             className={cn(
               "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
-              activeTab === 'nearby' ? "bg-primary text-white" : "text-gray-500"
+              activeTab === 'nearby' ? cn(darkMaroon, "text-white") : "text-gray-500"
             )}
           >
             Nearby
@@ -124,7 +127,7 @@ export default function DiscoverPage() {
                   <span className="text-[9px] font-black text-green-500 uppercase tracking-[0.1em]">ID: {user.numericId}</span>
                 </div>
                 <div className="flex items-center gap-1 opacity-80">
-                  <Globe className="w-2.5 h-2.5 text-primary" />
+                  <Globe className="w-2.5 h-2.5 text-[#5A1010]" />
                   <span className="text-[8px] font-bold text-white uppercase tracking-wider">{user.location}</span>
                 </div>
               </div>
