@@ -144,35 +144,35 @@ export default function ChatDetailPage() {
     setInputText("")
   }
 
-  if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-black"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-  if (!otherUser) return <div className="p-10 text-center bg-black h-svh flex items-center justify-center"><Button onClick={() => router.push('/discover')}>Back</Button></div>
+  if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+  if (!otherUser) return <div className="p-10 text-center bg-white h-svh flex items-center justify-center"><Button onClick={() => router.push('/discover')}>Back</Button></div>
 
   const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUser.id}/200/200`
 
   return (
-    <div className="flex flex-col h-svh bg-black relative overflow-hidden text-white">
+    <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       {/* ZEGO Container for Calls */}
       <div ref={zegoContainerRef} className={cn("absolute inset-0 z-[100] bg-black", callStatus === 'ongoing' ? 'block' : 'hidden')} />
 
       {/* Header Redesigned */}
-      <header className="px-6 pt-10 pb-4 bg-black flex items-center justify-between sticky top-0 z-10 border-none">
+      <header className="px-6 pt-10 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.back()} 
-          className="h-12 w-12 rounded-full bg-white/5 text-white/60 hover:bg-white/10"
+          className="h-10 w-10 rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100"
         >
-          <ChevronLeft className="w-6 h-6" />
+          <ChevronLeft className="w-5 h-5" />
         </Button>
 
         <div className="flex items-center gap-3">
-          <Avatar className="w-11 h-11 border border-white/10">
+          <Avatar className="w-10 h-10 border border-gray-100 shadow-sm">
             <AvatarImage src={otherUserImage} className="object-cover" />
             <AvatarFallback>{otherUser.username?.[0]}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col">
-            <h3 className="font-bold text-sm text-white">{otherUser.username}</h3>
-            <span className="text-[10px] font-black text-green-500 uppercase tracking-widest">
+            <h3 className="font-bold text-xs text-gray-900">{otherUser.username}</h3>
+            <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">
               {presence.online ? 'Online' : 'Offline'}
             </span>
           </div>
@@ -181,22 +181,22 @@ export default function ChatDetailPage() {
         <Button 
           variant="ghost" 
           size="icon" 
-          className="h-12 w-12 rounded-full bg-white/5 text-white/60 hover:bg-white/10"
+          className="h-10 w-10 rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100"
         >
           <MoreVertical className="w-5 h-5" />
         </Button>
       </header>
 
       {/* Messages Area */}
-      <ScrollArea className="flex-1 px-4 py-2">
-        <div className="flex flex-col gap-3">
+      <ScrollArea className="flex-1 px-4 py-4">
+        <div className="flex flex-col gap-4">
           {messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.uid
             return (
               <div key={msg.id} className={cn("flex w-full", isMe ? "justify-end" : "justify-start")}>
                 <div className={cn(
-                  "max-w-[75%] px-4 py-2 text-[13px] font-medium leading-relaxed",
-                  isMe ? "bg-primary text-white rounded-[2rem] rounded-tr-none" : "bg-white/10 text-white rounded-[2rem] rounded-tl-none"
+                  "max-w-[80%] px-4 py-2.5 text-[13px] font-medium leading-relaxed shadow-sm",
+                  isMe ? "bg-primary text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none"
                 )}>
                   <p className="whitespace-pre-wrap">{msg.messageText}</p>
                 </div>
@@ -208,21 +208,21 @@ export default function ChatDetailPage() {
       </ScrollArea>
 
       {/* Footer Redesigned */}
-      <footer className="px-6 py-6 pb-10 space-y-4 bg-black">
+      <footer className="px-5 py-5 pb-8 space-y-4 bg-white border-t border-gray-50">
         {/* Input Bar */}
         <div className="relative group">
           <Input 
             value={inputText} 
             onChange={(e) => setInputText(e.target.value)} 
             placeholder="Flow A Message..." 
-            className="rounded-[3rem] h-14 bg-white/5 border-none px-6 text-[13px] text-white placeholder:text-white/20 focus-visible:ring-0" 
+            className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] text-gray-900 placeholder:text-gray-400 focus-visible:ring-1 focus-visible:ring-primary/20" 
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
           />
           <Button 
             size="icon" 
             className={cn(
-              "absolute right-2 top-1/2 -translate-y-1/2 rounded-full w-10 h-10 transition-all",
-              inputText.trim() ? "bg-primary" : "bg-white/10 text-white/20"
+              "absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9 transition-all",
+              inputText.trim() ? "bg-primary text-white" : "bg-gray-200 text-gray-400"
             )} 
             onClick={() => handleSendMessage()} 
             disabled={!inputText.trim()}
@@ -235,25 +235,25 @@ export default function ChatDetailPage() {
         <div className="grid grid-cols-3 gap-3">
           <button 
             onClick={() => handleInitiateCall('audio')}
-            className="flex flex-col items-center justify-center gap-1 bg-white/5 h-20 rounded-[2rem] border border-white/5 active:bg-white/10 transition-all"
+            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all"
           >
-            <Phone className="w-5 h-5 text-white/60" />
-            <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Voice</span>
+            <Phone className="w-4 h-4 text-gray-500" />
+            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span>
           </button>
 
           <button 
             onClick={() => handleInitiateCall('video')}
-            className="flex flex-col items-center justify-center gap-1 bg-white/5 h-20 rounded-[2rem] border border-white/5 active:bg-white/10 transition-all"
+            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all"
           >
-            <Video className="w-5 h-5 text-white/60" />
-            <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Video</span>
+            <Video className="w-4 h-4 text-gray-500" />
+            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span>
           </button>
 
           <button 
-            className="flex flex-col items-center justify-center gap-1 bg-white/5 h-20 rounded-[2rem] border border-white/5 active:bg-white/10 transition-all"
+            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all"
           >
-            <Gift className="w-5 h-5 text-primary" />
-            <span className="text-[9px] font-black text-white/40 uppercase tracking-widest">Gift</span>
+            <Gift className="w-4 h-4 text-primary" />
+            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Gift</span>
           </button>
         </div>
       </footer>
