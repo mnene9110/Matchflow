@@ -149,9 +149,6 @@ export default function ChatListPage() {
               <div className="text-center space-y-1">
                 <p className="text-xs font-bold text-gray-900">No chats yet</p>
               </div>
-              <Link href="/discover">
-                <Button className="rounded-full px-6 bg-primary h-10 text-[11px] font-black uppercase">Find Matches</Button>
-              </Link>
             </div>
           )}
         </section>
