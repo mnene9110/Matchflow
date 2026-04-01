@@ -1,6 +1,5 @@
 "use client"
 
-import { Navbar } from "@/components/Navbar"
 import { 
   ChevronRight, 
   Copy, 
@@ -19,6 +18,10 @@ import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 
+/**
+ * @fileOverview Profile screen (Me).
+ * Navbar is now persistent in layout.tsx. Loading state handles internal content shift.
+ */
 export default function ProfilePage() {
   const router = useRouter()
   const { user: currentUser, isUserLoading } = useUser()
@@ -44,15 +47,12 @@ export default function ProfilePage() {
     }
   }
 
-  if (isUserLoading || isProfileLoading) {
-    return <div className="min-h-svh bg-transparent" />
-  }
-
+  const isLoading = isUserLoading || isProfileLoading;
   const userImage = (userProfile?.profilePhotoUrls && userProfile?.profilePhotoUrls[0]) || `https://picsum.photos/seed/${currentUser?.uid}/400/400`
   const darkMaroon = "bg-[#5A1010]";
 
   return (
-    <div className="flex flex-col min-h-svh bg-transparent text-gray-900 pb-24">
+    <div className="flex flex-col min-h-svh bg-transparent text-gray-900 pb-24 transition-opacity duration-300">
       <header className="flex flex-col items-center pt-12 pb-8 px-6">
         <div className="relative mb-6">
           <Avatar className="w-28 h-28 shadow-lg">
@@ -61,17 +61,20 @@ export default function ProfilePage() {
               {userProfile?.username?.[0] || '?'}
             </AvatarFallback>
           </Avatar>
-          <button className="absolute bottom-1 right-1 w-8 h-8 bg-primary rounded-full flex items-center justify-center border-4 border-white shadow-lg active:scale-90 transition-transform">
-            <Pencil className="w-3.5 h-3.5 text-white" />
-          </button>
+          {!isLoading && (
+            <button className="absolute bottom-1 right-1 w-8 h-8 bg-primary rounded-full flex items-center justify-center border-4 border-white shadow-lg active:scale-90 transition-transform">
+              <Pencil className="w-3.5 h-3.5 text-white" />
+            </button>
+          )}
         </div>
 
         <h1 className="text-2xl font-black mb-3 tracking-tight">
-          {userProfile?.username || "Guest User"}
+          {isLoading ? "Loading..." : (userProfile?.username || "Guest User")}
         </h1>
 
         <button 
           onClick={copyId}
+          disabled={isLoading}
           className="flex items-center gap-2 px-5 py-2 bg-white/40 backdrop-blur-md border border-white/30 rounded-full active:bg-white/60 transition-colors"
         >
           <span className="text-[10px] font-bold text-green-500 uppercase tracking-[0.2em]">ID: {displayNumericId}</span>
@@ -89,19 +92,20 @@ export default function ProfilePage() {
               <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.15em]">Wallet Balance</span>
             </div>
             <span className="text-2xl font-black text-gray-900">
-              {(userProfile?.coinBalance || 0).toLocaleString()}
+              {isLoading ? "..." : (userProfile?.coinBalance || 0).toLocaleString()}
             </span>
           </div>
           
           <Button 
             onClick={() => router.push('/recharge')}
+            disabled={isLoading}
             className={cn("w-full h-14 rounded-[1.75rem] text-white font-black uppercase tracking-[0.1em] text-xs shadow-lg shadow-primary/20", darkMaroon)}
           >
             Recharge
           </Button>
         </div>
 
-        {userProfile?.isAdmin && (
+        {!isLoading && userProfile?.isAdmin && (
           <div className="pt-2">
             <button 
               onClick={() => router.push('/admin/roles')}
@@ -141,8 +145,6 @@ export default function ProfilePage() {
           </button>
         </div>
       </main>
-
-      <Navbar />
     </div>
   )
 }

@@ -1,7 +1,6 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Navbar } from "@/components/Navbar"
 import Image from "next/image"
 import { Sparkles, ClipboardList, RotateCcw, Globe } from "lucide-react"
 import { useCollection, useFirebase, useMemoFirebase, useUser } from "@/firebase"
@@ -12,7 +11,7 @@ import { useRouter } from "next/navigation"
 
 /**
  * @fileOverview Discovery screen for finding matches.
- * Optimized to remove layout shifts and loading "blinks" by maintaining a consistent background.
+ * Navbar is now persistent in layout.tsx to prevent blinking.
  */
 export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
@@ -22,10 +21,10 @@ export default function DiscoverPage() {
   const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
   
   const profilesQuery = useMemoFirebase(() => collection(firestore, 'userProfiles'), [firestore])
-  const { data: firestoreUsers, isLoading: isProfilesLoading } = useCollection(profilesQuery)
+  const { data: firestoreUsers } = useCollection(profilesQuery)
 
   const blockedQuery = useMemoFirebase(() => currentUser ? collection(firestore, 'userProfiles', currentUser.uid, 'blockedUsers') : null, [firestore, currentUser])
-  const { data: blockedUsers, isLoading: isBlockedLoading } = useCollection(blockedQuery)
+  const { data: blockedUsers } = useCollection(blockedQuery)
   
   useEffect(() => {
     if (!database) return
@@ -133,7 +132,6 @@ export default function DiscoverPage() {
           </div>
         ))}
       </main>
-      <Navbar />
     </div>
   )
 }

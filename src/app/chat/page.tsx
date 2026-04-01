@@ -1,10 +1,8 @@
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
-import { Navbar } from "@/components/Navbar"
 import { MessageSquare, ChevronRight } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { ref, onValue } from "firebase/database"
@@ -13,7 +11,7 @@ import { cn } from "@/lib/utils"
 
 /**
  * @fileOverview Chat list screen. 
- * Optimized to remove full-page loading states to prevent "blinking" during navigation.
+ * Navbar is now persistent in layout.tsx to prevent blinking.
  */
 
 function ChatSessionItem({ session }: { session: any }) {
@@ -168,8 +166,6 @@ export default function ChatListPage() {
           ) : null}
         </section>
       </main>
-
-      <Navbar />
     </div>
   )
 }

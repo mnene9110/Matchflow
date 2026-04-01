@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -35,8 +34,24 @@ export function Navbar() {
     })
   }, [database, currentUser])
 
-  if (pathname === "/welcome" || pathname === "/login" || pathname === "/onboarding/fast" || pathname === "/onboarding/full") return null
-  if (pathname.startsWith("/chat/") || (pathname.startsWith("/profile/") && pathname !== "/profile")) return null
+  // Hide Navbar on sub-pages and specific routes to keep main navigation clean
+  const hiddenRoutes = [
+    "/welcome",
+    "/login",
+    "/onboarding/fast",
+    "/onboarding/full",
+    "/recharge",
+    "/settings",
+    "/admin"
+  ]
+  
+  const shouldHide = 
+    hiddenRoutes.some(route => pathname.startsWith(route)) || 
+    pathname.startsWith("/chat/") || 
+    (pathname.startsWith("/profile/") && pathname !== "/profile") ||
+    pathname === "/"
+
+  if (shouldHide) return null
 
   const navItems = [
     { icon: Home, label: "Home", href: "/discover" },
@@ -48,7 +63,7 @@ export function Navbar() {
     <div className="fixed bottom-6 left-6 right-6 z-50 max-w-md mx-auto">
       <nav className="h-20 w-full bg-white/90 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] flex items-center justify-around px-4">
         {navItems.map((item) => {
-          const isActive = pathname === item.href || (item.href === "/discover" && (pathname === "/" || pathname === "/discover"))
+          const isActive = pathname === item.href
           const Icon = item.icon
           return (
             <Link
