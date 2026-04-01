@@ -469,14 +469,17 @@ export default function ChatDetailPage() {
 
       <header className="px-5 pt-8 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100"><ChevronLeft className="w-5 h-5" /></Button>
-        <div className="flex items-center gap-3">
+        <div 
+          className="flex items-center gap-3 cursor-pointer active:opacity-70 transition-opacity flex-1 justify-center mr-10"
+          onClick={() => router.push(`/profile/${otherUserId}`)}
+        >
           <Avatar className="w-9 h-9 border border-gray-100 shadow-sm"><AvatarImage src={otherUserImage} className="object-cover" /><AvatarFallback>{otherUser.username?.[0]}</AvatarFallback></Avatar>
           <div className="flex flex-col text-center">
             <h3 className="font-bold text-[13px] text-gray-900 leading-none mb-1">{otherUser.username}</h3>
             <span className={cn("text-[9px] font-black uppercase tracking-widest", presence.online ? "text-green-500" : "text-gray-400")}>{presenceText}</span>
           </div>
         </div>
-        <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100"><MoreVertical className="w-5 h-5" /></Button>
+        <div className="w-10" />
       </header>
 
       <ScrollArea className="flex-1 px-4 py-4 bg-white">
