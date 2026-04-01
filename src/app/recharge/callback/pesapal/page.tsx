@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useRef, use, Suspense } from "react"
@@ -7,6 +8,11 @@ import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
 import { doc, runTransaction, collection, getDocs, query, where } from "firebase/firestore"
 import { getPesaPalTransactionStatus } from "@/app/actions/pesapal"
 import { useToast } from "@/hooks/use-toast"
+
+/**
+ * @fileOverview Secure callback handler for PesaPal payments.
+ * Uses Firestore transactions and idempotency checks to prevent multiple credits.
+ */
 
 function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }) {
   const params = use(searchParams)
@@ -35,17 +41,18 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
       processedRef.current = true;
       
       try {
+        // SERVER-SIDE CHECK: Verify status directly with PesaPal API using secret keys
         const result = await getPesaPalTransactionStatus(orderTrackingId);
         
         // PesaPal status 1 is Completed/Success
         if (result.status_code === 1 || result.payment_status_description === 'Completed') {
           const amount = result.amount;
-          // Pricing logic: 1000 coins for 120 KES (~8.33 coins per KES)
-          // We calculate this based on the paid amount to ensure accuracy
+          // Security: Calculate coins based on the amount PAID, not a client-provided value
           const coinsToGain = Math.round((amount / 120) * 1000);
 
           await runTransaction(firestore, async (transaction) => {
-            // IDEMPOTENCY CHECK: Ensure this orderTrackingId hasn't been credited yet
+            // IDEMPOTENCY CHECK: Ensure this specific orderTrackingId hasn't been credited yet
+            // This prevents users from bypassing payment by simply reloading the success URL
             const txQuery = query(
               collection(userProfileDocRef, "transactions"), 
               where("orderTrackingId", "==", orderTrackingId)
@@ -53,7 +60,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
             const existingTx = await getDocs(txQuery);
             
             if (!existingTx.empty) {
-              console.log("Transaction already processed, skipping credit.");
+              console.warn("Transaction already processed. Bypassing balance update.");
               return;
             }
 
@@ -68,25 +75,26 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
               updatedAt: new Date().toISOString()
             });
 
+            // LOG TRANSACTION: Record the recharge for history and idempotency
             const txRef = doc(collection(userProfileDocRef, "transactions"));
             transaction.set(txRef, {
               id: txRef.id,
               type: "recharge",
               amount: coinsToGain,
-              orderTrackingId: orderTrackingId,
+              orderTrackingId: orderTrackingId, // Storing this is critical for security
               transactionDate: new Date().toISOString(),
-              description: `Coin Recharge via PesaPal (${coinsToGain} coins)`
+              description: `Coin Recharge (${coinsToGain} coins)`
             });
           });
 
-          toast({ title: "Success", description: "Payment confirmed. Balance updated." });
+          toast({ title: "Payment Verified", description: "Your wallet has been updated successfully." });
           router.replace("/recharge?status=success");
         } else {
-          toast({ variant: "destructive", title: "Pending/Failed", description: "Transaction is not completed." });
+          toast({ variant: "destructive", title: "Verification Failed", description: "This transaction was not completed." });
           router.replace("/recharge?status=error");
         }
       } catch (error) {
-        console.error("PesaPal Verification error:", error);
+        console.error("Payment security check error:", error);
         router.replace("/recharge?status=error");
       }
     };
@@ -97,14 +105,14 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
   return (
     <div className="min-h-svh bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
       <div className="relative mb-8">
-        <div className="w-24 h-24 bg-blue-500 rounded-[2rem] flex items-center justify-center animate-pulse">
+        <div className="w-24 h-24 bg-primary rounded-[2rem] flex items-center justify-center animate-pulse">
           <Loader2 className="w-12 h-12 text-white animate-spin" />
         </div>
-        <div className="absolute -inset-4 bg-blue-500/10 rounded-full blur-3xl -z-10" />
+        <div className="absolute -inset-4 bg-primary/10 rounded-full blur-3xl -z-10" />
       </div>
-      <h2 className="text-2xl font-black font-headline text-gray-900 mb-2">Verifying Payment</h2>
-      <p className="text-sm font-medium text-gray-400 uppercase tracking-widest max-w-[200px]">
-        Finalizing your coins...
+      <h2 className="text-2xl font-black font-headline text-gray-900 mb-2">Securing Transaction</h2>
+      <p className="text-sm font-medium text-gray-400 uppercase tracking-widest max-w-[220px]">
+        Verifying your payment with PesaPal...
       </p>
     </div>
   )
@@ -114,7 +122,7 @@ export default function PesaPalCallbackPage({ searchParams }: { searchParams: Pr
   return (
     <Suspense fallback={
       <div className="min-h-svh flex items-center justify-center bg-slate-50">
-        <Loader2 className="w-10 h-10 animate-spin text-blue-500" />
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
       </div>
     }>
       <PesaPalCallbackContent searchParams={searchParams} />

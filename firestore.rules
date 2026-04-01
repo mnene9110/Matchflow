@@ -2,9 +2,46 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // Fully open rules for development as requested
-      allow read, write: if true;
+    // Helper to check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Helper to check if user is accessing their own document
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Profiles security
+    match /userProfiles/{userId} {
+      // Anyone logged in can read profiles for discovery
+      allow read: if isAuthenticated();
+      
+      // Only the owner can update their profile.
+      // IMPORTANT: In a production app, 'coinBalance' and 'isAdmin' 
+      // should be further protected so they can only be updated 
+      // by a trusted server-side process (Firebase Cloud Functions).
+      allow write: if isOwner(userId);
+
+      // Secure sub-collections
+      match /transactions/{transactionId} {
+        allow read: if isOwner(userId);
+        // We allow create here for the prototype logic, 
+        // but it should be read-only for users in production.
+        allow create: if isOwner(userId);
+      }
+
+      match /blockedUsers/{blockedId} {
+        allow read, write: if isOwner(userId);
+      }
+    }
+
+    // Call signaling security
+    match /calls/{chatId} {
+      allow read, write: if isAuthenticated() && (
+        chatId.split('_')[0] == request.auth.uid ||
+        chatId.split('_')[1] == request.auth.uid
+      );
     }
   }
 }
