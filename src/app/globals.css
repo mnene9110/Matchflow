@@ -4,24 +4,24 @@
 
 @layer base {
   :root {
-    --background: 20 14% 4%;
+    --background: 0 0% 0%;
     --foreground: 0 0% 100%;
-    --card: 20 14% 6%;
+    --card: 0 0% 5%;
     --card-foreground: 0 0% 100%;
-    --popover: 20 14% 4%;
+    --popover: 0 0% 2%;
     --popover-foreground: 0 0% 100%;
     --primary: 24 100% 50%; /* Vibrant Orange */
     --primary-foreground: 0 0% 100%;
-    --secondary: 20 10% 12%;
+    --secondary: 0 0% 10%;
     --secondary-foreground: 0 0% 100%;
-    --muted: 20 10% 15%;
-    --muted-foreground: 20 10% 60%;
+    --muted: 0 0% 15%;
+    --muted-foreground: 0 0% 60%;
     --accent: 24 100% 50%;
     --accent-foreground: 0 0% 100%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
-    --border: 20 10% 15%;
-    --input: 20 10% 15%;
+    --border: 0 0% 15%;
+    --input: 0 0% 15%;
     --ring: 24 100% 50%;
     --radius: 1.25rem;
   }
@@ -58,7 +58,7 @@
 }
 
 .bg-moving-gradient {
-  background: linear-gradient(-45deg, #800000, #400000, #200000, #000000);
+  background: linear-gradient(-45deg, #000000, #0a0a0a, #1a1a1a, #000000);
   background-size: 400% 400%;
   animation: gradient-flow 15s ease infinite;
 }

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from "react"
@@ -45,33 +44,33 @@ export default function WelcomePage() {
 
   if (isUserLoading || isLoggingIn) {
     return (
-      <div className="flex flex-col h-svh bg-white items-center justify-center">
+      <div className="flex flex-col h-svh bg-black items-center justify-center">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
   }
 
   return (
-    <div className="flex flex-col h-svh bg-primary relative overflow-hidden">
+    <div className="flex flex-col h-svh bg-black relative overflow-hidden">
       {/* Subtle overlay for depth */}
-      <div className="absolute inset-0 bg-black/5" />
+      <div className="absolute inset-0 bg-white/[0.02]" />
       
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
         <div className="mb-6 relative">
-          <div className="w-24 h-24 bg-white/10 backdrop-blur-xl rounded-[2.5rem] shadow-2xl flex items-center justify-center border border-white/20 transform rotate-3 animate-float">
+          <div className="w-24 h-24 bg-white/5 backdrop-blur-xl rounded-[2.5rem] shadow-2xl flex items-center justify-center border border-white/10 transform rotate-3 animate-float">
             <span className="text-white text-4xl font-bold font-headline -rotate-3 drop-shadow-md">MF</span>
           </div>
         </div>
 
         <h1 className="text-5xl font-logo text-white mb-2 drop-shadow-lg">MatchFlow</h1>
 
-        <p className="text-white/80 text-sm font-medium leading-relaxed max-w-[240px] mb-12 drop-shadow-sm">
+        <p className="text-white/60 text-sm font-medium leading-relaxed max-w-[240px] mb-12 drop-shadow-sm">
           Connect through voice, video, and premium conversations.
         </p>
 
         <div className="w-full space-y-4 max-w-xs">
           <Button 
-            className="w-full h-16 rounded-full bg-white text-primary hover:bg-white/90 text-lg font-black gap-3 shadow-2xl transition-all active:scale-95"
+            className="w-full h-16 rounded-full bg-primary text-white hover:bg-primary/90 text-lg font-black gap-3 shadow-2xl transition-all active:scale-95"
             onClick={() => router.push("/login")}
           >
             <Mail className="w-6 h-6" />
@@ -80,7 +79,7 @@ export default function WelcomePage() {
 
           <Button 
             variant="ghost"
-            className="w-full h-16 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/10 hover:bg-white/20 text-lg font-black gap-3 transition-all active:scale-95"
+            className="w-full h-16 rounded-full bg-white/5 backdrop-blur-md text-white border border-white/10 hover:bg-white/10 text-lg font-black gap-3 transition-all active:scale-95"
             onClick={handleFastLogin}
           >
             {hasRecovery ? (
@@ -90,7 +89,7 @@ export default function WelcomePage() {
               </>
             ) : (
               <>
-                <Zap className="w-6 h-6 fill-current text-yellow-300" />
+                <Zap className="w-6 h-6 fill-current text-yellow-400" />
                 Fast Login
               </>
             )}
@@ -98,8 +97,8 @@ export default function WelcomePage() {
         </div>
 
         <footer className="mt-12">
-          <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest leading-normal max-w-[200px]">
-            By continuing, you agree to our <span className="underline decoration-white/20 cursor-pointer">Terms</span> and <span className="underline decoration-white/20 cursor-pointer">Privacy</span>.
+          <p className="text-[10px] text-white/30 font-bold uppercase tracking-widest leading-normal max-w-[200px]">
+            By continuing, you agree to our <span className="underline decoration-white/10 cursor-pointer">Terms</span> and <span className="underline decoration-white/10 cursor-pointer">Privacy</span>.
           </p>
         </footer>
       </main>

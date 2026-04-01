@@ -158,18 +158,16 @@ export default function ChatDetailPage() {
     setInputText("")
   }
 
-  if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-  if (!otherUser) return <div className="p-10 text-center"><Button onClick={() => router.push('/discover')}>Back</Button></div>
+  if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-black"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+  if (!otherUser) return <div className="p-10 text-center bg-black h-svh flex items-center justify-center"><Button onClick={() => router.push('/discover')}>Back</Button></div>
 
   const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUser.id}/200/200`
 
   return (
-    <div className="flex flex-col h-svh bg-slate-50 relative overflow-hidden">
-      {/* Call Overlays omitted for brevity but they follow the same sizing logic */}
-      
-      <header className="px-3 py-2 bg-white/90 backdrop-blur-md flex items-center justify-between sticky top-0 z-10 border-b border-gray-100">
+    <div className="flex flex-col h-svh bg-black relative overflow-hidden text-white">
+      <header className="px-3 py-2 bg-black/80 backdrop-blur-md flex items-center justify-between sticky top-0 z-10 border-b border-white/5">
         <div className="flex items-center gap-1.5">
-          <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8 rounded-full"><ChevronLeft className="w-5 h-5" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8 rounded-full text-white"><ChevronLeft className="w-5 h-5" /></Button>
           <div className="flex items-center gap-2">
             <Avatar className="w-8 h-8">
               <AvatarImage src={otherUserImage} className="object-cover" />
@@ -177,23 +175,23 @@ export default function ChatDetailPage() {
             </Avatar>
             <div className="flex flex-col">
               <h3 className="font-bold text-xs leading-none">{otherUser.username}</h3>
-              <span className="text-[8px] text-muted-foreground font-black uppercase tracking-tight">{presence.online ? 'Online' : 'Offline'}</span>
+              <span className="text-[8px] text-white/40 font-black uppercase tracking-tight">{presence.online ? 'Online' : 'Offline'}</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" onClick={() => handleInitiateCall('audio')}><Phone className="w-4 h-4" /></Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-gray-400" onClick={() => handleInitiateCall('video')}><Video className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40" onClick={() => handleInitiateCall('audio')}><Phone className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40" onClick={() => handleInitiateCall('video')}><Video className="w-4 h-4" /></Button>
         </div>
       </header>
 
-      <ScrollArea className="flex-1 px-3 py-3">
+      <ScrollArea className="flex-1 px-3 py-3 bg-black">
         <div className="flex flex-col gap-3">
           {messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.uid
             return (
               <div key={msg.id} className={cn("flex w-full animate-in fade-in", isMe ? "justify-end" : "justify-start")}>
-                <div className={cn("max-w-[80%] px-3 py-2 text-xs relative", isMe ? "bg-primary text-white rounded-2xl rounded-tr-none" : "bg-white text-gray-800 rounded-2xl rounded-tl-none border border-gray-100")}>
+                <div className={cn("max-w-[80%] px-3 py-2 text-xs relative shadow-sm", isMe ? "bg-primary text-white rounded-2xl rounded-tr-none" : "bg-white/5 text-white rounded-2xl rounded-tl-none border border-white/5")}>
                   <p className="leading-relaxed whitespace-pre-wrap">{msg.messageText}</p>
                 </div>
               </div>
@@ -203,10 +201,16 @@ export default function ChatDetailPage() {
         </div>
       </ScrollArea>
 
-      <footer className="p-3 bg-white border-t border-gray-100">
+      <footer className="p-3 bg-black border-t border-white/5">
         <div className="flex items-center gap-2">
-          <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-9 bg-slate-50 border-none px-4 text-xs" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
-          <Button size="icon" className={cn("rounded-full w-9 h-9", inputText.trim() ? "bg-primary" : "bg-gray-100 text-gray-400")} onClick={() => handleSendMessage()} disabled={!inputText.trim()}><Send className="w-4 h-4 rotate-45" /></Button>
+          <Input 
+            value={inputText} 
+            onChange={(e) => setInputText(e.target.value)} 
+            placeholder="Message..." 
+            className="rounded-full h-9 bg-white/5 border-none px-4 text-xs text-white placeholder:text-white/20" 
+            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
+          />
+          <Button size="icon" className={cn("rounded-full w-9 h-9 transition-all", inputText.trim() ? "bg-primary" : "bg-white/5 text-white/20")} onClick={() => handleSendMessage()} disabled={!inputText.trim()}><Send className="w-4 h-4 rotate-45" /></Button>
         </div>
       </footer>
     </div>

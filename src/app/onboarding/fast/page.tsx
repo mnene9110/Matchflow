@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -48,7 +47,6 @@ export default function FastOnboardingPage() {
 
     setDocumentNonBlocking(userRef, profileData, { merge: true })
     
-    // Path fixed to match standardized backend.json: /coinAccounts/{userId}
     const coinAccountRef = doc(firestore, "coinAccounts", user.uid)
     setDocumentNonBlocking(coinAccountRef, {
       id: user.uid,
@@ -62,37 +60,37 @@ export default function FastOnboardingPage() {
   }
 
   return (
-    <div className="flex flex-col h-svh bg-white p-8">
-      <div className="mt-12 space-y-8 flex-1 flex flex-col">
-        <header className="space-y-2">
-          <h1 className="text-3xl font-bold text-primary font-headline">Fast Setup</h1>
-          <p className="text-muted-foreground">Quickly set your basic info to start matching.</p>
+    <div className="flex flex-col h-svh bg-black p-8 text-white">
+      <div className="mt-12 space-y-10 flex-1 flex flex-col">
+        <header className="space-y-3">
+          <h1 className="text-4xl font-black text-primary font-headline leading-tight">Fast Setup</h1>
+          <p className="text-white/40 font-medium">Quickly set your basic info to start matching.</p>
         </header>
 
-        <div className="space-y-6 flex-1">
-          <div className="space-y-3">
-            <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground/60">I am a</Label>
+        <div className="space-y-8 flex-1">
+          <div className="space-y-4">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">I am a</Label>
             <RadioGroup onValueChange={setGender} className="flex gap-4">
-              <div className="flex items-center space-x-2 bg-secondary/50 px-4 py-3 rounded-xl flex-1 cursor-pointer">
-                <RadioGroupItem value="male" id="male" />
-                <Label htmlFor="male" className="cursor-pointer font-bold">Man</Label>
+              <div className="flex items-center space-x-3 bg-white/5 border border-white/5 px-5 py-4 rounded-[2rem] flex-1 cursor-pointer hover:bg-white/10 transition-colors">
+                <RadioGroupItem value="male" id="male" className="border-white/20" />
+                <Label htmlFor="male" className="cursor-pointer font-black text-sm">Man</Label>
               </div>
-              <div className="flex items-center space-x-2 bg-secondary/50 px-4 py-3 rounded-xl flex-1 cursor-pointer">
-                <RadioGroupItem value="female" id="female" />
-                <Label htmlFor="female" className="cursor-pointer font-bold">Woman</Label>
+              <div className="flex items-center space-x-3 bg-white/5 border border-white/5 px-5 py-4 rounded-[2rem] flex-1 cursor-pointer hover:bg-white/10 transition-colors">
+                <RadioGroupItem value="female" id="female" className="border-white/20" />
+                <Label htmlFor="female" className="cursor-pointer font-black text-sm">Woman</Label>
               </div>
             </RadioGroup>
           </div>
 
-          <div className="space-y-3">
-            <Label className="text-sm font-bold uppercase tracking-widest text-muted-foreground/60">My Country</Label>
+          <div className="space-y-4">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/30 ml-1">My Country</Label>
             <Select onValueChange={setCountry}>
-              <SelectTrigger className="h-14 rounded-xl bg-secondary/50 border-none text-lg font-medium">
-                <SelectValue placeholder="Select your country" />
+              <SelectTrigger className="h-16 rounded-[2rem] bg-white/5 border-white/5 text-lg font-bold text-white px-6">
+                <SelectValue placeholder="Select country" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-zinc-900 border-white/10 text-white rounded-3xl">
                 {AFRICAN_COUNTRIES.map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                  <SelectItem key={c} value={c} className="hover:bg-white/10 focus:bg-white/10 rounded-xl">{c}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -100,7 +98,7 @@ export default function FastOnboardingPage() {
         </div>
 
         <Button 
-          className="w-full h-16 rounded-full bg-primary text-white text-xl font-bold mb-8 shadow-xl active:scale-95 transition-transform"
+          className="w-full h-16 rounded-full bg-primary text-white text-xl font-black mb-10 shadow-2xl shadow-primary/20 active:scale-95 transition-all"
           disabled={!gender || !country}
           onClick={handleConfirm}
         >
