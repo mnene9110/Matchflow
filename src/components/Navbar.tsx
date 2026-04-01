@@ -11,17 +11,17 @@ export function Navbar() {
   // Don't show navbar on welcome screen, login, or onboarding
   if (pathname === "/welcome" || pathname === "/login" || pathname === "/onboarding/fast" || pathname === "/onboarding/full") return null
   
-  // Also hide on detail pages if they are meant to be immersive (e.g., chat detail or profile detail)
+  // Also hide on detail pages if they are meant to be immersive
   if (pathname.startsWith("/chat/") || (pathname.startsWith("/profile/") && pathname !== "/profile")) return null
 
   const navItems = [
     { icon: Home, label: "Home", href: "/discover" },
-    { icon: MessageCircle, label: "Chat", href: "/chat", badge: "99+" },
-    { icon: User, label: "Me", href: "/profile", dot: true },
+    { icon: MessageCircle, label: "Chat", href: "/chat" },
+    { icon: User, label: "Me", href: "/profile" },
   ]
 
   return (
-    <nav className="fixed bottom-0 w-full max-w-md bg-white/90 backdrop-blur-md border-t border-gray-100 flex justify-around items-center py-3 px-2 z-50">
+    <nav className="fixed bottom-0 w-full max-w-md bg-white/95 backdrop-blur-md border-t border-gray-100 flex justify-around items-center py-2 px-1 z-50">
       {navItems.map((item) => {
         const isActive = pathname === item.href || (item.href === "/discover" && (pathname === "/" || pathname === "/discover"))
         const Icon = item.icon
@@ -30,28 +30,20 @@ export function Navbar() {
             key={item.href}
             href={item.href}
             className={cn(
-              "flex flex-col items-center gap-1 transition-all duration-300 relative py-2 px-6",
+              "flex flex-col items-center gap-0.5 transition-all duration-300 relative py-1.5 px-5",
               isActive ? "text-white" : "text-gray-400 hover:text-primary"
             )}
           >
-            {/* Active Highlight Shape - Using Maroon (Primary) */}
+            {/* Active Highlight Shape */}
             {isActive && (
-              <div className="absolute inset-0 bg-primary -z-10 rounded-[1.5rem] scale-90 shadow-lg shadow-primary/20" 
-                   style={{ clipPath: 'polygon(15% 0%, 85% 0%, 100% 100%, 0% 100%)' }} />
+              <div className="absolute inset-0 bg-primary -z-10 rounded-2xl scale-[0.85] shadow-lg shadow-primary/20" 
+                   style={{ clipPath: 'polygon(10% 0%, 90% 0%, 100% 100%, 0% 100%)' }} />
             )}
             
             <div className="relative">
-              <Icon className={cn("w-6 h-6", isActive && "fill-current")} />
-              {item.badge && (
-                <span className="absolute -top-3 -right-3 bg-red-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full border-2 border-white min-w-[1.4rem] h-5 flex justify-center items-center shadow-sm">
-                  {item.badge}
-                </span>
-              )}
-              {item.dot && (
-                <span className="absolute top-0 right-0 w-2 h-2 bg-red-600 rounded-full border-2 border-white shadow-sm" />
-              )}
+              <Icon className={cn("w-5 h-5", isActive && "fill-current")} />
             </div>
-            <span className={cn("text-[10px] font-black tracking-tight", isActive ? "text-white" : "text-gray-400")}>
+            <span className={cn("text-[9px] font-black tracking-tight", isActive ? "text-white" : "text-gray-400")}>
               {item.label}
             </span>
           </Link>

@@ -47,7 +47,7 @@ function ChatSessionItem({ session }: { session: any }) {
     const now = new Date();
     const diffInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
     if (diffInDays > 2) return "Offline";
-    return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
   }, [presence]);
 
   const name = otherUserData?.username || `User ${session.otherUserId?.slice(0, 4)}`
@@ -56,37 +56,37 @@ function ChatSessionItem({ session }: { session: any }) {
   return (
     <Link 
       href={`/chat/${session.otherUserId}`} 
-      className="flex items-center gap-4 py-4 hover:bg-slate-50/80 rounded-3xl px-3 transition-all group active:scale-[0.98]"
+      className="flex items-center gap-3 py-2.5 hover:bg-slate-50/80 rounded-2xl px-2 transition-all group active:scale-[0.98]"
     >
       <div className="relative shrink-0">
-        <Avatar className="w-16 h-16 border-2 border-white shadow-lg ring-2 ring-primary/5">
+        <Avatar className="w-12 h-12 border border-gray-100 shadow-sm">
           <AvatarImage src={image} className="object-cover" />
           <AvatarFallback>{name[0]}</AvatarFallback>
         </Avatar>
         <div className={cn(
-          "absolute bottom-0 right-0 w-4.5 h-4.5 border-2 border-white rounded-full shadow-sm transition-all duration-500",
-          presence.online ? "bg-green-500 scale-110" : "bg-gray-300"
+          "absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full shadow-sm",
+          presence.online ? "bg-green-500" : "bg-gray-300"
         )} />
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-baseline mb-0.5">
+        <div className="flex justify-between items-baseline mb-0">
           <h3 className="font-bold text-sm text-gray-900 truncate font-headline">{name}</h3>
           {session.timestamp && (
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-tighter">
+            <span className="text-[9px] font-bold text-gray-400">
               {new Date(session.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <p className="text-[12px] text-gray-500 truncate font-medium flex-1">
+        <div className="flex items-center gap-1.5">
+          <p className="text-[11px] text-gray-500 truncate font-medium flex-1">
             {session.lastMessage || "Start a conversation"}
           </p>
-          <span className="text-[9px] font-black text-primary/40 uppercase tracking-tighter shrink-0">{presenceText}</span>
+          <span className="text-[9px] font-bold text-primary/40 uppercase tracking-tighter shrink-0">{presence.online ? "Online" : presenceText}</span>
         </div>
       </div>
       
-      <ChevronRight className="w-5 h-5 text-gray-200 group-hover:text-primary transition-colors" />
+      <ChevronRight className="w-4 h-4 text-gray-200 group-hover:text-primary transition-colors" />
     </Link>
   )
 }
@@ -118,40 +118,39 @@ export default function ChatListPage() {
   }, [database, currentUser])
 
   return (
-    <div className="flex flex-col min-h-svh pb-24 bg-transparent">
-      <header className="bg-transparent pt-12 pb-6 px-6 sticky top-0 z-20">
+    <div className="flex flex-col min-h-svh pb-20 bg-transparent">
+      <header className="bg-transparent pt-8 pb-4 px-6 sticky top-0 z-20">
         <div className="flex items-center justify-between">
-          <h1 className="text-4xl font-logo text-white relative flex items-center gap-3">
+          <h1 className="text-3xl font-logo text-white relative flex items-center gap-2">
             Chats
-            <MessageSquare className="w-8 h-8 text-white/30" />
+            <MessageSquare className="w-6 h-6 text-white/30" />
           </h1>
         </div>
       </header>
 
-      <main className="flex-1 px-4 bg-white rounded-t-[3.5rem] shadow-2xl pt-8">
-        <section className="space-y-2">
+      <main className="flex-1 px-3 bg-white rounded-t-[2.5rem] shadow-2xl pt-6">
+        <section className="space-y-1">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-4">
-              <Loader2 className="w-10 h-10 animate-spin text-primary" />
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest animate-pulse">Syncing flows...</p>
+            <div className="flex flex-col items-center justify-center py-20 gap-3">
+              <Loader2 className="w-8 h-8 animate-spin text-primary" />
+              <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Syncing...</p>
             </div>
           ) : sessions.length > 0 ? (
-            <div className="flex flex-col gap-2">
+            <div className="flex flex-col gap-1">
               {sessions.map((session) => (
                 <ChatSessionItem key={session.otherUserId} session={session} />
               ))}
             </div>
           ) : (
-            <div className="flex flex-col items-center justify-center py-24 text-gray-400 font-medium gap-6">
-              <div className="w-20 h-20 bg-slate-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100 shadow-inner">
-                <MessageSquare className="w-10 h-10 text-gray-200" />
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400 font-medium gap-4">
+              <div className="w-16 h-16 bg-slate-50 rounded-3xl flex items-center justify-center border border-gray-100">
+                <MessageSquare className="w-8 h-8 text-gray-200" />
               </div>
-              <div className="text-center space-y-2">
-                <p className="text-sm font-bold text-gray-900">Your flow is quiet</p>
-                <p className="text-xs text-gray-400 max-w-[200px] leading-relaxed">Head to Discover and send an icebreaker to get started.</p>
+              <div className="text-center space-y-1">
+                <p className="text-xs font-bold text-gray-900">No chats yet</p>
               </div>
               <Link href="/discover">
-                <Button className="rounded-full px-8 bg-primary hover:bg-primary shadow-lg shadow-primary/20 font-black text-xs uppercase">Find Matches</Button>
+                <Button className="rounded-full px-6 bg-primary h-10 text-[11px] font-black uppercase">Find Matches</Button>
               </Link>
             </div>
           )}

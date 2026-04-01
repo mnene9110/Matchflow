@@ -23,7 +23,7 @@
     --border: 0 0% 90%;
     --input: 0 0% 90%;
     --ring: 0 100% 25%;
-    --radius: 2rem;
+    --radius: 1.25rem;
   }
 }
 
@@ -41,14 +41,14 @@
   @apply relative min-h-svh w-full max-w-md mx-auto shadow-2xl overflow-hidden flex flex-col bg-white;
 }
 
-/* MatchFlow Branding Watermark (Hidden by default, shown on specific pages) */
+/* MatchFlow Branding Watermark */
 .with-watermark::before {
   content: 'MatchFlow';
   position: absolute;
   top: 15%;
   left: 50%;
   transform: translate(-50%, -50%) rotate(-10deg);
-  font-size: 5rem;
+  font-size: 3.5rem;
   font-weight: 400;
   color: rgba(128, 0, 0, 0.05);
   white-space: nowrap;
@@ -60,7 +60,7 @@
 
 /* Immersive Gradient for Discover/Profile */
 .bg-immersive {
-  background: linear-gradient(180deg, #800000 0%, #ffffff 45%);
+  background: linear-gradient(180deg, #800000 0%, #ffffff 40%);
 }
 
 .app-content {

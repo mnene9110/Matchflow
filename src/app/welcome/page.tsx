@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect } from "react"
@@ -13,7 +12,6 @@ export default function WelcomePage() {
   const { user, isUserLoading } = useUser()
 
   useEffect(() => {
-    // If user is already logged in with email, skip welcome
     if (user && !user.isAnonymous) {
       router.push("/discover")
     }
@@ -27,50 +25,49 @@ export default function WelcomePage() {
   if (isUserLoading) {
     return (
       <div className="flex flex-col h-svh bg-white items-center justify-center">
-        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <Loader2 className="w-8 h-8 animate-spin text-primary" />
       </div>
     )
   }
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden">
-      {/* Top bar removed as requested */}
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center">
-        <div className="mb-8 relative">
-          <div className="w-28 h-28 bg-primary rounded-[2rem] shadow-2xl flex items-center justify-center transform rotate-3">
-            <span className="text-white text-5xl font-bold font-headline -rotate-3">MF</span>
+        <div className="mb-6 relative">
+          <div className="w-20 h-20 bg-primary rounded-3xl shadow-xl flex items-center justify-center transform rotate-2">
+            <span className="text-white text-3xl font-bold font-headline -rotate-2">MF</span>
           </div>
-          <div className="absolute -inset-4 bg-primary/10 rounded-full blur-3xl -z-10" />
+          <div className="absolute -inset-2 bg-primary/10 rounded-full blur-2xl -z-10" />
         </div>
 
-        <h1 className="text-5xl font-logo text-primary mb-6">MatchFlow</h1>
+        <h1 className="text-4xl font-logo text-primary mb-4">MatchFlow</h1>
 
-        <p className="text-muted-foreground text-lg leading-relaxed max-w-[280px] mb-20">
-          Connect through voice, video, and meaningful conversations.
+        <p className="text-muted-foreground text-base leading-relaxed max-w-[240px] mb-12">
+          Connect through voice, video, and conversations.
         </p>
 
-        <div className="w-full space-y-4 max-w-sm">
+        <div className="w-full space-y-3 max-w-sm">
           <Button 
-            className="w-full h-16 rounded-full bg-primary hover:bg-primary/90 text-white text-lg font-bold gap-3 shadow-lg shadow-primary/20"
+            className="w-full h-14 rounded-full bg-primary hover:bg-primary/90 text-white text-base font-bold gap-2 shadow-lg shadow-primary/20"
             onClick={() => router.push("/login")}
           >
-            <Mail className="w-6 h-6" />
+            <Mail className="w-5 h-5" />
             Continue with Email
           </Button>
 
           <Button 
             variant="secondary"
-            className="w-full h-16 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-lg font-bold gap-3 shadow-md"
+            className="w-full h-14 rounded-full bg-primary/10 hover:bg-primary/20 text-primary text-base font-bold gap-2"
             onClick={handleFastLogin}
           >
-            <Zap className="w-6 h-6 fill-current" />
+            <Zap className="w-5 h-5 fill-current" />
             Fast Login
           </Button>
         </div>
 
-        <footer className="mt-12">
-          <p className="text-[11px] text-muted-foreground leading-normal max-w-[240px]">
-            By continuing, you agree to our <span className="underline cursor-pointer">Terms of Service</span> and <span className="underline cursor-pointer">Privacy Policy</span>.
+        <footer className="mt-10">
+          <p className="text-[10px] text-muted-foreground leading-normal max-w-[200px]">
+            By continuing, you agree to our <span className="underline">Terms</span> and <span className="underline">Privacy</span>.
           </p>
         </footer>
       </main>
