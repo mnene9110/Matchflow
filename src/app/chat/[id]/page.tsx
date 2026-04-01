@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift, PhoneOff, Ban } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, Gift, PhoneOff, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -27,6 +27,7 @@ export default function ChatDetailPage() {
   
   const scrollRef = useRef<HTMLDivElement>(null)
   const zegoContainerRef = useRef<HTMLDivElement>(null)
+  const localVideoRef = useRef<HTMLVideoElement>(null)
   const localStreamRef = useRef<MediaStream | null>(null)
   const ringtoneRef = useRef<HTMLAudioElement | null>(null)
   const zegoInitializingRef = useRef(false)
@@ -72,6 +73,13 @@ export default function ChatDetailPage() {
     }
   }, []);
 
+  // Show camera preview when calling
+  useEffect(() => {
+    if ((callStatus === 'calling' || callStatus === 'ringing') && callType === 'video' && localVideoRef.current && localStreamRef.current) {
+      localVideoRef.current.srcObject = localStreamRef.current;
+    }
+  }, [callStatus, callType]);
+
   // Clear unread count when entering chat
   useEffect(() => {
     if (!database || !currentUser || !otherUserId) return
@@ -86,9 +94,16 @@ export default function ChatDetailPage() {
         if (!mounted) return;
         setCallDuration((prev) => {
           const nextVal = prev + 1;
-          if (nextVal > 0 && nextVal % 60 === 0) {
+          
+          // Deduction logic:
+          // 1. Minute 1: Deduct at 11s (10s grace period)
+          // 2. Minute 2+: Deduct at start of each minute (60s, 120s, etc.)
+          if (nextVal === 11) {
+            handleRecurringDeduction();
+          } else if (nextVal > 11 && nextVal % 60 === 0) {
             handleRecurringDeduction();
           }
+          
           return nextVal;
         });
       }, 1000);
@@ -99,11 +114,13 @@ export default function ChatDetailPage() {
   }, [callStatus, mounted, callType]);
 
   const handleRecurringDeduction = async () => {
-    if (!currentUser || !firestore || !chatId) return;
+    if (!currentUser || !firestore || !chatId || !currentUserProfile) return;
 
-    const isFree = currentUserProfile?.isAdmin || 
-                   currentUserProfile?.isSupport || 
-                   currentUserProfile?.isCoinseller;
+    // Female to Male is free
+    const isFree = currentUserProfile.isAdmin || 
+                   currentUserProfile.isSupport || 
+                   currentUserProfile.isCoinseller ||
+                   (currentUserProfile.gender === 'female' && otherUser?.gender === 'male');
 
     if (isFree) return;
 
@@ -133,27 +150,9 @@ export default function ChatDetailPage() {
       });
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
-        toast({ 
-          variant: "destructive", 
-          title: "Session Ended", 
-          description: "Insufficient balance to continue. Please recharge." 
-        });
         handleEndCall();
       }
     }
-  };
-
-  const presenceText = useMemo(() => {
-    if (presence.online) return "Online";
-    if (!presence.lastSeen) return "Offline";
-    const date = new Date(presence.lastSeen);
-    return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }, [presence]);
-
-  const formatDuration = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
   const stopRingtone = () => {
@@ -188,16 +187,19 @@ export default function ChatDetailPage() {
     if (!ZegoUIKitPrebuilt || !currentUser || !zegoContainerRef.current || zegoInitializingRef.current) return;
     
     zegoInitializingRef.current = true;
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: callType === 'video',
-        audio: true
-      });
-      localStreamRef.current = stream;
-    } catch (error) {
-      console.error("Media access denied", error);
-      handleEndCall();
-      return;
+    
+    // Ensure we have media before joining Zego
+    if (!localStreamRef.current) {
+      try {
+        localStreamRef.current = await navigator.mediaDevices.getUserMedia({
+          video: callType === 'video',
+          audio: true
+        });
+      } catch (error) {
+        console.error("Media access denied", error);
+        handleEndCall();
+        return;
+      }
     }
 
     const { appID, serverSecret } = await getZegoConfig();
@@ -222,10 +224,10 @@ export default function ChatDetailPage() {
         turnOnCameraWhenJoining: callType === 'video',
         showMyCameraToggleButton: false,
         showMyMicrophoneToggleButton: false,
-        showAudioVideoSettingsButton: true,
-        showScreenSharingButton: true,
-        showTextChat: true,
-        showUserList: true,
+        showAudioVideoSettingsButton: false,
+        showScreenSharingButton: false,
+        showTextChat: false,
+        showUserList: false,
         maxUsers: 2,
         layout: "Auto",
         showLayoutButton: false,
@@ -273,30 +275,30 @@ export default function ChatDetailPage() {
   const handleInitiateCall = async (type: 'video' | 'audio') => {
     if (!firestore || !chatId || !currentUser || !currentUserProfile || isBlocked) return
     const costPerMin = type === 'video' ? 160 : 80;
-    const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.isCoinseller;
+    
+    // Female to Male is free
+    const isFree = currentUserProfile.isAdmin || 
+                   currentUserProfile.isSupport || 
+                   currentUserProfile.isCoinseller ||
+                   (currentUserProfile.gender === 'female' && otherUser?.gender === 'male');
+
+    // Start local camera preview immediately
+    try {
+      localStreamRef.current = await navigator.mediaDevices.getUserMedia({
+        video: type === 'video',
+        audio: true
+      });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Camera Error", description: "Please allow camera access." });
+      return;
+    }
 
     try {
       if (!isFree) {
-        await runTransaction(firestore, async (transaction) => {
-          const userDoc = await transaction.get(doc(firestore, "userProfiles", currentUser.uid));
-          if (!userDoc.exists()) throw new Error("Profile not found");
-          const currentBalance = userDoc.data().coinBalance || 0;
-          if (currentBalance < costPerMin) throw new Error("INSUFFICIENT_COINS");
-          
-          transaction.update(doc(firestore, "userProfiles", currentUser.uid), {
-            coinBalance: currentBalance - costPerMin,
-            updatedAt: new Date().toISOString()
-          });
-          
-          const txRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
-          transaction.set(txRef, {
-            id: txRef.id,
-            type: "deduction",
-            amount: -costPerMin,
-            transactionDate: new Date().toISOString(),
-            description: `Started ${type} call with ${otherUser?.username || 'user'}`
-          });
-        });
+        // Must have enough for at least 1 minute
+        if ((currentUserProfile.coinBalance || 0) < costPerMin) {
+          throw new Error("INSUFFICIENT_COINS");
+        }
       }
       
       const callDocRef = doc(firestore, "calls", chatId);
@@ -309,11 +311,12 @@ export default function ChatDetailPage() {
         callerName: currentUser.displayName || 'Someone'
       });
     } catch (error: any) {
+      stopAllMedia();
       if (error.message === "INSUFFICIENT_COINS") {
         toast({
           variant: "destructive",
           title: "Insufficient Balance",
-          description: `You need a higher balance to start this call.`,
+          description: `Recharge to start this call.`,
           action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button>
         });
       }
@@ -408,17 +411,7 @@ export default function ChatDetailPage() {
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
       const msgData = { messageText: inputText, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      
-      // Update my chat summary
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { 
-        lastMessage: inputText, 
-        timestamp: rtdbTimestamp(), 
-        otherUserId, 
-        chatId,
-        unreadCount: 0 
-      }
-      
-      // Update their chat summary and increment unread count
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: inputText, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0 }
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = inputText
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/otherUserId`] = currentUser.uid
@@ -429,11 +422,7 @@ export default function ChatDetailPage() {
       setInputText("")
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
-        toast({ 
-          variant: "destructive", 
-          title: "Balance Error", 
-          description: `Insufficient balance to send message.` 
-        });
+        toast({ variant: "destructive", title: "Balance Error", description: `Insufficient balance.` });
       }
     } finally { setIsSending(false) }
   }
@@ -447,18 +436,26 @@ export default function ChatDetailPage() {
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       {(callStatus === 'calling' || callStatus === 'incoming') && (
         <div className="absolute inset-0 z-[300] bg-zinc-950 flex flex-col items-center justify-between py-24 px-8 text-white animate-in fade-in duration-500">
-          <div className="flex flex-col items-center gap-10 mt-12 w-full">
+          <div className="absolute inset-0 z-0">
+             {callType === 'video' ? (
+                <video ref={localVideoRef} autoPlay muted playsInline className="w-full h-full object-cover opacity-60 grayscale-[0.2]" />
+             ) : (
+                <div className="w-full h-full bg-zinc-900" />
+             )}
+             <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-zinc-950/60" />
+          </div>
+
+          <div className="relative z-10 flex flex-col items-center gap-10 mt-12 w-full">
             <div className="relative">
               <div className="absolute -inset-8 bg-primary/20 rounded-full animate-ping opacity-20" />
-              <div className="absolute -inset-16 bg-primary/10 rounded-full animate-pulse opacity-10" />
-              <Avatar className="w-44 h-44 border-[10px] border-white/5 shadow-[0_0_60px_rgba(179,102,102,0.3)] relative z-10">
+              <Avatar className="w-44 h-44 border-[10px] border-white/5 shadow-2xl">
                 <AvatarImage src={otherUserImage} className="object-cover" />
-                <AvatarFallback className="text-5xl bg-zinc-900">{otherUser.username?.[0]}</AvatarFallback>
+                <AvatarFallback className="text-5xl bg-zinc-800">{otherUser.username?.[0]}</AvatarFallback>
               </Avatar>
             </div>
             <div className="text-center space-y-4">
               <h2 className="text-4xl font-black font-headline tracking-tight text-white">{otherUser.username}</h2>
-              <div className="px-4 py-1.5 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
+              <div className="px-4 py-1.5 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2 mx-auto w-fit">
                 {callType === 'video' ? <Video className="w-4 h-4 text-primary" /> : <Phone className="w-4 h-4 text-primary" />}
                 <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] animate-pulse">
                   {callStatus === 'calling' ? 'Calling...' : `Incoming call`}
@@ -466,14 +463,15 @@ export default function ChatDetailPage() {
               </div>
             </div>
           </div>
-          <div className="flex items-center gap-16 mb-12">
+
+          <div className="relative z-10 flex items-center gap-16 mb-12">
             {callStatus === 'incoming' ? (
               <>
-                <button onClick={handleDeclineCall} className="w-24 h-24 rounded-full bg-red-500/90 flex items-center justify-center shadow-2xl active:scale-90 transition-all"><PhoneOff className="w-10 h-10 text-white" /></button>
-                <button onClick={handleAcceptCall} className="w-24 h-24 rounded-full bg-green-500/90 flex items-center justify-center shadow-2xl active:scale-90 transition-all animate-bounce"><Phone className="w-10 h-10 text-white" /></button>
+                <button onClick={handleDeclineCall} className="w-24 h-24 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all"><PhoneOff className="w-10 h-10 text-white" /></button>
+                <button onClick={handleAcceptCall} className="w-24 h-24 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all animate-bounce"><Phone className="w-10 h-10 text-white" /></button>
               </>
             ) : (
-              <button onClick={handleEndCall} className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center border border-white/10 shadow-2xl active:scale-90 transition-all hover:bg-red-500"><PhoneOff className="w-10 h-10 text-white/80" /></button>
+              <button onClick={handleEndCall} className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center border border-white/10 shadow-2xl active:scale-90 transition-all hover:bg-red-500"><PhoneOff className="w-10 h-10 text-white" /></button>
             )}
           </div>
         </div>
@@ -484,22 +482,19 @@ export default function ChatDetailPage() {
           <div className="absolute top-12 left-1/2 -translate-x-1/2 z-[210] px-5 py-2 bg-black/40 backdrop-blur-xl rounded-full border border-white/20">
             <div className="flex items-center gap-3">
                <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-               <span className="text-white font-black text-sm tracking-[0.2em]">{formatDuration(callDuration)}</span>
+               <span className="text-white font-black text-sm tracking-[0.2em]">{Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')}</span>
             </div>
           </div>
         )}
       </div>
 
       <header className="px-5 pt-8 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100"><ChevronLeft className="w-5 h-5" /></Button>
-        <div 
-          className="flex items-center gap-3 cursor-pointer active:opacity-70 transition-opacity flex-1 justify-center mr-10"
-          onClick={() => router.push(`/profile/${otherUserId}`)}
-        >
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-full bg-gray-50 text-gray-500"><ChevronLeft className="w-5 h-5" /></Button>
+        <div className="flex items-center gap-3 cursor-pointer active:opacity-70 transition-opacity flex-1 justify-center mr-10" onClick={() => router.push(`/profile/${otherUserId}`)}>
           <Avatar className="w-9 h-9 border border-gray-100 shadow-sm"><AvatarImage src={otherUserImage} className="object-cover" /><AvatarFallback>{otherUser.username?.[0]}</AvatarFallback></Avatar>
           <div className="flex flex-col text-center">
             <h3 className="font-bold text-[13px] text-gray-900 leading-none mb-1">{otherUser.username}</h3>
-            <span className={cn("text-[9px] font-black uppercase tracking-widest", presence.online ? "text-green-500" : "text-gray-400")}>{presenceText}</span>
+            <span className={cn("text-[9px] font-black uppercase tracking-widest", presence.online ? "text-green-500" : "text-gray-400")}>{presence.online ? "Online" : "Offline"}</span>
           </div>
         </div>
         <div className="w-10" />
@@ -524,8 +519,8 @@ export default function ChatDetailPage() {
       <footer className="px-5 py-5 pb-8 space-y-4 bg-white border-t border-gray-50">
         {isBlocked ? (
           <div className="flex flex-col items-center justify-center py-4 gap-2">
-            <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center"><Ban className="w-6 h-6 text-red-500" /></div>
-            <p className="text-[11px] font-black uppercase tracking-widest text-red-500">{iBlockedThem ? "You have blocked this user" : "Chat restricted"}</p>
+            <Ban className="w-6 h-6 text-red-500" />
+            <p className="text-[11px] font-black uppercase tracking-widest text-red-500">{iBlockedThem ? "User Blocked" : "Chat restricted"}</p>
           </div>
         ) : (
           <>
