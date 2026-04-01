@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift, PhoneOff, AlertCircle, Ban } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift, PhoneOff, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -39,7 +39,6 @@ export default function ChatDetailPage() {
   const [zegoInstance, setZegoInstance] = useState<any>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
-  const [hasPermissionError, setHasPermissionError] = useState(false)
   const [callDuration, setCallDuration] = useState(0)
   
   const chatId = currentUser && otherUserId ? [currentUser.uid, otherUserId].sort().join("_") : ""
@@ -77,6 +76,7 @@ export default function ChatDetailPage() {
         if (!mounted) return;
         setCallDuration((prev) => {
           const nextVal = prev + 1;
+          // Deduct coins at the start of every new minute (60s, 120s, etc.)
           if (nextVal > 0 && nextVal % 60 === 0) {
             handleRecurringDeduction();
           }
@@ -87,14 +87,15 @@ export default function ChatDetailPage() {
       setCallDuration(0);
     }
     return () => clearInterval(interval);
-  }, [callStatus, mounted]);
+  }, [callStatus, mounted, callType]);
 
   const handleRecurringDeduction = async () => {
-    if (!currentUser || !currentUserProfile || !firestore || !chatId) return;
+    if (!currentUser || !firestore || !chatId) return;
 
-    const isFree = currentUserProfile.isAdmin || 
-                   currentUserProfile.isSupport || 
-                   currentUserProfile.isCoinseller;
+    // Refresh profile state within transaction to ensure accurate balance
+    const isFree = currentUserProfile?.isAdmin || 
+                   currentUserProfile?.isSupport || 
+                   currentUserProfile?.isCoinseller;
 
     if (isFree) return;
 
@@ -119,12 +120,16 @@ export default function ChatDetailPage() {
           type: "deduction",
           amount: -costPerMin,
           transactionDate: new Date().toISOString(),
-          description: `${callType === 'video' ? 'Video' : 'Voice'} call (Minute Renewal) with ${otherUser?.username || 'user'}`
+          description: `${callType === 'video' ? 'Video' : 'Voice'} call (Minute ${Math.floor(callDuration / 60) + 1}) with ${otherUser?.username || 'user'}`
         });
       });
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
-        toast({ variant: "destructive", title: "Insufficient Coins", description: "Your call ended because you ran out of coins." });
+        toast({ 
+          variant: "destructive", 
+          title: "Insufficient Coins", 
+          description: "Your call ended because you ran out of coins. Please recharge to continue." 
+        });
         handleEndCall();
       }
     }
@@ -173,9 +178,7 @@ export default function ChatDetailPage() {
         audio: true
       });
       localStreamRef.current = stream;
-      setHasPermissionError(false);
     } catch (error) {
-      setHasPermissionError(true);
       handleEndCall();
       return;
     }
@@ -200,7 +203,7 @@ export default function ChatDetailPage() {
         showPreJoinView: false,
         turnOnMicrophoneWhenJoining: true,
         turnOnCameraWhenJoining: callType === 'video',
-        showMyCameraToggleButton: callType === 'video',
+        showMyCameraToggleButton: true,
         showMyMicrophoneToggleButton: true,
         showAudioVideoSettingsButton: true,
         showScreenSharingButton: true,
@@ -250,15 +253,18 @@ export default function ChatDetailPage() {
 
     try {
       if (!isFree) {
+        // Initial deduction for the first minute
         await runTransaction(firestore, async (transaction) => {
           const userDoc = await transaction.get(doc(firestore, "userProfiles", currentUser.uid));
           if (!userDoc.exists()) throw new Error("Profile not found");
           const currentBalance = userDoc.data().coinBalance || 0;
           if (currentBalance < costPerMin) throw new Error("INSUFFICIENT_COINS");
+          
           transaction.update(doc(firestore, "userProfiles", currentUser.uid), {
             coinBalance: currentBalance - costPerMin,
             updatedAt: new Date().toISOString()
           });
+          
           const txRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
           transaction.set(txRef, {
             id: txRef.id,
@@ -269,6 +275,7 @@ export default function ChatDetailPage() {
           });
         });
       }
+      
       const callRef = ref(database, `calls/${chatId}`)
       set(callRef, { 
         callerId: currentUser.uid, 
@@ -283,8 +290,8 @@ export default function ChatDetailPage() {
         toast({
           variant: "destructive",
           title: "Insufficient Coins",
-          description: `You need ${costPerMin} coins to start this call.`,
-          action: <Button onClick={() => router.push('/recharge')} size="sm">Recharge</Button>
+          description: `You need at least ${costPerMin} coins to start this call.`,
+          action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button>
         });
       }
     }
