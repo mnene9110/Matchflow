@@ -42,10 +42,11 @@ service cloud.firestore {
       );
 
       allow update: if isOwner(userId) && (
-        // Regular users can't change sensitive flags
-        request.resource.data.isAdmin == resource.data.isAdmin &&
-        request.resource.data.isCoinseller == resource.data.isCoinseller &&
-        request.resource.data.isSupport == resource.data.isSupport
+        // Regular users can't change sensitive flags or coins
+        request.resource.data.get('isAdmin', false) == resource.data.get('isAdmin', false) &&
+        request.resource.data.get('isCoinseller', false) == resource.data.get('isCoinseller', false) &&
+        request.resource.data.get('isSupport', false) == resource.data.get('isSupport', false) &&
+        request.resource.data.get('coinBalance', 0) == resource.data.get('coinBalance', 0)
       ) || (
         // Admins can update any profile (e.g., awarding coins or roles)
         isAdmin()
