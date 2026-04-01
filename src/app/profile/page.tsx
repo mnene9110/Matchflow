@@ -107,7 +107,7 @@ export default function ProfilePage() {
         </div>
 
         <div className="relative mb-6">
-          <Avatar className="w-28 h-28 shadow-lg bg-gray-50 ring-4 ring-white/20">
+          <Avatar className="w-28 h-28 shadow-lg bg-gray-50">
             {userImage && <AvatarImage src={userImage} className="object-cover" />}
             <AvatarFallback className="bg-primary text-white font-black text-2xl">
               {userProfile?.username?.[0] || ''}
@@ -116,7 +116,7 @@ export default function ProfilePage() {
           {!isLoading && (
             <button 
               onClick={() => router.push('/profile/edit')}
-              className="absolute bottom-1 right-1 w-8 h-8 bg-primary rounded-full flex items-center justify-center border-4 border-white shadow-lg active:scale-90 transition-transform"
+              className={cn("absolute bottom-1 right-1 w-8 h-8 rounded-full flex items-center justify-center shadow-lg active:scale-90 transition-transform", darkMaroon)}
             >
               <Pencil className="w-3.5 h-3.5 text-white" />
             </button>

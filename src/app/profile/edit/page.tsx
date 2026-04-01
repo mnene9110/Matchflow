@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -12,6 +13,7 @@ import { useUser, useDoc, useFirestore, useMemoFirebase, updateDocumentNonBlocki
 import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { cn } from "@/lib/utils"
 
 const COUNTRIES = [
   "Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", 
@@ -51,6 +53,8 @@ export default function EditProfilePage() {
   const [isSaving, setIsSaving] = useState(false)
   const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [hasInitialized, setHasInitialized] = useState(false)
+
+  const darkMaroon = "bg-[#5A1010]";
 
   useEffect(() => {
     if (profile && !hasInitialized) {
@@ -148,7 +152,7 @@ export default function EditProfilePage() {
       <main className="flex-1 overflow-y-auto px-6 pt-2 pb-40 space-y-8 scroll-smooth">
         <section className="flex flex-col items-center pt-4">
           <div className="relative">
-            <Avatar className="w-32 h-32 shadow-2xl ring-4 ring-white/30">
+            <Avatar className="w-32 h-32 shadow-2xl">
               <AvatarImage src={previewImage || ""} className="object-cover" />
               <AvatarFallback className="bg-primary text-white text-3xl font-black">
                 {formData.username?.[0] || <User className="w-12 h-12" />}
@@ -156,7 +160,7 @@ export default function EditProfilePage() {
             </Avatar>
             <button 
               onClick={() => fileInputRef.current?.click()}
-              className="absolute bottom-1 right-1 w-11 h-11 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-white shadow-xl active:scale-90 transition-transform z-10"
+              className={cn("absolute bottom-1 right-1 w-11 h-11 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform z-10", darkMaroon)}
             >
               <Camera className="w-5 h-5 text-white" />
             </button>
