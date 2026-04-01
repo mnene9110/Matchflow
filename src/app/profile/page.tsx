@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -93,7 +94,18 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-transparent text-gray-900 overflow-y-auto pb-32 transition-opacity duration-300">
-      <header className="flex flex-col items-center pt-12 pb-8 px-6 shrink-0">
+      <header className="flex flex-col items-center pt-12 pb-8 px-6 shrink-0 relative">
+        <div className="absolute top-12 right-6">
+          <Button 
+            variant="ghost" 
+            size="icon" 
+            onClick={() => router.push('/settings')}
+            className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"
+          >
+            <SettingsIcon className="w-5 h-5" />
+          </Button>
+        </div>
+
         <div className="relative mb-6">
           <Avatar className="w-28 h-28 shadow-lg bg-gray-50 ring-4 ring-white/20">
             {userImage && <AvatarImage src={userImage} className="object-cover" />}
@@ -259,17 +271,6 @@ export default function ProfilePage() {
             </div>
             <span className="text-gray-900 font-black uppercase tracking-[0.1em] text-[10px] flex-1 text-left">Customer Support</span>
             <ChevronRight className="w-5 h-5 text-gray-300" />
-          </button>
-          
-          <button 
-            onClick={() => router.push('/settings')}
-            className="w-full h-16 rounded-[2rem] bg-white/40 backdrop-blur-md border border-white/30 flex items-center px-6 gap-4 active:bg-white/60 transition-all shadow-sm"
-          >
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-gray-100">
-              <SettingsIcon className="w-5 h-5 text-gray-400" />
-            </div>
-            <span className="text-gray-400 font-black uppercase tracking-[0.1em] text-[10px] flex-1 text-left">Settings</span>
-            <ChevronRight className="w-5 h-5 text-gray-200" />
           </button>
         </div>
       </main>
