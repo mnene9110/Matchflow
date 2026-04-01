@@ -44,17 +44,17 @@ export default function WelcomePage() {
   }
 
   return (
-    <div className="flex flex-col h-svh bg-white relative overflow-hidden">
+    <div className="flex flex-col h-svh bg-transparent relative overflow-hidden">
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
         <div className="mb-6 relative">
-          <div className="w-20 h-20 bg-primary/5 backdrop-blur-xl rounded-[2.2rem] shadow-xl flex items-center justify-center border border-primary/10 transform rotate-3 animate-float">
+          <div className="w-20 h-20 bg-white/20 backdrop-blur-xl rounded-[2.2rem] shadow-xl flex items-center justify-center border border-white/30 transform rotate-3 animate-float">
             <span className="text-primary text-3xl font-bold font-headline -rotate-3 drop-shadow-sm">MF</span>
           </div>
         </div>
 
         <h1 className="text-4xl font-logo text-primary mb-1">MatchFlow</h1>
 
-        <p className="text-gray-500 text-[13px] font-medium leading-relaxed max-w-[220px] mb-10">
+        <p className="text-gray-600 text-[13px] font-medium leading-relaxed max-w-[220px] mb-10">
           Connect through voice, video, and premium conversations.
         </p>
 
@@ -69,7 +69,7 @@ export default function WelcomePage() {
 
           <Button 
             variant="ghost"
-            className="w-full h-14 rounded-full bg-gray-50 text-gray-900 border border-gray-100 hover:bg-gray-100 text-base font-black gap-3 transition-all active:scale-95"
+            className="w-full h-14 rounded-full bg-white/40 text-gray-900 border border-white/30 hover:bg-white/60 text-base font-black gap-3 transition-all active:scale-95 backdrop-blur-md"
             onClick={handleFastLogin}
           >
             <Zap className="w-5 h-5 fill-current text-primary" />
