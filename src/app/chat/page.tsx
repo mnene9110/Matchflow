@@ -80,10 +80,17 @@ function ChatSessionItem({ session }: { session: any }) {
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <p className="text-[11px] text-gray-500 truncate font-medium flex-1">
+          <p className={cn("text-[11px] truncate font-medium flex-1", session.unreadCount > 0 ? "text-gray-900 font-black" : "text-gray-500")}>
             {session.lastMessage || "Start a conversation"}
           </p>
-          <span className="text-[9px] font-bold text-primary/40 uppercase tracking-tighter shrink-0">{presence.online ? "Online" : presenceText}</span>
+          <div className="flex items-center gap-2 shrink-0">
+            {session.unreadCount > 0 && (
+              <span className="h-5 min-w-5 px-1.5 rounded-full bg-primary flex items-center justify-center text-[10px] font-black text-white shadow-sm shadow-primary/20">
+                {session.unreadCount}
+              </span>
+            )}
+            <span className="text-[9px] font-bold text-primary/40 uppercase tracking-tighter shrink-0">{presence.online ? "Online" : presenceText}</span>
+          </div>
         </div>
       </div>
       

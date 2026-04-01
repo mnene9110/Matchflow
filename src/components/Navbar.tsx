@@ -1,20 +1,46 @@
 
 "use client"
 
+import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Home, MessageCircle, User } from "lucide-react"
 import { cn } from "@/lib/utils"
+import { useFirebase, useUser } from "@/firebase"
+import { ref, onValue } from "firebase/database"
 
 export function Navbar() {
   const pathname = usePathname()
+  const { database } = useFirebase()
+  const { user: currentUser } = useUser()
+  const [totalUnread, setTotalUnread] = useState(0)
+
+  useEffect(() => {
+    if (!database || !currentUser) return
+
+    const userChatsRef = ref(database, `users/${currentUser.uid}/chats`)
+    return onValue(userChatsRef, (snapshot) => {
+      const data = snapshot.val()
+      if (data) {
+        let count = 0
+        Object.values(data).forEach((chat: any) => {
+          if (chat.unreadCount) {
+            count += chat.unreadCount
+          }
+        })
+        setTotalUnread(count)
+      } else {
+        setTotalUnread(0)
+      }
+    })
+  }, [database, currentUser])
 
   if (pathname === "/welcome" || pathname === "/login" || pathname === "/onboarding/fast" || pathname === "/onboarding/full") return null
   if (pathname.startsWith("/chat/") || (pathname.startsWith("/profile/") && pathname !== "/profile")) return null
 
   const navItems = [
     { icon: Home, label: "Home", href: "/discover" },
-    { icon: MessageCircle, label: "Chats", href: "/chat" },
+    { icon: MessageCircle, label: "Chats", href: "/chat", badge: totalUnread },
     { icon: User, label: "Profile", href: "/profile" },
   ]
 
@@ -34,10 +60,15 @@ export function Navbar() {
               )}
             >
               <div className={cn(
-                "p-2 rounded-2xl transition-all",
+                "p-2 rounded-2xl transition-all relative",
                 isActive ? "bg-primary/10 text-primary scale-110" : "bg-transparent"
               )}>
                 <Icon className={cn("w-5 h-5", isActive ? "stroke-[3px]" : "stroke-[2px]")} />
+                {item.badge && item.badge > 0 && (
+                  <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-primary flex items-center justify-center text-[8px] font-black text-white border-2 border-white shadow-sm">
+                    {item.badge > 99 ? '99+' : item.badge}
+                  </span>
+                )}
               </div>
               <span className={cn(
                 "text-[9px] font-black uppercase tracking-[0.1em] mt-0.5",

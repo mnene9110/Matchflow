@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
@@ -10,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, runTransaction, collection, onSnapshot, setDoc, updateDoc, deleteDoc } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update } from "firebase/database"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { getZegoConfig } from "@/app/actions/zego"
 
@@ -70,6 +71,13 @@ export default function ChatDetailPage() {
       stopAllMedia();
     }
   }, []);
+
+  // Clear unread count when entering chat
+  useEffect(() => {
+    if (!database || !currentUser || !otherUserId) return
+    const unreadRef = ref(database, `users/${currentUser.uid}/chats/${otherUserId}/unreadCount`)
+    set(unreadRef, 0)
+  }, [database, currentUser, otherUserId])
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -400,8 +408,23 @@ export default function ChatDetailPage() {
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
       const msgData = { messageText: inputText, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: inputText, timestamp: rtdbTimestamp(), otherUserId, chatId }
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}`] = { lastMessage: inputText, timestamp: rtdbTimestamp(), otherUserId: currentUser.uid, chatId }
+      
+      // Update my chat summary
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { 
+        lastMessage: inputText, 
+        timestamp: rtdbTimestamp(), 
+        otherUserId, 
+        chatId,
+        unreadCount: 0 
+      }
+      
+      // Update their chat summary and increment unread count
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = inputText
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/otherUserId`] = currentUser.uid
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/chatId`] = chatId
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
+      
       await update(ref(database), updates)
       setInputText("")
     } catch (error: any) {
