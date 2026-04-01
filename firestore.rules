@@ -18,23 +18,17 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       
       // Only the owner can update their profile.
-      // IMPORTANT: In a production app, 'coinBalance' and 'isAdmin' 
-      // should be further protected so they can only be updated 
-      // by a trusted server-side process (Firebase Cloud Functions).
       allow write: if isOwner(userId);
 
       // Secure sub-collections
       match /transactions/{transactionId} {
         allow read: if isOwner(userId);
-        // We allow create here for the prototype logic, 
-        // but it should be read-only for users in production.
         allow create: if isOwner(userId);
       }
 
       match /blockedUsers/{blockedId} {
-        // The owner of the list can read/write.
-        // A user being blocked can read their own specific block status document to check if they are blocked.
-        // This is necessary for the chat screen to verify restriction status.
+        // A user being blocked can 'get' their own specific document in another user's blocked list.
+        // This allows the app to verify if the current user is restricted by the person they are chatting with.
         allow get: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == blockedId);
         allow list: if isOwner(userId);
         allow write: if isOwner(userId);

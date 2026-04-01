@@ -1,0 +1,36 @@
+
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        "presence": {
+          ".read": "auth != null",
+          ".write": "auth.uid === $uid",
+          "online": { ".validate": "newData.isBoolean()" },
+          "lastSeen": { ".validate": "newData.isNumber()" }
+        },
+        "chats": {
+          ".read": "auth.uid === $uid",
+          "$otherId": {
+            ".write": "auth.uid === $uid || auth.uid === $otherId",
+            "unreadCount": {
+               ".validate": "newData.isNumber() && newData >= 0"
+            }
+          }
+        }
+      }
+    },
+    "chats": {
+      "$chatId": {
+        ".read": "auth != null && $chatId.contains(auth.uid)",
+        ".write": "auth != null && $chatId.contains(auth.uid)",
+        "messages": {
+          "$msgId": {
+            ".validate": "newData.hasChildren(['messageText', 'senderId', 'sentAt'])",
+            "senderId": { ".validate": "newData.val() === auth.uid" }
+          }
+        }
+      }
+    }
+  }
+}
