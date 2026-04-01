@@ -10,8 +10,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, runTransaction, collection } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, remove } from "firebase/database"
+import { doc, runTransaction, collection, onSnapshot, setDoc, updateDoc, deleteDoc } from "firebase/firestore"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { getZegoConfig } from "@/app/actions/zego"
 
@@ -66,7 +66,10 @@ export default function ChatDetailPage() {
       ringtoneRef.current = new Audio("/ringtone.mp3");
       ringtoneRef.current.loop = true;
     }
-    return () => setMounted(false)
+    return () => {
+      setMounted(false)
+      stopAllMedia();
+    }
   }, []);
 
   useEffect(() => {
@@ -92,7 +95,6 @@ export default function ChatDetailPage() {
   const handleRecurringDeduction = async () => {
     if (!currentUser || !firestore || !chatId) return;
 
-    // Refresh profile state within transaction to ensure accurate balance
     const isFree = currentUserProfile?.isAdmin || 
                    currentUserProfile?.isSupport || 
                    currentUserProfile?.isCoinseller;
@@ -143,7 +145,10 @@ export default function ChatDetailPage() {
 
   const stopRingtone = () => {
     if (ringtoneRef.current) {
-      try { ringtoneRef.current.pause(); ringtoneRef.current.currentTime = 0; } catch (e) {}
+      try { 
+        ringtoneRef.current.pause(); 
+        ringtoneRef.current.currentTime = 0; 
+      } catch (e) {}
     }
   };
 
@@ -166,8 +171,6 @@ export default function ChatDetailPage() {
     zegoInitializingRef.current = false;
   };
 
-  useEffect(() => { return () => stopAllMedia(); }, []);
-
   const initiateZegoCall = async (roomID: string) => {
     if (!ZegoUIKitPrebuilt || !currentUser || !zegoContainerRef.current || zegoInitializingRef.current) return;
     
@@ -179,6 +182,7 @@ export default function ChatDetailPage() {
       });
       localStreamRef.current = stream;
     } catch (error) {
+      console.error("Camera access denied", error);
       handleEndCall();
       return;
     }
@@ -219,17 +223,23 @@ export default function ChatDetailPage() {
         onLeaveRoom: () => handleEndCall(),
       });
     } catch (error) {
+      console.error("Zego join failed", error);
       handleEndCall();
     }
   };
 
+  // Call Signaling via Firestore
   useEffect(() => {
-    if (!database || !chatId || !currentUser || isBlocked) return
-    const callRef = ref(database, `calls/${chatId}`)
-    return onValue(callRef, (snap) => {
-      const data = snap.val()
+    if (!firestore || !chatId || !currentUser || isBlocked) return
+    
+    const callDocRef = doc(firestore, "calls", chatId);
+    const unsubscribe = onSnapshot(callDocRef, (snap) => {
+      const data = snap.data()
       if (!data) {
-        if (callStatus !== 'idle') { stopAllMedia(); setCallStatus('idle'); }
+        if (callStatus !== 'idle') { 
+          stopAllMedia(); 
+          setCallStatus('idle'); 
+        }
         return
       }
       setCallType(data.callType || 'video')
@@ -243,17 +253,18 @@ export default function ChatDetailPage() {
           initiateZegoCall(chatId);
         }
       }
-    })
-  }, [database, chatId, currentUser, callStatus, callType, isBlocked]);
+    });
+
+    return () => unsubscribe();
+  }, [firestore, chatId, currentUser, callStatus, callType, isBlocked]);
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
-    if (!database || !chatId || !currentUser || !currentUserProfile || isBlocked) return
+    if (!firestore || !chatId || !currentUser || !currentUserProfile || isBlocked) return
     const costPerMin = type === 'video' ? 160 : 80;
     const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.isCoinseller;
 
     try {
       if (!isFree) {
-        // Initial deduction for the first minute
         await runTransaction(firestore, async (transaction) => {
           const userDoc = await transaction.get(doc(firestore, "userProfiles", currentUser.uid));
           if (!userDoc.exists()) throw new Error("Profile not found");
@@ -276,15 +287,15 @@ export default function ChatDetailPage() {
         });
       }
       
-      const callRef = ref(database, `calls/${chatId}`)
-      set(callRef, { 
+      const callDocRef = doc(firestore, "calls", chatId);
+      await setDoc(callDocRef, { 
         callerId: currentUser.uid, 
         receiverId: otherUserId, 
         status: 'ringing', 
         callType: type, 
         timestamp: Date.now(),
         callerName: currentUser.displayName || 'Someone'
-      })
+      });
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({
@@ -297,21 +308,24 @@ export default function ChatDetailPage() {
     }
   }
 
-  const handleAcceptCall = () => {
-    if (!database || !chatId) return
-    update(ref(database, `calls/${chatId}`), { status: 'accepted' })
+  const handleAcceptCall = async () => {
+    if (!firestore || !chatId) return
+    const callDocRef = doc(firestore, "calls", chatId);
+    await updateDoc(callDocRef, { status: 'accepted' });
   }
 
-  const handleDeclineCall = () => {
-    if (!database || !chatId) return
-    remove(ref(database, `calls/${chatId}`))
+  const handleDeclineCall = async () => {
+    if (!firestore || !chatId) return
+    const callDocRef = doc(firestore, "calls", chatId);
+    await deleteDoc(callDocRef);
     setCallStatus('idle')
     stopAllMedia();
   }
 
-  const handleEndCall = () => {
-    if (!database || !chatId) return
-    remove(ref(database, `calls/${chatId}`))
+  const handleEndCall = async () => {
+    if (!firestore || !chatId) return
+    const callDocRef = doc(firestore, "calls", chatId);
+    await deleteDoc(callDocRef);
     stopAllMedia(); 
     setCallStatus('idle')
   }

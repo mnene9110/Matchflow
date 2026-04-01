@@ -143,6 +143,19 @@
         "amount",
         "transactionDate"
       ]
+    },
+    "CallSession": {
+      "title": "CallSession",
+      "type": "object",
+      "description": "Represents an active call session between two users.",
+      "properties": {
+        "callerId": { "type": "string" },
+        "receiverId": { "type": "string" },
+        "status": { "type": "string", "enum": ["ringing", "accepted"] },
+        "callType": { "type": "string", "enum": ["video", "audio"] },
+        "timestamp": { "type": "number" },
+        "callerName": { "type": "string" }
+      }
     }
   },
   "auth": {
@@ -185,6 +198,22 @@
             {
               "name": "transactionId",
               "description": "The unique identifier for a specific coin transaction."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/calls/{chatId}",
+        "definition": {
+          "entityName": "CallSession",
+          "schema": {
+            "$ref": "#/backend/entities/CallSession"
+          },
+          "description": "Stores active call session state.",
+          "params": [
+            {
+              "name": "chatId",
+              "description": "Unique ID for the call session (sorted combined UIDs)."
             }
           ]
         }
