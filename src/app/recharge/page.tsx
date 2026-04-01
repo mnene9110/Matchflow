@@ -2,13 +2,15 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Check, History } from "lucide-react"
+import { ChevronLeft, Check, History, Loader2, MessageCircle, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useDoc, useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
+import { doc, collection, query, where } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { initializePesaPalTransaction } from "@/app/actions/pesapal"
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 const COIN_PACKAGES = [
   { amount: 500, price: 60, label: "60" },
@@ -30,6 +32,7 @@ function RechargeContent() {
   const { toast } = useToast()
   
   const [selectedPackage, setSelectedPackage] = useState<typeof COIN_PACKAGES[0] | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const userProfileRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -37,6 +40,13 @@ function RechargeContent() {
   }, [firestore, user])
   
   const { data: userProfile, isLoading } = useDoc(userProfileRef)
+
+  // Fetch coinsellers for the alternative section
+  const coinsellersQuery = useMemoFirebase(() => {
+    if (!firestore) return null
+    return query(collection(firestore, "userProfiles"), where("isCoinseller", "==", true))
+  }, [firestore])
+  const { data: coinsellers, isLoading: isSellersLoading } = useCollection(coinsellersQuery)
 
   useEffect(() => {
     const status = searchParams?.get('status')
@@ -54,9 +64,32 @@ function RechargeContent() {
     }
   }, [searchParams, toast])
 
-  const handleNext = () => {
-    if (!selectedPackage) return;
-    router.push(`/recharge/payment-method?amount=${selectedPackage.amount}&price=${selectedPackage.price}`)
+  const handlePayWithPesapal = async () => {
+    if (!selectedPackage || !user) return;
+    
+    setIsProcessing(true)
+    const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
+    
+    try {
+      const result = await initializePesaPalTransaction(email, selectedPackage.price, {
+        userId: user.uid,
+        packageAmount: selectedPackage.amount
+      })
+
+      if (result.error) {
+        setIsProcessing(null as any) // Reset state
+        setIsProcessing(false)
+        toast({ variant: "destructive", title: "Gateway Error", description: result.error })
+        return
+      }
+
+      if (result.redirect_url) {
+        window.location.href = result.redirect_url
+      }
+    } catch (error) {
+      setIsProcessing(false)
+      toast({ variant: "destructive", title: "Error", description: "Failed to connect to PesaPal." })
+    }
   }
 
   const darkMaroon = "bg-[#5A1010]";
@@ -136,15 +169,66 @@ function RechargeContent() {
             })}
           </div>
         </section>
+
+        {/* Alternative Coinsellers Section */}
+        <section className="mt-12 space-y-4">
+          <div className="flex items-center justify-between px-2">
+            <h2 className="text-[10px] font-black text-primary/60 uppercase tracking-[0.2em]">Buy from Coinsellers</h2>
+            <Users className="w-3 h-3 text-gray-400" />
+          </div>
+          <div className="space-y-3">
+            {isSellersLoading ? (
+              <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
+            ) : coinsellers && coinsellers.length > 0 ? (
+              coinsellers.map((seller: any) => (
+                <div 
+                  key={seller.id}
+                  className="w-full flex items-center justify-between p-4 bg-white/30 backdrop-blur-md border border-white/30 rounded-[2rem] shadow-sm"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar className="w-10 h-10 border border-white shadow-sm">
+                      <AvatarImage src={seller.profilePhotoUrls?.[0] || `https://picsum.photos/seed/${seller.id}/100/100`} className="object-cover" />
+                      <AvatarFallback className="bg-primary text-white text-[10px] font-black">{seller.username?.[0]}</AvatarFallback>
+                    </Avatar>
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-black text-gray-900">{seller.username}</span>
+                      <span className="text-[8px] font-black text-green-500 uppercase tracking-widest">Trusted Seller</span>
+                    </div>
+                  </div>
+                  <Button 
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => router.push(`/chat/${seller.id}`)}
+                    className="h-9 px-4 rounded-full bg-white/50 text-primary hover:bg-white font-black text-[9px] uppercase tracking-widest gap-2"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    Chat
+                  </Button>
+                </div>
+              ))
+            ) : (
+              <div className="p-8 text-center bg-white/10 rounded-[2rem] border border-white/20 border-dashed">
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Offline</p>
+              </div>
+            )}
+          </div>
+        </section>
       </main>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50 flex flex-col gap-4">
         <Button 
           className={cn("w-full h-16 rounded-full text-white font-black text-lg shadow-2xl active:scale-95 transition-all", darkMaroon)}
-          onClick={handleNext}
-          disabled={isLoading || !selectedPackage}
+          onClick={handlePayWithPesapal}
+          disabled={isLoading || isProcessing || !selectedPackage}
         >
-          Pay {selectedPackage ? `${selectedPackage.price} KES` : ""}
+          {isProcessing ? (
+            <div className="flex items-center gap-3">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Connecting...</span>
+            </div>
+          ) : (
+            `Pay ${selectedPackage ? `${selectedPackage.price} KES` : ""}`
+          )}
         </Button>
       </footer>
     </div>
