@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, Gift, PhoneOff, Ban, CheckCircle } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, Gift, PhoneOff, Ban, CheckCircle, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -38,7 +38,7 @@ function ChatDetailContent() {
   
   const [inputText, setInputText] = useState("")
   const [isSending, setIsSending] = useState(false)
-  const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'calling' | 'ongoing' | 'incoming'>('idle')
+  const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'calling' | 'incoming' | 'ongoing'>('idle')
   const [callType, setCallType] = useState<'video' | 'audio'>('video')
   const [zegoInstance, setZegoInstance] = useState<any>(null)
   const [messages, setMessages] = useState<any[]>([])
@@ -80,10 +80,8 @@ function ChatDetailContent() {
   // Handle initial auto-message
   useEffect(() => {
     if (initialMsg && currentUser && otherUserId && database && otherUser && !isSending) {
-      // Small delay to ensure everything is ready
       const timer = setTimeout(() => {
         handleSendMessage(initialMsg);
-        // Clear param from URL without refreshing
         const newUrl = window.location.pathname;
         window.history.replaceState({}, '', newUrl);
       }, 500);
@@ -265,25 +263,39 @@ function ChatDetailContent() {
   }, [firestore, chatId, currentUser, callStatus, callType, isBlocked]);
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
-    if (!firestore || !chatId || !currentUser || !currentUserProfile || isBlocked || isOtherUserSupport) return
+    if (!firestore || !chatId || !currentUser || !currentUserProfile || isBlocked || isOtherUserSupport || !otherUser) return
+
+    // 1. Check coin balance BEFORE doing anything else
     const costPerMin = type === 'video' ? 160 : 80;
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
                    currentUserProfile.isCoinseller ||
                    (currentUserProfile.gender === 'female' && otherUser?.gender === 'male');
+
+    if (!isFree && (currentUserProfile.coinBalance || 0) < costPerMin) {
+      toast({
+        variant: "destructive",
+        title: "Insufficient Balance",
+        description: "Recharge to start this call.",
+        duration: 3000,
+        action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button>
+      });
+      return;
+    }
+
+    // 2. Only if balance is okay, request media permissions
     try {
       localStreamRef.current = await navigator.mediaDevices.getUserMedia({
         video: type === 'video',
         audio: true
       });
     } catch (e) {
-      toast({ variant: "destructive", title: "Camera Error", description: "Please allow camera access." });
+      toast({ variant: "destructive", title: "Camera Error", description: "Please allow camera access to start a call." });
       return;
     }
+
+    // 3. Initiate call in firestore
     try {
-      if (!isFree && (currentUserProfile.coinBalance || 0) < costPerMin) {
-        throw new Error("INSUFFICIENT_COINS");
-      }
       const callDocRef = doc(firestore, "calls", chatId);
       await setDoc(callDocRef, { 
         callerId: currentUser.uid, 
@@ -295,15 +307,7 @@ function ChatDetailContent() {
       });
     } catch (error: any) {
       stopAllMedia();
-      if (error.message === "INSUFFICIENT_COINS") {
-        toast({
-          variant: "destructive",
-          title: "Insufficient Balance",
-          description: "Recharge to start this call.",
-          duration: 3000,
-          action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button>
-        });
-      }
+      toast({ variant: "destructive", title: "Call Failed", description: "Could not establish connection." });
     }
   }
 
@@ -405,6 +409,26 @@ function ChatDetailContent() {
         });
       }
     } finally { setIsSending(false) }
+  }
+
+  // Handle Logged Out User State
+  if (!isOtherUserLoading && !otherUser) {
+    return (
+      <div className="flex flex-col items-center justify-center h-svh bg-white p-6 text-center space-y-6">
+        <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100">
+          <UserX className="w-12 h-12 text-gray-300" />
+        </div>
+        <div className="space-y-2">
+          <h2 className="text-3xl font-black font-headline text-gray-900 tracking-tight">User logged out</h2>
+          <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
+            This account no longer exists or has been deactivated.
+          </p>
+        </div>
+        <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">
+          Go Back
+        </Button>
+      </div>
+    )
   }
 
   const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUserId}/200/200`

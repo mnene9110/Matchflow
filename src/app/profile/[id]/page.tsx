@@ -136,20 +136,24 @@ export default function ProfileDetailPage() {
 
   if (isLoading) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   
-  if (!userProfile) return (
-    <div className="flex flex-col items-center justify-center h-svh p-6 text-center space-y-4">
-      <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center">
-        <UserX className="w-10 h-10 text-gray-300" />
+  if (!userProfile && !isLoading) return (
+    <div className="flex flex-col items-center justify-center h-svh p-6 text-center space-y-6 bg-white">
+      <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100">
+        <UserX className="w-12 h-12 text-gray-300" />
       </div>
-      <div className="space-y-1">
-        <h2 className="text-2xl font-black text-gray-900">User logged out</h2>
-        <p className="text-sm text-gray-500 font-medium">This account no longer exists or has been deactivated.</p>
+      <div className="space-y-2">
+        <h2 className="text-3xl font-black font-headline text-gray-900 tracking-tight">User logged out</h2>
+        <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
+          This account no longer exists or has been deactivated.
+        </p>
       </div>
-      <Button onClick={() => router.back()} className="rounded-full h-12 px-8">Go Back</Button>
+      <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">
+        Go Back
+      </Button>
     </div>
   )
 
-  if (userProfile.isSupport) {
+  if (userProfile?.isSupport) {
     return (
       <div className="flex flex-col items-center justify-center h-svh p-8 text-center space-y-6 bg-white">
         <div className="w-24 h-24 bg-primary/10 rounded-[2.5rem] flex items-center justify-center border border-primary/20">
@@ -182,14 +186,14 @@ export default function ProfileDetailPage() {
     { label: "Change the world", icon: Sparkles },
   ]
 
-  const userImage = (userProfile.profilePhotoUrls && userProfile.profilePhotoUrls[0]) || `https://picsum.photos/seed/${userProfile.id}/600/800`
-  const isVerified = !!userProfile.isVerified
-  const isProtected = userProfile.isAdmin === true || userProfile.isSupport === true;
+  const userImage = (userProfile?.profilePhotoUrls && userProfile.profilePhotoUrls[0]) || `https://picsum.photos/seed/${userProfile?.id}/600/800`
+  const isVerified = !!userProfile?.isVerified
+  const isProtected = userProfile?.isAdmin === true || userProfile?.isSupport === true;
 
   return (
     <div className="flex flex-col min-h-svh bg-black relative">
       <div className="relative aspect-[3/4] w-full shrink-0">
-        <Image src={userImage} alt={userProfile.username} fill className="object-cover" />
+        <Image src={userImage} alt={userProfile?.username || "User"} fill className="object-cover" />
         <div className="absolute top-12 left-4 right-4 flex justify-between items-center z-10">
           <Button 
             variant="ghost" 
@@ -240,27 +244,27 @@ export default function ProfileDetailPage() {
         <div className="space-y-6">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-black font-headline text-gray-900 leading-tight">{userProfile.username}</h1>
+              <h1 className="text-3xl font-black font-headline text-gray-900 leading-tight">{userProfile?.username}</h1>
               {isVerified && <CheckCircle className="w-6 h-6 text-blue-500 fill-blue-500/10" />}
             </div>
             <button 
               onClick={copyId}
               className="flex items-center gap-2 text-xs font-bold text-green-500 active:scale-95 transition-transform"
             >
-              ID: {userProfile.numericId || '...'}
+              ID: {userProfile?.numericId || '...'}
               <Copy className="w-3 h-3 opacity-50" />
             </button>
           </div>
-          <p className="text-sm text-gray-500 font-medium leading-relaxed">{userProfile.bio || "No biography provided."}</p>
+          <p className="text-sm text-gray-500 font-medium leading-relaxed">{userProfile?.bio || "No biography provided."}</p>
           
           <div className="flex gap-2 flex-wrap">
-            {userProfile.isAdmin && (
+            {userProfile?.isAdmin && (
               <div className="px-3 py-1 bg-primary/10 rounded-full inline-flex items-center gap-1.5 border border-primary/20">
                 <Sparkles className="w-3 h-3 text-primary" />
                 <span className="text-[9px] font-black text-primary uppercase tracking-widest">Admin</span>
               </div>
             )}
-            {userProfile.isSupport && (
+            {userProfile?.isSupport && (
               <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20">
                 <Headset className="w-3 h-3 text-blue-500" />
                 <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Support</span>
