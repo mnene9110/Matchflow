@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect } from "react"
@@ -12,14 +13,20 @@ export default function WelcomePage() {
   const { user, isUserLoading } = useUser()
 
   useEffect(() => {
-    if (user && !user.isAnonymous) {
+    // If the user is already authenticated (even as a guest), send them to discover
+    if (user) {
       router.push("/discover")
     }
   }, [user, router])
 
   const handleFastLogin = () => {
     initiateAnonymousSignIn(auth)
-    router.push("/onboarding/fast")
+      .then(() => {
+        router.push("/onboarding/fast")
+      })
+      .catch((error) => {
+        console.error("Fast login failed:", error)
+      })
   }
 
   if (isUserLoading) {
