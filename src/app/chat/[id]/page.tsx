@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Video, Send, MoreVertical, Phone, PhoneOff, Loader2, Mic, MicOff, Camera, CameraOff } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -31,8 +31,6 @@ export default function ChatDetailPage() {
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'calling' | 'ongoing' | 'incoming'>('idle')
   const [callType, setCallType] = useState<'video' | 'audio'>('video')
   const [zegoInstance, setZegoInstance] = useState<any>(null)
-  const [isMuted, setIsMuted] = useState(false)
-  const [isVideoHidden, setIsVideoHidden] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
   
@@ -103,20 +101,8 @@ export default function ChatDetailPage() {
 
   const handleInitiateCall = (type: 'video' | 'audio') => {
     if (!database || !chatId || !currentUser) return
-    setCallType(type); setIsMuted(false); setIsVideoHidden(type === 'audio');
     const callRef = ref(database, `calls/${chatId}`)
     set(callRef, { callerId: currentUser.uid, receiverId: otherUserId, status: 'ringing', callType: type, timestamp: Date.now() })
-  }
-
-  const handleAcceptCall = () => {
-    if (!database || !chatId) return
-    update(ref(database, `calls/${chatId}`), { status: 'accepted' })
-  }
-
-  const handleDeclineCall = () => {
-    if (!database || !chatId) return
-    update(ref(database, `calls/${chatId}`), { status: 'declined' })
-    stopAllMedia(); setCallStatus('idle')
   }
 
   const handleEndCall = () => {
@@ -158,59 +144,59 @@ export default function ChatDetailPage() {
     setInputText("")
   }
 
-  if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-black"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+  if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-black"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
   if (!otherUser) return <div className="p-10 text-center bg-black h-svh flex items-center justify-center"><Button onClick={() => router.push('/discover')}>Back</Button></div>
 
   const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUser.id}/200/200`
 
   return (
     <div className="flex flex-col h-svh bg-black relative overflow-hidden text-white">
-      <header className="px-3 py-2 bg-black/80 backdrop-blur-md flex items-center justify-between sticky top-0 z-10 border-b border-white/5">
-        <div className="flex items-center gap-1.5">
+      <header className="px-2 py-1.5 bg-black/80 backdrop-blur-md flex items-center justify-between sticky top-0 z-10 border-b border-white/5">
+        <div className="flex items-center gap-1">
           <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-8 w-8 rounded-full text-white"><ChevronLeft className="w-5 h-5" /></Button>
           <div className="flex items-center gap-2">
-            <Avatar className="w-8 h-8">
+            <Avatar className="w-7 h-7">
               <AvatarImage src={otherUserImage} className="object-cover" />
               <AvatarFallback>{otherUser.username?.[0]}</AvatarFallback>
             </Avatar>
             <div className="flex flex-col">
-              <h3 className="font-bold text-xs leading-none">{otherUser.username}</h3>
-              <span className="text-[8px] text-white/40 font-black uppercase tracking-tight">{presence.online ? 'Online' : 'Offline'}</span>
+              <h3 className="font-bold text-[11px] leading-none">{otherUser.username}</h3>
+              <span className="text-[7px] text-white/40 font-black uppercase tracking-tight">{presence.online ? 'Online' : 'Offline'}</span>
             </div>
           </div>
         </div>
         <div className="flex items-center gap-0.5">
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40" onClick={() => handleInitiateCall('audio')}><Phone className="w-4 h-4" /></Button>
-          <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40" onClick={() => handleInitiateCall('video')}><Video className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40" onClick={() => handleInitiateCall('audio')}><Phone className="w-3.5 h-3.5" /></Button>
+          <Button variant="ghost" size="icon" className="h-8 w-8 text-white/40" onClick={() => handleInitiateCall('video')}><Video className="w-3.5 h-3.5" /></Button>
         </div>
       </header>
 
-      <ScrollArea className="flex-1 px-3 py-3 bg-black">
-        <div className="flex flex-col gap-3">
+      <ScrollArea className="flex-1 px-3 py-2 bg-black">
+        <div className="flex flex-col gap-2.5">
           {messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.uid
             return (
               <div key={msg.id} className={cn("flex w-full animate-in fade-in", isMe ? "justify-end" : "justify-start")}>
-                <div className={cn("max-w-[80%] px-3 py-2 text-xs relative shadow-sm", isMe ? "bg-primary text-white rounded-2xl rounded-tr-none" : "bg-white/5 text-white rounded-2xl rounded-tl-none border border-white/5")}>
+                <div className={cn("max-w-[80%] px-3 py-1.5 text-[11px] relative shadow-sm", isMe ? "bg-primary text-white rounded-xl rounded-tr-none" : "bg-white/5 text-white rounded-xl rounded-tl-none border border-white/5")}>
                   <p className="leading-relaxed whitespace-pre-wrap">{msg.messageText}</p>
                 </div>
               </div>
             )
           })}
-          <div ref={scrollRef} className="h-2" />
+          <div ref={scrollRef} className="h-1.5" />
         </div>
       </ScrollArea>
 
-      <footer className="p-3 bg-black border-t border-white/5">
+      <footer className="p-2 bg-black border-t border-white/5">
         <div className="flex items-center gap-2">
           <Input 
             value={inputText} 
             onChange={(e) => setInputText(e.target.value)} 
             placeholder="Message..." 
-            className="rounded-full h-9 bg-white/5 border-none px-4 text-xs text-white placeholder:text-white/20" 
+            className="rounded-full h-8.5 bg-white/5 border-none px-4 text-[11px] text-white placeholder:text-white/20" 
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
           />
-          <Button size="icon" className={cn("rounded-full w-9 h-9 transition-all", inputText.trim() ? "bg-primary" : "bg-white/5 text-white/20")} onClick={() => handleSendMessage()} disabled={!inputText.trim()}><Send className="w-4 h-4 rotate-45" /></Button>
+          <Button size="icon" className={cn("rounded-full w-8.5 h-8.5 transition-all", inputText.trim() ? "bg-primary" : "bg-white/5 text-white/20")} onClick={() => handleSendMessage()} disabled={!inputText.trim()}><Send className="w-3.5 h-3.5 rotate-45" /></Button>
         </div>
       </footer>
     </div>

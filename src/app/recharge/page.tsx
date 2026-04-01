@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, List, Check, Loader2, ShieldCheck } from "lucide-react"
+import { ChevronLeft, Check, Loader2, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
@@ -88,33 +88,33 @@ function RechargeContent() {
 
   return (
     <div className="flex flex-col min-h-svh bg-black text-white">
-      <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-black z-10 border-b border-white/5">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-9 w-9">
-          <ChevronLeft className="w-6 h-6" />
+      <header className="px-4 py-3 flex items-center justify-between sticky top-0 bg-black z-10 border-b border-white/5">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-8 w-8">
+          <ChevronLeft className="w-5 h-5" />
         </Button>
-        <h1 className="text-lg font-bold font-headline">Wallet</h1>
-        <div className="w-9" />
+        <h1 className="text-base font-bold font-headline">Wallet</h1>
+        <div className="w-8" />
       </header>
 
-      <main className="flex-1 px-5 pt-4 pb-28">
-        <section className="mb-8">
-          <h2 className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-3">Your Balance</h2>
-          <div className="flex items-center gap-3 bg-white/[0.03] p-6 rounded-[2rem] border border-white/5">
-            <div className="bg-primary/20 w-12 h-12 rounded-2xl flex items-center justify-center">
-              <span className="text-primary font-black text-2xl italic">S</span>
+      <main className="flex-1 px-5 pt-3 pb-24">
+        <section className="mb-6">
+          <h2 className="text-[9px] font-bold text-white/30 uppercase tracking-widest mb-2">Your Balance</h2>
+          <div className="flex items-center gap-3 bg-white/[0.03] p-5 rounded-[1.75rem] border border-white/5">
+            <div className="bg-primary/20 w-10 h-10 rounded-xl flex items-center justify-center">
+              <span className="text-primary font-black text-xl italic">S</span>
             </div>
             <div className="flex flex-col">
-              <span className="text-4xl font-black font-headline tracking-tight">
+              <span className="text-3xl font-black font-headline tracking-tight">
                 {isLoading ? "..." : (coinAccount?.balance || 0).toLocaleString()}
               </span>
-              <span className="text-[9px] font-bold text-white/20 uppercase tracking-widest">Available Coins</span>
+              <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">Available Coins</span>
             </div>
           </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-sm font-bold font-headline tracking-wide">Select Package</h2>
-          <div className="grid grid-cols-3 gap-3">
+        <section className="space-y-3">
+          <h2 className="text-xs font-bold font-headline tracking-wide">Select Package</h2>
+          <div className="grid grid-cols-3 gap-2.5">
             {COIN_PACKAGES.map((pkg) => {
               const isSelected = selectedPackage.amount === pkg.amount
               return (
@@ -122,22 +122,22 @@ function RechargeContent() {
                   key={pkg.amount}
                   onClick={() => setSelectedPackage(pkg)}
                   className={cn(
-                    "relative aspect-square flex flex-col items-center justify-center gap-2 border transition-all cursor-pointer rounded-3xl",
+                    "relative aspect-square flex flex-col items-center justify-center gap-1.5 border transition-all cursor-pointer rounded-2xl",
                     isSelected 
-                      ? "border-primary bg-primary/10 scale-[1.02] shadow-[0_0_20px_rgba(255,107,0,0.1)] z-10" 
+                      ? "border-primary bg-primary/10 scale-[1.02] shadow-[0_0_15px_rgba(255,107,0,0.1)] z-10" 
                       : "border-white/5 bg-white/[0.02] hover:bg-white/[0.04]"
                   )}
                 >
-                  <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", isSelected ? "bg-primary" : "bg-primary/10")}>
-                    <span className={cn("font-black text-[12px] italic", isSelected ? "text-white" : "text-primary")}>S</span>
+                  <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", isSelected ? "bg-primary" : "bg-primary/10")}>
+                    <span className={cn("font-black text-[11px] italic", isSelected ? "text-white" : "text-primary")}>S</span>
                   </div>
                   <div className="text-center">
-                    <p className={cn("text-[13px] font-black", isSelected ? "text-primary" : "text-white")}>
+                    <p className={cn("text-[12px] font-black", isSelected ? "text-primary" : "text-white")}>
                       {pkg.amount.toLocaleString()}
                     </p>
-                    <p className="text-[9px] font-bold text-white/20">{pkg.label}</p>
+                    <p className="text-[8px] font-bold text-white/20">{pkg.label}</p>
                   </div>
-                  {isSelected && <Check className="absolute top-2 right-2 w-4 h-4 text-primary stroke-[3]" />}
+                  {isSelected && <Check className="absolute top-1.5 right-1.5 w-3 h-3 text-primary stroke-[3]" />}
                 </Card>
               )
             })}
@@ -145,16 +145,16 @@ function RechargeContent() {
         </section>
       </main>
 
-      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-black/90 backdrop-blur-md border-t border-white/5 z-50 flex flex-col gap-4">
-        <div className="flex items-center justify-center gap-2 text-[10px] font-bold text-white/20 uppercase tracking-widest">
-          <ShieldCheck className="w-3.5 h-3.5 text-green-500" /> Secure payment via Paystack
+      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-5 bg-black/90 backdrop-blur-md border-t border-white/5 z-50 flex flex-col gap-3">
+        <div className="flex items-center justify-center gap-1.5 text-[9px] font-bold text-white/20 uppercase tracking-widest">
+          <ShieldCheck className="w-3 h-3 text-green-500" /> Secure payment via Paystack
         </div>
         <Button 
-          className="w-full h-16 rounded-[2rem] bg-primary text-white font-black text-lg shadow-xl shadow-primary/20 active:scale-95 transition-all"
+          className="w-full h-14 rounded-[1.75rem] bg-primary text-white font-black text-base shadow-lg shadow-primary/20 active:scale-95 transition-all"
           onClick={handlePay}
           disabled={isProcessing || isLoading}
         >
-          {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : `Pay ${selectedPackage.label}`}
+          {isProcessing ? <Loader2 className="w-5 h-5 animate-spin" /> : `Pay ${selectedPackage.label}`}
         </Button>
       </footer>
     </div>
@@ -163,7 +163,7 @@ function RechargeContent() {
 
 export default function RechargePage() {
   return (
-    <Suspense fallback={<div className="flex h-svh items-center justify-center bg-black"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>}>
+    <Suspense fallback={<div className="flex h-svh items-center justify-center bg-black"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>}>
       <RechargeContent />
     </Suspense>
   )
