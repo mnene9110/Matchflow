@@ -2,7 +2,7 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Check, Loader2, ShieldCheck } from "lucide-react"
+import { ChevronLeft, Check, Loader2, ShieldCheck, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
@@ -98,12 +98,21 @@ function RechargeContent() {
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <h1 className="text-lg font-black font-headline tracking-widest uppercase">Wallet</h1>
-        <div className="w-10" />
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => router.push('/recharge/history')}
+          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full"
+        >
+          <History className="w-5 h-5" />
+        </Button>
       </header>
 
       <main className="flex-1 px-6 pt-4 pb-32">
         <section className="mb-8">
-          <h2 className="text-[10px] font-black text-primary/60 uppercase tracking-[0.2em] mb-3 ml-2">Current Balance</h2>
+          <div className="flex items-center justify-between mb-3 px-2">
+            <h2 className="text-[10px] font-black text-primary/60 uppercase tracking-[0.2em]">Current Balance</h2>
+          </div>
           <div className="flex items-center gap-4 bg-white/40 backdrop-blur-xl p-6 rounded-[2.5rem] border border-white/40 shadow-xl shadow-primary/5">
             <div className="bg-primary/10 w-14 h-14 rounded-2xl flex items-center justify-center">
               <span className="text-primary font-black text-2xl italic">S</span>
