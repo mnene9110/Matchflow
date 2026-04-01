@@ -5,7 +5,7 @@ import { useState, useEffect, useMemo } from "react"
 import Image from "next/image"
 import { Sparkles, ClipboardList, RotateCcw, Globe, Loader2 } from "lucide-react"
 import { useFirebase, useUser } from "@/firebase"
-import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot, onSnapshot } from "firebase/firestore"
+import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot } from "firebase/firestore"
 import { ref, onValue } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
@@ -26,6 +26,7 @@ export default function DiscoverPage() {
   const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
+  const [isInitialLoading, setIsInitialLoading] = useState(true)
 
   // Fetch presence once
   useEffect(() => {
@@ -48,25 +49,33 @@ export default function DiscoverPage() {
     if (!firestore || !currentUser) return
     
     async function fetchInitialUsers() {
-      const q = query(
-        collection(firestore, 'userProfiles'), 
-        orderBy('createdAt', 'desc'),
-        limit(10)
-      )
-      
-      const snap = await getDocs(q)
-      if (snap.empty) {
-        setHasMore(false)
-        return
-      }
+      setIsInitialLoading(true)
+      try {
+        const q = query(
+          collection(firestore, 'userProfiles'), 
+          orderBy('createdAt', 'desc'),
+          limit(10)
+        )
+        
+        const snap = await getDocs(q)
+        if (snap.empty) {
+          setHasMore(false)
+          setUsers([])
+          return
+        }
 
-      const fetchedUsers = snap.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(u => u.id !== currentUser.uid)
-      
-      setUsers(fetchedUsers)
-      setLastVisible(snap.docs[snap.docs.length - 1])
-      if (snap.docs.length < 10) setHasMore(false)
+        const fetchedUsers = snap.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(u => u.id !== currentUser?.uid)
+        
+        setUsers(fetchedUsers)
+        setLastVisible(snap.docs[snap.docs.length - 1])
+        if (snap.docs.length < 10) setHasMore(false)
+      } catch (error) {
+        console.error("Error fetching initial users:", error)
+      } finally {
+        setIsInitialLoading(false)
+      }
     }
 
     fetchInitialUsers()
@@ -76,28 +85,33 @@ export default function DiscoverPage() {
     if (!firestore || !lastVisible || isLoadingMore || !hasMore) return
     setIsLoadingMore(true)
 
-    const q = query(
-      collection(firestore, 'userProfiles'),
-      orderBy('createdAt', 'desc'),
-      startAfter(lastVisible),
-      limit(10)
-    )
+    try {
+      const q = query(
+        collection(firestore, 'userProfiles'),
+        orderBy('createdAt', 'desc'),
+        startAfter(lastVisible),
+        limit(10)
+      )
 
-    const snap = await getDocs(q)
-    if (snap.empty) {
-      setHasMore(false)
+      const snap = await getDocs(q)
+      if (snap.empty) {
+        setHasMore(false)
+        setIsLoadingMore(false)
+        return
+      }
+
+      const nextUsers = snap.docs
+        .map(doc => ({ id: doc.id, ...doc.data() }))
+        .filter(u => u.id !== currentUser?.uid)
+
+      setUsers(prev => [...prev, ...nextUsers])
+      setLastVisible(snap.docs[snap.docs.length - 1])
+      if (snap.docs.length < 10) setHasMore(false)
+    } catch (error) {
+      console.error("Error loading more users:", error)
+    } finally {
       setIsLoadingMore(false)
-      return
     }
-
-    const nextUsers = snap.docs
-      .map(doc => ({ id: doc.id, ...doc.data() }))
-      .filter(u => u.id !== currentUser?.uid)
-
-    setUsers(prev => [...prev, ...nextUsers])
-    setLastVisible(snap.docs[snap.docs.length - 1])
-    if (snap.docs.length < 10) setHasMore(false)
-    setIsLoadingMore(false)
   }
 
   const mappedUsers = users.map(u => ({
@@ -162,20 +176,23 @@ export default function DiscoverPage() {
 
       <main className="px-4 grid grid-cols-2 gap-3 pb-8">
         {displayUsers.map((user) => (
-          <div key={user.id} className="group relative aspect-[3/4.2] rounded-[2.5rem] overflow-hidden bg-white/20 shadow-md transition-transform active:scale-95">
-            <div onClick={() => router.push(`/profile/${user.id}`)} className="absolute inset-0 z-0">
+          <div key={user.id} className="group relative aspect-[3/4.2] rounded-[2.5rem] overflow-hidden bg-white/20 shadow-md transition-transform active:scale-95" onClick={() => router.push(`/profile/${user.id}`)}>
+            <div className="absolute inset-0 z-0">
               <Image src={user.image} alt={user.name} fill className="object-cover transition-transform group-hover:scale-110 duration-700" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
             </div>
 
             <button 
-              onClick={(e) => { e.stopPropagation(); router.push(`/chat/${user.id}`); }}
-              className="absolute top-3 right-3 h-8 px-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full flex items-center justify-center z-10"
+              onClick={(e) => { 
+                e.stopPropagation(); 
+                router.push(`/chat/${user.id}`); 
+              }}
+              className="absolute top-3 right-3 h-8 px-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full flex items-center justify-center z-10 active:bg-white active:scale-90 transition-all"
             >
-              <span className="text-[8px] font-black text-white uppercase tracking-[0.1em]">Chat</span>
+              <span className="text-[8px] font-black text-white group-active:text-primary uppercase tracking-[0.1em]">Chat</span>
             </button>
 
-            <div className="absolute inset-x-0 bottom-0 p-4 z-10">
+            <div className="absolute inset-x-0 bottom-0 p-4 z-10 pointer-events-none">
               <div className="flex items-center gap-1.5 mb-1.5">
                 <h3 className="text-white font-black text-xs">{user.name}</h3>
                 <div className={cn("w-1.5 h-1.5 rounded-full", user.isOnline ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-gray-400")} />
@@ -188,7 +205,18 @@ export default function DiscoverPage() {
           </div>
         ))}
 
-        {hasMore && (
+        {isInitialLoading && Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="aspect-[3/4.2] rounded-[2.5rem] bg-white/20 animate-pulse" />
+        ))}
+
+        {!isInitialLoading && displayUsers.length === 0 && (
+          <div className="col-span-2 flex flex-col items-center justify-center py-20 text-center opacity-40">
+            <Globe className="w-12 h-12 text-white mb-4" />
+            <p className="text-[10px] font-black text-white uppercase tracking-[0.2em]">No profiles found</p>
+          </div>
+        )}
+
+        {hasMore && !isInitialLoading && (
           <div className="col-span-2 flex justify-center py-8">
             <Button 
               variant="ghost" 

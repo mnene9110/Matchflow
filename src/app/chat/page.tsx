@@ -14,6 +14,7 @@ function ChatSessionItem({ session }: { session: any }) {
   const { firestore, database } = useFirebase()
   const [otherUserData, setOtherUserData] = useState<any>(null)
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
+  const [isDataLoaded, setIsDataLoaded] = useState(false)
 
   useEffect(() => {
     async function fetchUser() {
@@ -25,6 +26,8 @@ function ChatSessionItem({ session }: { session: any }) {
         }
       } catch (e) {
         console.error("Failed to fetch user in chat list", e)
+      } finally {
+        setIsDataLoaded(true)
       }
     }
     fetchUser()
@@ -49,7 +52,8 @@ function ChatSessionItem({ session }: { session: any }) {
     return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
   }, [presence]);
 
-  const name = otherUserData?.username || ""
+  // Use a stable empty state while loading to prevent name flickering
+  const name = isDataLoaded ? (otherUserData?.username || "User") : ""
   const image = (otherUserData?.profilePhotoUrls && otherUserData.profilePhotoUrls[0]) || ""
 
   return (
@@ -60,7 +64,9 @@ function ChatSessionItem({ session }: { session: any }) {
       <div className="relative shrink-0">
         <Avatar className="w-12 h-12 border border-gray-100 shadow-sm bg-gray-50">
           {image && <AvatarImage src={image} className="object-cover" />}
-          <AvatarFallback className="bg-transparent text-gray-300">{name ? name[0] : ''}</AvatarFallback>
+          <AvatarFallback className="bg-transparent text-gray-300">
+            {isDataLoaded && name ? name[0] : ''}
+          </AvatarFallback>
         </Avatar>
         <div className={cn(
           "absolute bottom-0 right-0 w-3.5 h-3.5 border-2 border-white rounded-full shadow-sm",
@@ -70,7 +76,9 @@ function ChatSessionItem({ session }: { session: any }) {
 
       <div className="flex-1 min-w-0">
         <div className="flex justify-between items-baseline mb-0">
-          <h3 className="font-bold text-sm text-gray-900 truncate font-headline min-h-[1.25rem]">{name}</h3>
+          <h3 className="font-bold text-sm text-gray-900 truncate font-headline min-h-[1.25rem]">
+            {isDataLoaded ? name : ""}
+          </h3>
           {session.timestamp && (
             <span className="text-[9px] font-bold text-gray-400">
               {new Date(session.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
