@@ -47,11 +47,10 @@ service cloud.firestore {
         request.resource.data.isCoinseller == resource.data.isCoinseller &&
         request.resource.data.isSupport == resource.data.isSupport
       ) || (
-        // Admins can update any profile (e.g., awarding coins)
+        // Admins can update any profile (e.g., awarding coins or roles)
         isAdmin()
       ) || (
         // Coinsellers can update other user's coin balance if they are awarded
-        // and also their own (logic handled in client transaction)
         isCoinseller() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['coinBalance', 'updatedAt'])
       );
 
@@ -62,6 +61,7 @@ service cloud.firestore {
       }
 
       match /blockedUsers/{blockedId} {
+        // Allow user to check if THEY are blocked by the owner of this profile
         allow get: if isAuthenticated() && (request.auth.uid == userId || request.auth.uid == blockedId);
         allow list: if isOwner(userId);
         allow write: if isOwner(userId);
