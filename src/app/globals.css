@@ -10,19 +10,19 @@
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 0 36% 55%; /* Pale Maroon #B36666 */
+    --primary: 0 72% 35%; /* Dark Maroon for buttons and accents */
     --primary-foreground: 0 0% 98%;
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
     --muted: 0 0% 96.1%;
     --muted-foreground: 0 0% 45.1%;
-    --accent: 0 36% 55%;
-    --accent-foreground: 0 0% 9%;
+    --accent: 0 72% 35%;
+    --accent-foreground: 0 0% 98%;
     --destructive: 0 84.2% 60.2%;
     --destructive-foreground: 0 0% 98%;
     --border: 0 0% 89.8%;
     --input: 0 0% 89.8%;
-    --ring: 0 36% 55%;
+    --ring: 0 72% 35%;
     --radius: 1.1rem;
   }
 }
@@ -34,13 +34,13 @@
   
   html, body {
     @apply m-0 p-0 overflow-x-hidden min-h-svh;
-    background: #B36666; /* Match status bar exactly */
+    background: #B36666; /* Seamless match with status bar */
   }
 
   body {
     @apply text-foreground selection:bg-primary/20 antialiased;
-    /* Pale Maroon (#B36666) to White Gradient - Seamless Transition */
-    background: linear-gradient(180deg, #B36666 0%, #B36666 10%, rgba(255, 255, 255, 1) 65%, rgba(255, 255, 255, 1) 100%);
+    /* Pale Maroon (#B36666) top, fading to White */
+    background: linear-gradient(180deg, #B36666 0%, #B36666 15%, rgba(255, 255, 255, 1) 60%, rgba(255, 255, 255, 1) 100%);
     background-attachment: fixed;
   }
 }
