@@ -1,8 +1,9 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift, X, Check, Mic, MicOff, VideoOff, PhoneOff } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -86,29 +87,51 @@ export default function ChatDetailPage() {
         return
       }
       setCallType(data.callType || 'video')
-      if (data.status === 'ringing' && data.callerId !== currentUser.uid) {
-        setCallStatus('incoming')
-      } else if (data.status === 'ringing' && data.callerId === currentUser.uid) {
-        setCallStatus('calling')
+      if (data.status === 'ringing') {
+        if (data.callerId === currentUser.uid) {
+          setCallStatus('calling')
+        } else {
+          setCallStatus('incoming')
+        }
       } else if (data.status === 'accepted') {
         setCallStatus('ongoing')
         initiateZegoCall(chatId);
-      } else if (data.status === 'declined') {
-        stopAllMedia(); setCallStatus('idle'); remove(callRef);
+      } else if (data.status === 'declined' || data.status === 'ended') {
+        stopAllMedia(); setCallStatus('idle');
       }
     })
-  }, [database, chatId, currentUser, otherUser, callStatus]);
+  }, [database, chatId, currentUser, callStatus, callType]);
 
   const handleInitiateCall = (type: 'video' | 'audio') => {
     if (!database || !chatId || !currentUser) return
     const callRef = ref(database, `calls/${chatId}`)
-    set(callRef, { callerId: currentUser.uid, receiverId: otherUserId, status: 'ringing', callType: type, timestamp: Date.now() })
+    set(callRef, { 
+      callerId: currentUser.uid, 
+      receiverId: otherUserId, 
+      status: 'ringing', 
+      callType: type, 
+      timestamp: Date.now(),
+      callerName: currentUser.displayName || 'Someone'
+    })
+  }
+
+  const handleAcceptCall = () => {
+    if (!database || !chatId) return
+    const callRef = ref(database, `calls/${chatId}`)
+    update(callRef, { status: 'accepted' })
+  }
+
+  const handleDeclineCall = () => {
+    if (!database || !chatId) return
+    remove(ref(database, `calls/${chatId}`))
+    setCallStatus('idle')
   }
 
   const handleEndCall = () => {
     if (!database || !chatId) return
     remove(ref(database, `calls/${chatId}`))
-    stopAllMedia(); setCallStatus('idle')
+    stopAllMedia(); 
+    setCallStatus('idle')
   }
 
   useEffect(() => {
@@ -151,11 +174,59 @@ export default function ChatDetailPage() {
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
+      
       {/* ZEGO Container for Calls */}
-      <div ref={zegoContainerRef} className={cn("absolute inset-0 z-[100] bg-black", callStatus === 'ongoing' ? 'block' : 'hidden')} />
+      <div ref={zegoContainerRef} className={cn("absolute inset-0 z-[200] bg-black", callStatus === 'ongoing' ? 'block' : 'hidden')} />
 
-      {/* Header Redesigned */}
-      <header className="px-6 pt-10 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
+      {/* CALL UI OVERLAYS */}
+      {(callStatus === 'calling' || callStatus === 'incoming') && (
+        <div className="absolute inset-0 z-[300] bg-black flex flex-col items-center justify-between py-24 px-8 text-white">
+          <div className="flex flex-col items-center gap-6 mt-10">
+            <div className="relative">
+              <Avatar className="w-32 h-32 border-4 border-white/10 shadow-2xl">
+                <AvatarImage src={otherUserImage} className="object-cover" />
+                <AvatarFallback>{otherUser.username?.[0]}</AvatarFallback>
+              </Avatar>
+              <div className="absolute -inset-4 bg-primary/20 rounded-full animate-pulse -z-10" />
+            </div>
+            <div className="text-center space-y-2">
+              <h2 className="text-2xl font-black font-headline">{otherUser.username}</h2>
+              <p className="text-xs font-bold text-white/40 uppercase tracking-[0.2em] animate-pulse">
+                {callStatus === 'calling' ? `Calling (${callType})...` : `Incoming ${callType} call...`}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-12 mb-10">
+            {callStatus === 'incoming' ? (
+              <>
+                <button 
+                  onClick={handleDeclineCall}
+                  className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-xl active:scale-90 transition-transform"
+                >
+                  <PhoneOff className="w-6 h-6 text-white" />
+                </button>
+                <button 
+                  onClick={handleAcceptCall}
+                  className="w-16 h-16 rounded-full bg-green-500 flex items-center justify-center shadow-xl active:scale-90 transition-transform"
+                >
+                  <Phone className="w-6 h-6 text-white" />
+                </button>
+              </>
+            ) : (
+              <button 
+                onClick={handleEndCall}
+                className="w-16 h-16 rounded-full bg-red-500 flex items-center justify-center shadow-xl active:scale-90 transition-transform"
+              >
+                <PhoneOff className="w-6 h-6 text-white" />
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Header */}
+      <header className="px-5 pt-8 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
         <Button 
           variant="ghost" 
           size="icon" 
@@ -166,12 +237,12 @@ export default function ChatDetailPage() {
         </Button>
 
         <div className="flex items-center gap-3">
-          <Avatar className="w-10 h-10 border border-gray-100 shadow-sm">
+          <Avatar className="w-9 h-9 border border-gray-100 shadow-sm">
             <AvatarImage src={otherUserImage} className="object-cover" />
             <AvatarFallback>{otherUser.username?.[0]}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col">
-            <h3 className="font-bold text-xs text-gray-900">{otherUser.username}</h3>
+            <h3 className="font-bold text-[13px] text-gray-900 leading-none mb-1">{otherUser.username}</h3>
             <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">
               {presence.online ? 'Online' : 'Offline'}
             </span>
@@ -188,14 +259,14 @@ export default function ChatDetailPage() {
       </header>
 
       {/* Messages Area */}
-      <ScrollArea className="flex-1 px-4 py-4">
+      <ScrollArea className="flex-1 px-4 py-4 bg-white">
         <div className="flex flex-col gap-4">
           {messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.uid
             return (
               <div key={msg.id} className={cn("flex w-full", isMe ? "justify-end" : "justify-start")}>
                 <div className={cn(
-                  "max-w-[80%] px-4 py-2.5 text-[13px] font-medium leading-relaxed shadow-sm",
+                  "max-w-[80%] px-4 py-3 text-[13px] font-medium leading-relaxed shadow-sm",
                   isMe ? "bg-primary text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none"
                 )}>
                   <p className="whitespace-pre-wrap">{msg.messageText}</p>
@@ -207,15 +278,14 @@ export default function ChatDetailPage() {
         </div>
       </ScrollArea>
 
-      {/* Footer Redesigned */}
+      {/* Footer */}
       <footer className="px-5 py-5 pb-8 space-y-4 bg-white border-t border-gray-50">
-        {/* Input Bar */}
         <div className="relative group">
           <Input 
             value={inputText} 
             onChange={(e) => setInputText(e.target.value)} 
             placeholder="Flow A Message..." 
-            className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] text-gray-900 placeholder:text-gray-400 focus-visible:ring-1 focus-visible:ring-primary/20" 
+            className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] text-gray-900 placeholder:text-gray-400 focus-visible:ring-1 focus-visible:ring-primary/20 shadow-inner" 
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
           />
           <Button 
@@ -227,15 +297,14 @@ export default function ChatDetailPage() {
             onClick={() => handleSendMessage()} 
             disabled={!inputText.trim()}
           >
-            <Send className="w-4 h-4 rotate-45" />
+            <Send className="w-4 h-4" />
           </Button>
         </div>
 
-        {/* Action Buttons */}
         <div className="grid grid-cols-3 gap-3">
           <button 
             onClick={() => handleInitiateCall('audio')}
-            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all"
+            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all shadow-sm"
           >
             <Phone className="w-4 h-4 text-gray-500" />
             <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span>
@@ -243,14 +312,14 @@ export default function ChatDetailPage() {
 
           <button 
             onClick={() => handleInitiateCall('video')}
-            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all"
+            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all shadow-sm"
           >
             <Video className="w-4 h-4 text-gray-500" />
             <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span>
           </button>
 
           <button 
-            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all"
+            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all shadow-sm"
           >
             <Gift className="w-4 h-4 text-primary" />
             <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Gift</span>
