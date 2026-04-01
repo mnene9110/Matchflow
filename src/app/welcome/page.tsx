@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { Mail, Zap, Loader2 } from "lucide-react"
+import { Mail, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
 import { useAuth, useUser, initiateAnonymousSignIn } from "@/firebase"
@@ -37,8 +37,8 @@ export default function WelcomePage() {
 
   if (isUserLoading || isLoggingIn) {
     return (
-      <div className="flex flex-col h-svh bg-white items-center justify-center">
-        <Loader2 className="w-8 h-8 animate-spin text-primary" />
+      <div className="flex flex-col h-svh bg-white items-center justify-center transition-opacity duration-300 opacity-0">
+        {/* Intentionally blank to prevent flashing loaders */}
       </div>
     )
   }

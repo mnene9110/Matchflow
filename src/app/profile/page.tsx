@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Navbar } from "@/components/Navbar"
@@ -7,7 +6,6 @@ import {
   Copy, 
   Coins, 
   Headset, 
-  Loader2,
   Pencil,
   ShieldCheck,
   Settings as SettingsIcon,
@@ -47,11 +45,7 @@ export default function ProfilePage() {
   }
 
   if (isUserLoading || isProfileLoading) {
-    return (
-      <div className="flex items-center justify-center h-svh bg-white">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    )
+    return <div className="min-h-svh bg-transparent" />
   }
 
   const userImage = (userProfile?.profilePhotoUrls && userProfile?.profilePhotoUrls[0]) || `https://picsum.photos/seed/${currentUser?.uid}/400/400`

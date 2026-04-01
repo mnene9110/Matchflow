@@ -1,10 +1,9 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
 import { Navbar } from "@/components/Navbar"
 import Image from "next/image"
-import { Sparkles, ClipboardList, RotateCcw, Loader2, Globe } from "lucide-react"
+import { Sparkles, ClipboardList, RotateCcw, Globe } from "lucide-react"
 import { useCollection, useFirebase, useMemoFirebase, useUser } from "@/firebase"
 import { collection } from "firebase/firestore"
 import { ref, onValue } from "firebase/database"
@@ -77,7 +76,7 @@ export default function DiscoverPage() {
         </button>
       </div>
 
-      {/* Sticky Tab Switcher - Stays at top when scrolling past top buttons */}
+      {/* Sticky Tab Switcher */}
       <div className="sticky top-0 z-30 px-4 py-6 bg-white/20 backdrop-blur-xl">
         <div className="flex items-center gap-3">
           <div className="flex-1 h-14 bg-white/40 backdrop-blur-md border border-white/30 rounded-full p-1 flex items-center shadow-lg shadow-black/5">
@@ -107,39 +106,35 @@ export default function DiscoverPage() {
       </div>
 
       <main className="px-4 grid grid-cols-2 gap-3 pb-8">
-        {isLoading ? (
-          <div className="col-span-2 flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
-        ) : (
-          displayUsers.map((user) => (
-            <div key={user.id} className="group relative aspect-[3/4.2] rounded-[2.5rem] overflow-hidden bg-white/20 shadow-md transition-transform active:scale-95">
-              <div onClick={() => router.push(`/profile/${user.id}`)} className="absolute inset-0 z-0">
-                <Image src={user.image} alt={user.name} fill className="object-cover transition-transform group-hover:scale-110 duration-700" />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+        {!isLoading && displayUsers.map((user) => (
+          <div key={user.id} className="group relative aspect-[3/4.2] rounded-[2.5rem] overflow-hidden bg-white/20 shadow-md transition-transform active:scale-95">
+            <div onClick={() => router.push(`/profile/${user.id}`)} className="absolute inset-0 z-0">
+              <Image src={user.image} alt={user.name} fill className="object-cover transition-transform group-hover:scale-110 duration-700" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-transparent to-transparent" />
+            </div>
+
+            <button 
+              onClick={(e) => { e.stopPropagation(); router.push(`/chat/${user.id}`); }}
+              className="absolute top-3 right-3 h-8 px-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full flex items-center justify-center z-10"
+            >
+              <span className="text-[8px] font-black text-white uppercase tracking-[0.1em]">Chat</span>
+            </button>
+
+            <div className="absolute inset-x-0 bottom-0 p-4 z-10">
+              <div className="flex items-center gap-1.5 mb-0.5">
+                <h3 className="text-white font-black text-xs">{user.name}</h3>
+                <div className={cn("w-1.5 h-1.5 rounded-full", user.isOnline ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-gray-400")} />
               </div>
-
-              <button 
-                onClick={(e) => { e.stopPropagation(); router.push(`/chat/${user.id}`); }}
-                className="absolute top-3 right-3 h-8 px-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full flex items-center justify-center z-10"
-              >
-                <span className="text-[8px] font-black text-white uppercase tracking-[0.1em]">Chat</span>
-              </button>
-
-              <div className="absolute inset-x-0 bottom-0 p-4 z-10">
-                <div className="flex items-center gap-1.5 mb-0.5">
-                  <h3 className="text-white font-black text-xs">{user.name}</h3>
-                  <div className={cn("w-1.5 h-1.5 rounded-full", user.isOnline ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-gray-400")} />
-                </div>
-                <div className="flex items-center gap-1.5 mb-1">
-                  <span className="text-[9px] font-black text-green-500 uppercase tracking-[0.1em]">ID: {user.numericId}</span>
-                </div>
-                <div className="flex items-center gap-1 opacity-80">
-                  <Globe className="w-2.5 h-2.5 text-[#5A1010]" />
-                  <span className="text-[8px] font-bold text-white uppercase tracking-wider">{user.location}</span>
-                </div>
+              <div className="flex items-center gap-1.5 mb-1">
+                <span className="text-[9px] font-black text-green-500 uppercase tracking-[0.1em]">ID: {user.numericId}</span>
+              </div>
+              <div className="flex items-center gap-1 opacity-80">
+                <Globe className="w-2.5 h-2.5 text-[#5A1010]" />
+                <span className="text-[8px] font-bold text-white uppercase tracking-wider">{user.location}</span>
               </div>
             </div>
-          ))
-        )}
+          </div>
+        ))}
       </main>
       <Navbar />
     </div>
