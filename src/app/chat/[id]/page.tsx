@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift, PhoneOff, AlertCircle } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift, PhoneOff, AlertCircle, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -46,6 +46,15 @@ export default function ChatDetailPage() {
 
   const currentUserProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile } = useDoc(currentUserProfileRef)
+
+  // Block logic
+  const myBlockRef = useMemoFirebase(() => currentUser && otherUserId ? doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", otherUserId) : null, [firestore, currentUser, otherUserId])
+  const { data: iBlockedThem } = useDoc(myBlockRef)
+
+  const theirBlockRef = useMemoFirebase(() => currentUser && otherUserId ? doc(firestore, "userProfiles", otherUserId, "blockedUsers", currentUser.uid) : null, [firestore, currentUser, otherUserId])
+  const { data: theyBlockedMe } = useDoc(theirBlockRef)
+
+  const isBlocked = !!iBlockedThem || !!theyBlockedMe
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -151,7 +160,7 @@ export default function ChatDetailPage() {
   };
 
   useEffect(() => {
-    if (!database || !chatId || !currentUser) return
+    if (!database || !chatId || !currentUser || isBlocked) return
     const callRef = ref(database, `calls/${chatId}`)
     return onValue(callRef, (snap) => {
       const data = snap.val()
@@ -182,10 +191,10 @@ export default function ChatDetailPage() {
         setCallStatus('idle');
       }
     })
-  }, [database, chatId, currentUser, callStatus, callType]);
+  }, [database, chatId, currentUser, callStatus, callType, isBlocked]);
 
   const handleInitiateCall = (type: 'video' | 'audio') => {
-    if (!database || !chatId || !currentUser) return
+    if (!database || !chatId || !currentUser || isBlocked) return
     const callRef = ref(database, `calls/${chatId}`)
     set(callRef, { 
       callerId: currentUser.uid, 
@@ -239,13 +248,10 @@ export default function ChatDetailPage() {
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const handleSendMessage = async () => {
-    if (!inputText.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || !currentUserProfile || isSending) return
+    if (!inputText.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || !currentUserProfile || isSending || isBlocked) return
     
     setIsSending(true)
 
-    // Role-based free texting logic
-    // Admin, Support, and Coinsellers text for free
-    // Users texting Support or Coinsellers text for free
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
                    currentUserProfile.isCoinseller ||
@@ -254,7 +260,6 @@ export default function ChatDetailPage() {
 
     try {
       if (!isFree) {
-        // Deduction logic
         await runTransaction(firestore, async (transaction) => {
           const userDoc = await transaction.get(doc(firestore, "userProfiles", currentUser.uid));
           if (!userDoc.exists()) throw new Error("Profile not found");
@@ -267,7 +272,6 @@ export default function ChatDetailPage() {
             updatedAt: new Date().toISOString()
           });
 
-          // Log deduction
           const txRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
           transaction.set(txRef, {
             id: txRef.id,
@@ -295,8 +299,6 @@ export default function ChatDetailPage() {
           description: "Recharge to continue chatting.",
           action: <Button onClick={() => router.push('/recharge')} size="sm">Recharge</Button>
         });
-      } else {
-        console.error("Message send error", error);
       }
     } finally {
       setIsSending(false)
@@ -310,8 +312,6 @@ export default function ChatDetailPage() {
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
-      
-      {/* ZEGO Container for Calls */}
       <div 
         ref={zegoContainerRef} 
         className={cn(
@@ -320,7 +320,6 @@ export default function ChatDetailPage() {
         )} 
       />
 
-      {/* CALL UI OVERLAYS (Ringing/Incoming) */}
       {(callStatus === 'calling' || callStatus === 'incoming') && (
         <div className="absolute inset-0 z-[300] bg-black flex flex-col items-center justify-between py-24 px-8 text-white">
           <div className="flex flex-col items-center gap-6 mt-10">
@@ -377,7 +376,6 @@ export default function ChatDetailPage() {
         </div>
       )}
 
-      {/* Header */}
       <header className="px-5 pt-8 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
         <Button 
           variant="ghost" 
@@ -410,7 +408,6 @@ export default function ChatDetailPage() {
         </Button>
       </header>
 
-      {/* Messages Area */}
       <ScrollArea className="flex-1 px-4 py-4 bg-white">
         <div className="flex flex-col gap-4">
           {messages.map((msg) => {
@@ -430,53 +427,65 @@ export default function ChatDetailPage() {
         </div>
       </ScrollArea>
 
-      {/* Footer */}
       <footer className="px-5 py-5 pb-8 space-y-4 bg-white border-t border-gray-50">
-        <div className="relative group">
-          <Input 
-            value={inputText} 
-            onChange={(e) => setInputText(e.target.value)} 
-            placeholder="Flow A Message..." 
-            className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] text-gray-900 placeholder:text-gray-400 focus-visible:ring-1 focus-visible:ring-primary/20 shadow-inner" 
-            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
-          />
-          <Button 
-            size="icon" 
-            className={cn(
-              "absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9 transition-all",
-              inputText.trim() && !isSending ? "bg-primary text-white" : "bg-gray-200 text-gray-400"
-            )} 
-            onClick={() => handleSendMessage()} 
-            disabled={!inputText.trim() || isSending}
-          >
-            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-          </Button>
-        </div>
+        {isBlocked ? (
+          <div className="flex flex-col items-center justify-center py-4 gap-2">
+            <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center">
+              <Ban className="w-6 h-6 text-red-500" />
+            </div>
+            <p className="text-[11px] font-black uppercase tracking-widest text-red-500">
+              {iBlockedThem ? "You have blocked this user" : "Chat restricted, you have been blocked"}
+            </p>
+          </div>
+        ) : (
+          <>
+            <div className="relative group">
+              <Input 
+                value={inputText} 
+                onChange={(e) => setInputText(e.target.value)} 
+                placeholder="Flow A Message..." 
+                className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] text-gray-900 placeholder:text-gray-400 focus-visible:ring-1 focus-visible:ring-primary/20 shadow-inner" 
+                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
+              />
+              <Button 
+                size="icon" 
+                className={cn(
+                  "absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9 transition-all",
+                  inputText.trim() && !isSending ? "bg-primary text-white" : "bg-gray-200 text-gray-400"
+                )} 
+                onClick={() => handleSendMessage()} 
+                disabled={!inputText.trim() || isSending}
+              >
+                {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+              </Button>
+            </div>
 
-        <div className="grid grid-cols-3 gap-3">
-          <button 
-            onClick={() => handleInitiateCall('audio')}
-            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all shadow-sm"
-          >
-            <Phone className="w-4 h-4 text-gray-500" />
-            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span>
-          </button>
+            <div className="grid grid-cols-3 gap-3">
+              <button 
+                onClick={() => handleInitiateCall('audio')}
+                className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all shadow-sm"
+              >
+                <Phone className="w-4 h-4 text-gray-500" />
+                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span>
+              </button>
 
-          <button 
-            onClick={() => handleInitiateCall('video')}
-            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all shadow-sm"
-          >
-            <Video className="w-4 h-4 text-gray-500" />
-            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span>
-          </button>
+              <button 
+                onClick={() => handleInitiateCall('video')}
+                className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all shadow-sm"
+              >
+                <Video className="w-4 h-4 text-gray-500" />
+                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span>
+              </button>
 
-          <button 
-            className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all shadow-sm"
-          >
-            <Gift className="w-4 h-4 text-primary" />
-            <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Gift</span>
-          </button>
-        </div>
+              <button 
+                className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 transition-all shadow-sm"
+              >
+                <Gift className="w-4 h-4 text-primary" />
+                <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Gift</span>
+              </button>
+            </div>
+          </>
+        )}
       </footer>
     </div>
   )

@@ -19,7 +19,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
-import { useDoc, useFirestore, useFirebase, useMemoFirebase } from "@/firebase"
+import { useDoc, useFirestore, useFirebase, useMemoFirebase, useUser, setDocumentNonBlocking } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { ref, onValue } from "firebase/database"
 import { cn } from "@/lib/utils"
@@ -36,6 +36,7 @@ export default function ProfileDetailPage() {
   const router = useRouter()
   const firestore = useFirestore()
   const { database } = useFirebase()
+  const { user: currentUser } = useUser()
   const { toast } = useToast()
   
   const docRef = useMemoFirebase(() => doc(firestore, "userProfiles", id as string), [firestore, id])
@@ -62,11 +63,25 @@ export default function ProfileDetailPage() {
     return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }, [presence]);
 
-  const handleBlock = () => {
-    toast({
-      title: "User Blocked",
-      description: `${userProfile?.username} has been blocked and will no longer see your profile.`,
-    })
+  const handleBlock = async () => {
+    if (!currentUser || !id) return
+    
+    try {
+      const blockRef = doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", id as string)
+      await setDocumentNonBlocking(blockRef, {
+        blockedUserId: id,
+        username: userProfile?.username || "Unknown",
+        blockedAt: new Date().toISOString()
+      }, { merge: true })
+      
+      toast({
+        title: "User Blocked",
+        description: `${userProfile?.username} has been blocked.`,
+      })
+      router.push('/discover')
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Could not block user." })
+    }
   }
 
   const handleReport = () => {
@@ -186,10 +201,7 @@ export default function ProfileDetailPage() {
       </div>
 
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-50 flex items-center gap-4">
-        <Button className="flex-1 h-14 rounded-full bg-primary text-white font-black text-lg shadow-xl shadow-primary/20 active:scale-95 transition-transform" onClick={() => router.push(`/chat/${id}`)}>Chat</Button>
-        <Button variant="secondary" size="icon" className="w-14 h-14 rounded-full bg-gray-50 border border-gray-100 active:scale-95 transition-transform" onClick={() => router.push(`/chat/${id}`)}>
-          <Video className="w-6 h-6 text-gray-400" />
-        </Button>
+        <Button className="w-full h-14 rounded-full bg-primary text-white font-black text-lg shadow-xl shadow-primary/20 active:scale-95 transition-transform" onClick={() => router.push(`/chat/${id}`)}>Chat</Button>
       </div>
     </div>
   )

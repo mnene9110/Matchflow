@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -6,9 +7,9 @@ import { Loader2, MessageSquare, ChevronRight } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { useFirebase, useUser } from "@/firebase"
+import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { ref, onValue } from "firebase/database"
-import { doc, getDoc } from "firebase/firestore"
+import { doc, getDoc, collection } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 
 function ChatSessionItem({ session }: { session: any }) {
@@ -92,10 +93,13 @@ function ChatSessionItem({ session }: { session: any }) {
 }
 
 export default function ChatListPage() {
-  const { database } = useFirebase()
+  const { database, firestore } = useFirebase()
   const { user: currentUser } = useUser()
   const [sessions, setSessions] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingChats, setIsLoadingChats] = useState(true)
+
+  const blockedQuery = useMemoFirebase(() => currentUser ? collection(firestore, 'userProfiles', currentUser.uid, 'blockedUsers') : null, [firestore, currentUser])
+  const { data: blockedUsers, isLoading: isBlockedLoading } = useCollection(blockedQuery)
 
   useEffect(() => {
     if (!database || !currentUser) return
@@ -113,9 +117,14 @@ export default function ChatListPage() {
       } else {
         setSessions([])
       }
-      setIsLoading(false)
+      setIsLoadingChats(false)
     })
   }, [database, currentUser])
+
+  const blockedIds = new Set(blockedUsers?.map(b => b.id) || [])
+  const filteredSessions = sessions.filter(s => !blockedIds.has(s.otherUserId))
+
+  const isLoading = isLoadingChats || isBlockedLoading
 
   return (
     <div className="flex flex-col min-h-svh pb-20 bg-transparent">
@@ -135,9 +144,9 @@ export default function ChatListPage() {
               <Loader2 className="w-8 h-8 animate-spin text-primary" />
               <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Syncing...</p>
             </div>
-          ) : sessions.length > 0 ? (
+          ) : filteredSessions.length > 0 ? (
             <div className="flex flex-col gap-1">
-              {sessions.map((session) => (
+              {filteredSessions.map((session) => (
                 <ChatSessionItem key={session.otherUserId} session={session} />
               ))}
             </div>

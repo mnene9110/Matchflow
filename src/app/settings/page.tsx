@@ -1,3 +1,4 @@
+
 "use client"
 
 import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, Award, MessageSquare, Ban, Languages, Trash2, Info } from "lucide-react"
@@ -49,7 +50,7 @@ export default function SettingsPage() {
     { label: "Charge settings", icon: CreditCard },
     { label: "Rights Center", icon: Award },
     { label: "Chat settings", icon: MessageSquare },
-    { label: "Blocked List", icon: Ban },
+    { label: "Blocked List", icon: Ban, onClick: () => router.push("/settings/blocked") },
     { label: "Language", icon: Languages },
     { label: "Clear Cache", icon: Trash2 },
     { label: "About MatchFlow", icon: Info },
@@ -104,11 +105,11 @@ export default function SettingsPage() {
             <AlertDialogContent className="rounded-[2.5rem] max-w-[85%] md:max-w-sm bg-white border-none shadow-2xl">
               <AlertDialogHeader>
                 <AlertDialogTitle className="font-headline font-black text-xl text-gray-900 text-center">Sign Out?</AlertDialogTitle>
-                <AlertDialogDescription className="text-gray-400 font-medium text-xs leading-relaxed text-center">
+                <AlertDialogHeader className="text-gray-400 font-medium text-xs leading-relaxed text-center">
                   {isGuest 
                     ? "You are currently in Guest Mode. We recommend binding an email to never lose your coins and profile access." 
                     : "Are you sure you want to sign out of your account?"}
-                </AlertDialogDescription>
+                </AlertDialogHeader>
               </AlertDialogHeader>
               <AlertDialogFooter className="flex flex-col gap-2 mt-6">
                 <AlertDialogAction 

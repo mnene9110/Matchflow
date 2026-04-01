@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -18,7 +19,10 @@ export default function DiscoverPage() {
   const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
   
   const profilesQuery = useMemoFirebase(() => collection(firestore, 'userProfiles'), [firestore])
-  const { data: firestoreUsers, isLoading } = useCollection(profilesQuery)
+  const { data: firestoreUsers, isLoading: isProfilesLoading } = useCollection(profilesQuery)
+
+  const blockedQuery = useMemoFirebase(() => currentUser ? collection(firestore, 'userProfiles', currentUser.uid, 'blockedUsers') : null, [firestore, currentUser])
+  const { data: blockedUsers, isLoading: isBlockedLoading } = useCollection(blockedQuery)
   
   useEffect(() => {
     if (!database) return
@@ -35,7 +39,8 @@ export default function DiscoverPage() {
     })
   }, [database])
 
-  const filteredUsers = firestoreUsers?.filter(u => u.id !== currentUser?.uid) || []
+  const blockedIds = new Set(blockedUsers?.map(b => b.id) || [])
+  const filteredUsers = firestoreUsers?.filter(u => u.id !== currentUser?.uid && !blockedIds.has(u.id)) || []
 
   const users = filteredUsers.map(u => ({
     id: u.id,
@@ -50,12 +55,11 @@ export default function DiscoverPage() {
     ? users.filter(u => u.location.toLowerCase().includes('kenya') || u.location.toLowerCase().includes('nearby'))
     : users;
 
-  // Dark Maroon specifically for Home Screen buttons
   const darkMaroon = "bg-[#5A1010]";
+  const isLoading = isProfilesLoading || isBlockedLoading
 
   return (
     <div className="flex flex-col min-h-svh pb-24 bg-transparent">
-      {/* Top Feature Cards */}
       <div className="pt-4 px-4 grid grid-cols-2 gap-3">
         <button className={cn("flex flex-col items-center justify-center gap-2 rounded-[2rem] py-6 shadow-xl group active:scale-95 transition-all", darkMaroon)}>
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
@@ -72,7 +76,6 @@ export default function DiscoverPage() {
         </button>
       </div>
 
-      {/* Tab Switcher & Refresh */}
       <div className="px-4 py-6 flex items-center gap-3">
         <div className="flex-1 h-14 bg-white/30 backdrop-blur-md border border-white/20 rounded-full p-1 flex items-center">
           <button 
@@ -99,7 +102,6 @@ export default function DiscoverPage() {
         </button>
       </div>
 
-      {/* User Grid */}
       <main className="px-4 grid grid-cols-2 gap-3 pb-8">
         {isLoading ? (
           <div className="col-span-2 flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
