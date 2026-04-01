@@ -63,7 +63,6 @@ export default function WelcomePage() {
             className="w-full h-14 rounded-full bg-primary text-white hover:bg-primary/90 text-base font-black gap-3 shadow-xl transition-all active:scale-95"
             onClick={() => router.push("/login")}
           >
-            <circle cx="12" cy="12" r="10" className="hidden" />
             <Mail className="w-5 h-5" />
             Continue with Email
           </Button>
