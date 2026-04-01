@@ -1,9 +1,8 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift, PhoneOff, AlertCircle, Ban, Mic, MicOff, VideoOff } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift, PhoneOff, AlertCircle, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -14,7 +13,6 @@ import { doc, runTransaction, collection } from "firebase/firestore"
 import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, remove } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { getZegoConfig } from "@/app/actions/zego"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
 let ZegoUIKitPrebuilt: any = null;
 
