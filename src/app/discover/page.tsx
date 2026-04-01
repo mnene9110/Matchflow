@@ -39,7 +39,6 @@ export default function DiscoverPage() {
     })
   }, [database])
 
-  // If I block someone, I DON'T see them.
   const blockedIds = new Set(blockedUsers?.map(b => b.id) || [])
   const filteredUsers = firestoreUsers?.filter(u => u.id !== currentUser?.uid && !blockedIds.has(u.id)) || []
 
@@ -48,7 +47,6 @@ export default function DiscoverPage() {
     name: u.username || "User",
     location: u.location || "Kenya",
     isOnline: !!presenceData[u.id],
-    numericId: u.numericId || ".......",
     image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/400/600`
   }))
 
@@ -121,12 +119,9 @@ export default function DiscoverPage() {
             </button>
 
             <div className="absolute inset-x-0 bottom-0 p-4 z-10">
-              <div className="flex items-center gap-1.5 mb-0.5">
+              <div className="flex items-center gap-1.5 mb-1.5">
                 <h3 className="text-white font-black text-xs">{user.name}</h3>
                 <div className={cn("w-1.5 h-1.5 rounded-full", user.isOnline ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-gray-400")} />
-              </div>
-              <div className="flex items-center gap-1.5 mb-1">
-                <span className="text-[9px] font-black text-green-500 uppercase tracking-[0.1em]">ID: {user.numericId}</span>
               </div>
               <div className="flex items-center gap-1 opacity-80">
                 <Globe className="w-2.5 h-2.5 text-[#5A1010]" />

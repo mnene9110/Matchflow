@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ChevronLeft, Video, Send, Phone, Loader2, MoreVertical, Gift, PhoneOff, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -79,7 +79,6 @@ export default function ChatDetailPage() {
         if (!mounted) return;
         setCallDuration((prev) => {
           const nextVal = prev + 1;
-          // Deduct coins at the start of every new minute (60s, 120s, etc.)
           if (nextVal > 0 && nextVal % 60 === 0) {
             handleRecurringDeduction();
           }
@@ -136,6 +135,16 @@ export default function ChatDetailPage() {
       }
     }
   };
+
+  const presenceText = useMemo(() => {
+    if (presence.online) return "Online";
+    if (!presence.lastSeen) return "Offline";
+    const date = new Date(presence.lastSeen);
+    const now = new Date();
+    const diffInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
+    if (diffInDays > 2) return "Offline";
+    return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }, [presence]);
 
   const formatDuration = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
@@ -228,7 +237,6 @@ export default function ChatDetailPage() {
     }
   };
 
-  // Call Signaling via Firestore
   useEffect(() => {
     if (!firestore || !chatId || !currentUser || isBlocked) return
     
@@ -448,7 +456,7 @@ export default function ChatDetailPage() {
           <Avatar className="w-9 h-9 border border-gray-100 shadow-sm"><AvatarImage src={otherUserImage} className="object-cover" /><AvatarFallback>{otherUser.username?.[0]}</AvatarFallback></Avatar>
           <div className="flex flex-col text-center">
             <h3 className="font-bold text-[13px] text-gray-900 leading-none mb-1">{otherUser.username}</h3>
-            <span className="text-[9px] font-black text-green-500 uppercase tracking-widest">{presence.online ? 'Online' : 'Offline'}</span>
+            <span className={cn("text-[9px] font-black uppercase tracking-widest", presence.online ? "text-green-500" : "text-gray-400")}>{presenceText}</span>
           </div>
         </div>
         <Button variant="ghost" size="icon" className="h-10 w-10 rounded-full bg-gray-50 text-gray-500 hover:bg-gray-100"><MoreVertical className="w-5 h-5" /></Button>

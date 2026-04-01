@@ -11,14 +11,11 @@ import { Label } from "@/components/ui/label"
 import { useFirestore, useUser, setDocumentNonBlocking } from "@/firebase"
 import { doc } from "firebase/firestore"
 
-const AFRICAN_COUNTRIES = [
-  "Algeria", "Angola", "Benin", "Botswana", "Burkina Faso", "Burundi", "Cabo Verde", "Cameroon", 
-  "Central African Republic", "Chad", "Comoros", "Congo", "DR Congo", "Djibouti", "Egypt", 
-  "Equatorial Guinea", "Eritrea", "Eswatini", "Ethiopia", "Gabon", "Gambia", "Ghana", "Guinea", 
-  "Guinea-Bissau", "Ivory Coast", "Kenya", "Lesotho", "Liberia", "Libya", "Madagascar", "Malawi", 
-  "Mali", "Mauritania", "Mauritius", "Morocco", "Mozambique", "Namibia", "Niger", "Nigeria", 
-  "Rwanda", "Sao Tome and Principe", "Senegal", "Seychelles", "Sierra Leone", "Somalia", 
-  "South Africa", "South Sudan", "Sudan", "Tanzania", "Togo", "Tunisia", "Uganda", "Zambia", "Zimbabwe"
+const TARGET_COUNTRIES = [
+  "Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", 
+  "Madagascar", "Malawi", "Mauritius", "Mozambique", "Nigeria", 
+  "Rwanda", "Seychelles", "Somalia", "South Sudan", "Tanzania", 
+  "Uganda", "Zambia", "Zimbabwe"
 ]
 
 export default function FullOnboardingPage() {
@@ -53,7 +50,7 @@ export default function FullOnboardingPage() {
       updatedAt: new Date().toISOString(),
       lastActiveAt: new Date().toISOString(),
       interests: ["Nature", "Water sports", "Adventure"],
-      coinBalance: 500, // New user reward: 500 coins
+      coinBalance: 500,
       isAdmin: false,
       isCoinseller: false,
       isSupport: false
@@ -131,7 +128,7 @@ export default function FullOnboardingPage() {
                 <SelectValue placeholder="Select country" />
               </SelectTrigger>
               <SelectContent>
-                {AFRICAN_COUNTRIES.map(c => (
+                {TARGET_COUNTRIES.map(c => (
                   <SelectItem key={c} value={c}>{c}</SelectItem>
                 ))}
               </SelectContent>
