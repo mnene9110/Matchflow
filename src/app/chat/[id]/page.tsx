@@ -1,8 +1,7 @@
-
 "use client"
 
-import { useState, useEffect, useRef, useMemo } from "react"
-import { useParams, useRouter } from "next/navigation"
+import { useState, useEffect, useRef, useMemo, Suspense } from "react"
+import { useParams, useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, Video, Send, Phone, Loader2, Gift, PhoneOff, Ban } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,9 +16,12 @@ import { getZegoConfig } from "@/app/actions/zego"
 
 let ZegoUIKitPrebuilt: any = null;
 
-export default function ChatDetailPage() {
+function ChatDetailContent() {
   const params = useParams()
+  const searchParams = useSearchParams()
   const otherUserId = params?.id as string
+  const initialMsg = searchParams?.get('msg')
+  
   const { user: currentUser } = useUser()
   const { firestore, database } = useFirebase()
   const router = useRouter()
@@ -72,6 +74,20 @@ export default function ChatDetailPage() {
       stopAllMedia();
     }
   }, []);
+
+  // Handle initial auto-message
+  useEffect(() => {
+    if (initialMsg && currentUser && otherUserId && database && otherUser && !isSending) {
+      // Small delay to ensure everything is ready
+      const timer = setTimeout(() => {
+        handleSendMessage(initialMsg);
+        // Clear param from URL without refreshing
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, '', newUrl);
+      }, 500);
+      return () => clearTimeout(timer);
+    }
+  }, [initialMsg, currentUser, otherUserId, database, !!otherUser]);
 
   useEffect(() => {
     if ((callStatus === 'calling' || callStatus === 'ringing') && callType === 'video' && localVideoRef.current && localStreamRef.current) {
@@ -330,8 +346,9 @@ export default function ChatDetailPage() {
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  const handleSendMessage = async () => {
-    if (!inputText.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || !currentUserProfile || isSending || isBlocked) return
+  const handleSendMessage = async (textOverride?: string) => {
+    const textToUse = textOverride || inputText;
+    if (!textToUse.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || !currentUserProfile || isSending || isBlocked) return
     setIsSending(true)
     const senderGender = currentUserProfile.gender?.toLowerCase() || 'male';
     const receiverGender = otherUser.gender?.toLowerCase() || 'female';
@@ -365,16 +382,16 @@ export default function ChatDetailPage() {
       }
       const updates: any = {}
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-      const msgData = { messageText: inputText, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
+      const msgData = { messageText: textToUse, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: inputText, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0 }
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = inputText
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: textToUse, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0 }
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = textToUse
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/otherUserId`] = currentUser.uid
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/chatId`] = chatId
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
       await update(ref(database), updates)
-      setInputText("")
+      if (!textOverride) setInputText("")
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({
@@ -513,5 +530,13 @@ export default function ChatDetailPage() {
         )}
       </footer>
     </div>
+  )
+}
+
+export default function ChatDetailPage() {
+  return (
+    <Suspense fallback={<div className="flex h-svh items-center justify-center bg-white" />}>
+      <ChatDetailContent />
+    </Suspense>
   )
 }

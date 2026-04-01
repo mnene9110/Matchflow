@@ -2,15 +2,14 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Check, History, Loader2, MessageCircle, Users } from "lucide-react"
+import { ChevronLeft, Check, History, Loader2, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { useDoc, useFirestore, useUser, useMemoFirebase, useCollection } from "@/firebase"
-import { doc, collection, query, where } from "firebase/firestore"
+import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { initializePesaPalTransaction } from "@/app/actions/pesapal"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
 const COIN_PACKAGES = [
   { amount: 500, price: 60, label: "60" },
@@ -41,13 +40,6 @@ function RechargeContent() {
   
   const { data: userProfile, isLoading } = useDoc(userProfileRef)
 
-  // Fetch coinsellers for the alternative section
-  const coinsellersQuery = useMemoFirebase(() => {
-    if (!firestore) return null
-    return query(collection(firestore, "userProfiles"), where("isCoinseller", "==", true))
-  }, [firestore])
-  const { data: coinsellers, isLoading: isSellersLoading } = useCollection(coinsellersQuery)
-
   useEffect(() => {
     const status = searchParams?.get('status')
     if (status === 'success') {
@@ -77,7 +69,6 @@ function RechargeContent() {
       })
 
       if (result.error) {
-        setIsProcessing(null as any) // Reset state
         setIsProcessing(false)
         toast({ variant: "destructive", title: "Gateway Error", description: result.error })
         return
@@ -170,48 +161,13 @@ function RechargeContent() {
           </div>
         </section>
 
-        {/* Alternative Coinsellers Section */}
-        <section className="mt-12 space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <h2 className="text-[10px] font-black text-primary/60 uppercase tracking-[0.2em]">Buy from Coinsellers</h2>
-            <Users className="w-3 h-3 text-gray-400" />
-          </div>
-          <div className="space-y-3">
-            {isSellersLoading ? (
-              <div className="flex justify-center py-4"><Loader2 className="w-5 h-5 animate-spin text-gray-300" /></div>
-            ) : coinsellers && coinsellers.length > 0 ? (
-              coinsellers.map((seller: any) => (
-                <div 
-                  key={seller.id}
-                  className="w-full flex items-center justify-between p-4 bg-white/30 backdrop-blur-md border border-white/30 rounded-[2rem] shadow-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10 border border-white shadow-sm">
-                      <AvatarImage src={seller.profilePhotoUrls?.[0] || `https://picsum.photos/seed/${seller.id}/100/100`} className="object-cover" />
-                      <AvatarFallback className="bg-primary text-white text-[10px] font-black">{seller.username?.[0]}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col">
-                      <span className="text-[11px] font-black text-gray-900">{seller.username}</span>
-                      <span className="text-[8px] font-black text-green-500 uppercase tracking-widest">Trusted Seller</span>
-                    </div>
-                  </div>
-                  <Button 
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => router.push(`/chat/${seller.id}`)}
-                    className="h-9 px-4 rounded-full bg-white/50 text-primary hover:bg-white font-black text-[9px] uppercase tracking-widest gap-2"
-                  >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    Chat
-                  </Button>
-                </div>
-              ))
-            ) : (
-              <div className="p-8 text-center bg-white/10 rounded-[2rem] border border-white/20 border-dashed">
-                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Offline</p>
-              </div>
-            )}
-          </div>
+        <section className="mt-12 flex flex-col items-center">
+          <button 
+            onClick={() => router.push(`/recharge/coinsellers${selectedPackage ? `?amount=${selectedPackage.amount}` : ''}`)}
+            className="text-[10px] font-black text-primary uppercase tracking-[0.3em] border-b border-primary/30 pb-1.5 active:opacity-50 transition-opacity"
+          >
+            Coinsellers
+          </button>
         </section>
       </main>
 
