@@ -1,4 +1,3 @@
-
 {
   "rules": {
     "users": {
@@ -12,6 +11,7 @@
         "chats": {
           ".read": "auth.uid === $uid",
           "$otherId": {
+            // Sender can increment unread count, owner can clear it
             ".write": "auth.uid === $uid || auth.uid === $otherId",
             "unreadCount": {
                ".validate": "newData.isNumber() && newData >= 0"
@@ -22,12 +22,14 @@
     },
     "chats": {
       "$chatId": {
+        // ChatId must contain the user's UID to allow access
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)",
         "messages": {
           "$msgId": {
             ".validate": "newData.hasChildren(['messageText', 'senderId', 'sentAt'])",
-            "senderId": { ".validate": "newData.val() === auth.uid" }
+            "senderId": { ".validate": "newData.val() === auth.uid" },
+            "sentAt": { ".validate": "newData.isNumber()" }
           }
         }
       }
