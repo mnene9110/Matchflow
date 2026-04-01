@@ -1,3 +1,4 @@
+
 "use client"
 
 import Link from "next/link"
@@ -18,8 +19,8 @@ export function Navbar() {
   ]
 
   return (
-    <div className="fixed bottom-0 left-0 w-full z-50">
-      <nav className="h-20 bg-white/95 backdrop-blur-3xl border-t border-gray-100 flex items-center justify-around px-5 pb-[env(safe-area-inset-bottom)]">
+    <div className="fixed bottom-0 left-0 right-0 w-full z-50">
+      <nav className="h-20 w-full bg-white/95 backdrop-blur-3xl border-t border-gray-100 flex items-center justify-around px-5 pb-[env(safe-area-inset-bottom)]">
         {navItems.map((item) => {
           const isActive = pathname === item.href || (item.href === "/discover" && (pathname === "/" || pathname === "/discover"))
           const Icon = item.icon

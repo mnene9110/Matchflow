@@ -39,6 +39,8 @@ export default function DiscoverPage() {
     })
   }, [database])
 
+  // ASYMMETRICAL BLOCKING: Only filter out users I have blocked.
+  // The ones who blocked me can still see me (per user request).
   const blockedIds = new Set(blockedUsers?.map(b => b.id) || [])
   const filteredUsers = firestoreUsers?.filter(u => u.id !== currentUser?.uid && !blockedIds.has(u.id)) || []
 

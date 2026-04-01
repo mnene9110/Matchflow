@@ -121,6 +121,8 @@ export default function ChatListPage() {
     })
   }, [database, currentUser])
 
+  // ASYMMETRICAL BLOCKING: I only hide people I have blocked from my chat list.
+  // People who blocked me will still see the chat session in their list (restricted when opened).
   const blockedIds = new Set(blockedUsers?.map(b => b.id) || [])
   const filteredSessions = sessions.filter(s => !blockedIds.has(s.otherUserId))
 

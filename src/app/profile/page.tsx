@@ -54,10 +54,10 @@ export default function ProfilePage() {
   }
 
   const userImage = (userProfile?.profilePhotoUrls && userProfile?.profilePhotoUrls[0]) || `https://picsum.photos/seed/${currentUser?.uid}/400/400`
+  const darkMaroon = "bg-[#5A1010]";
 
   return (
     <div className="flex flex-col min-h-svh bg-transparent text-gray-900 pb-24">
-      {/* Header Section */}
       <header className="flex flex-col items-center pt-12 pb-8 px-6">
         <div className="relative mb-6">
           <Avatar className="w-28 h-28 shadow-lg">
@@ -84,7 +84,6 @@ export default function ProfilePage() {
         </button>
       </header>
 
-      {/* Wallet Card */}
       <main className="px-6 space-y-3">
         <div className="bg-white/40 backdrop-blur-md border border-white/30 rounded-[2.5rem] p-6 flex flex-col gap-5">
           <div className="flex flex-col gap-2">
@@ -101,13 +100,12 @@ export default function ProfilePage() {
           
           <Button 
             onClick={() => router.push('/recharge')}
-            className="w-full h-14 rounded-[1.75rem] bg-primary hover:bg-primary/90 text-white font-black uppercase tracking-[0.1em] text-xs shadow-lg shadow-primary/20"
+            className={cn("w-full h-14 rounded-[1.75rem] text-white font-black uppercase tracking-[0.1em] text-xs shadow-lg shadow-primary/20", darkMaroon)}
           >
             Recharge
           </Button>
         </div>
 
-        {/* Admin Section */}
         {userProfile?.isAdmin && (
           <div className="pt-2">
             <button 
@@ -126,7 +124,6 @@ export default function ProfilePage() {
           </div>
         )}
 
-        {/* Action Buttons */}
         <div className="flex flex-col gap-2.5 pt-2">
           <button className="w-full h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center gap-3 active:bg-white/60 transition-all">
             <Headset className="w-4 h-4 text-primary" />
