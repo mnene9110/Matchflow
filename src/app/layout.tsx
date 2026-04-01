@@ -1,8 +1,8 @@
-
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from "@/firebase"
+import { OfflineDetector } from "@/components/OfflineDetector"
 import Script from 'next/script';
 
 export const viewport: Viewport = {
@@ -47,9 +47,11 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
-          <div className="app-container">
-            {children}
-          </div>
+          <OfflineDetector>
+            <div className="app-container">
+              {children}
+            </div>
+          </OfflineDetector>
         </FirebaseClientProvider>
         <Toaster />
         <Script id="register-sw" strategy="afterInteractive">

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
@@ -121,15 +120,15 @@ export default function ChatDetailPage() {
           type: "deduction",
           amount: -costPerMin,
           transactionDate: new Date().toISOString(),
-          description: `${callType === 'video' ? 'Video' : 'Voice'} call (Minute ${Math.floor(callDuration / 60) + 1}) with ${otherUser?.username || 'user'}`
+          description: `Call in progress with ${otherUser?.username || 'user'}`
         });
       });
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({ 
           variant: "destructive", 
-          title: "Insufficient Coins", 
-          description: "Your call ended because you ran out of coins. Please recharge to continue." 
+          title: "Session Ended", 
+          description: "Insufficient balance to continue. Please recharge." 
         });
         handleEndCall();
       }
@@ -188,7 +187,7 @@ export default function ChatDetailPage() {
       });
       localStreamRef.current = stream;
     } catch (error) {
-      console.error("Camera access denied", error);
+      console.error("Media access denied", error);
       handleEndCall();
       return;
     }
@@ -305,8 +304,8 @@ export default function ChatDetailPage() {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({
           variant: "destructive",
-          title: "Insufficient Coins",
-          description: `You need at least ${costPerMin} coins to start this call.`,
+          title: "Insufficient Balance",
+          description: `You need a higher balance to start this call.`,
           action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button>
         });
       }
@@ -358,10 +357,6 @@ export default function ChatDetailPage() {
     if (!inputText.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || !currentUserProfile || isSending || isBlocked) return
     setIsSending(true)
     
-    // Deduction logic: 
-    // Female to Male is free.
-    // Male to Any is 15.
-    // Female to Female is 15.
     const senderGender = currentUserProfile.gender?.toLowerCase() || 'male';
     const receiverGender = otherUser.gender?.toLowerCase() || 'female';
     
@@ -396,7 +391,7 @@ export default function ChatDetailPage() {
             type: "deduction",
             amount: -messageCost,
             transactionDate: new Date().toISOString(),
-            description: `Sent message to ${otherUser.username}`
+            description: `Message sent`
           });
         });
       }
@@ -413,8 +408,8 @@ export default function ChatDetailPage() {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({ 
           variant: "destructive", 
-          title: "Insufficient Coins", 
-          description: `You need ${messageCost} coins to send this message.` 
+          title: "Balance Error", 
+          description: `Insufficient balance to send message.` 
         });
       }
     } finally { setIsSending(false) }
@@ -443,7 +438,7 @@ export default function ChatDetailPage() {
               <div className="px-4 py-1.5 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
                 {callType === 'video' ? <Video className="w-4 h-4 text-primary" /> : <Phone className="w-4 h-4 text-primary" />}
                 <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] animate-pulse">
-                  {callStatus === 'calling' ? 'Calling...' : `Incoming ${callType} call`}
+                  {callStatus === 'calling' ? 'Calling...' : `Incoming call`}
                 </p>
               </div>
             </div>
