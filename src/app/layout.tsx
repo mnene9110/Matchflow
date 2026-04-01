@@ -5,7 +5,7 @@ import { FirebaseClientProvider } from "@/firebase"
 import Script from 'next/script';
 
 export const viewport: Viewport = {
-  themeColor: '#ffffff',
+  themeColor: '#800000',
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
