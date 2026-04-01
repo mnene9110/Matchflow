@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -199,7 +198,6 @@ function ChatDetailContent() {
     if (!ZegoUIKitPrebuilt || !currentUser || !zegoContainerRef.current || zegoInitializingRef.current) return;
     zegoInitializingRef.current = true;
     
-    // Stop early preview before Zego takes over hardware
     if (localPreviewStream) {
       localPreviewStream.getTracks().forEach(t => t.stop());
       setLocalPreviewStream(null);
@@ -220,7 +218,7 @@ function ChatDetailContent() {
       zp.joinRoom({
         container: zegoContainerRef.current,
         showPreJoinView: false,
-        turnOnMicrophoneWhenJoining: true, // Activated only when call is accepted
+        turnOnMicrophoneWhenJoining: true,
         turnOnCameraWhenJoining: callType === 'video',
         showMyCameraToggleButton: false,
         showMyMicrophoneToggleButton: false,
@@ -290,7 +288,6 @@ function ChatDetailContent() {
       return;
     }
 
-    // ACTIVATE CAMERA FOR VIDEO CALL PREVIEW (MIC OFF)
     if (type === 'video') {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
@@ -418,7 +415,12 @@ function ChatDetailContent() {
     } finally { setIsSending(false) }
   }
 
-  if (!isOtherUserLoading && !otherUser) {
+  // Handle Loading & Missing User definitively
+  if (isOtherUserLoading) {
+    return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+  }
+
+  if (!otherUser) {
     return (
       <div className="flex flex-col items-center justify-center h-svh bg-white p-6 text-center space-y-6">
         <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100">
