@@ -39,8 +39,6 @@ export default function DiscoverPage() {
     })
   }, [database])
 
-  // ASYMMETRICAL BLOCKING: Only filter out users I have blocked.
-  // The ones who blocked me can still see me (per user request).
   const blockedIds = new Set(blockedUsers?.map(b => b.id) || [])
   const filteredUsers = firestoreUsers?.filter(u => u.id !== currentUser?.uid && !blockedIds.has(u.id)) || []
 
@@ -61,7 +59,8 @@ export default function DiscoverPage() {
   const isLoading = isProfilesLoading || isBlockedLoading
 
   return (
-    <div className="flex flex-col min-h-svh pb-24 bg-transparent">
+    <div className="flex flex-col min-h-svh pb-32 bg-transparent">
+      {/* Scrollable top buttons */}
       <div className="pt-4 px-4 grid grid-cols-2 gap-3">
         <button className={cn("flex flex-col items-center justify-center gap-2 rounded-[2rem] py-6 shadow-xl group active:scale-95 transition-all", darkMaroon)}>
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
@@ -78,30 +77,33 @@ export default function DiscoverPage() {
         </button>
       </div>
 
-      <div className="px-4 py-6 flex items-center gap-3">
-        <div className="flex-1 h-14 bg-white/30 backdrop-blur-md border border-white/20 rounded-full p-1 flex items-center">
-          <button 
-            onClick={() => setActiveTab('recommend')}
-            className={cn(
-              "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
-              activeTab === 'recommend' ? cn(darkMaroon, "text-white") : "text-gray-500"
-            )}
-          >
-            Recommend
-          </button>
-          <button 
-            onClick={() => setActiveTab('nearby')}
-            className={cn(
-              "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
-              activeTab === 'nearby' ? cn(darkMaroon, "text-white") : "text-gray-500"
-            )}
-          >
-            Nearby
+      {/* Sticky Tab Switcher */}
+      <div className="sticky top-0 z-30 px-4 py-6 bg-white/20 backdrop-blur-xl">
+        <div className="flex items-center gap-3">
+          <div className="flex-1 h-14 bg-white/40 backdrop-blur-md border border-white/30 rounded-full p-1 flex items-center shadow-lg shadow-black/5">
+            <button 
+              onClick={() => setActiveTab('recommend')}
+              className={cn(
+                "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
+                activeTab === 'recommend' ? cn(darkMaroon, "text-white") : "text-gray-500"
+              )}
+            >
+              Recommend
+            </button>
+            <button 
+              onClick={() => setActiveTab('nearby')}
+              className={cn(
+                "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
+                activeTab === 'nearby' ? cn(darkMaroon, "text-white") : "text-gray-500"
+              )}
+            >
+              Nearby
+            </button>
+          </div>
+          <button className="w-14 h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center active:rotate-180 transition-all duration-500 shadow-lg shadow-black/5">
+            <RotateCcw className="w-4 h-4 text-gray-400" />
           </button>
         </div>
-        <button className="w-14 h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/20 flex items-center justify-center active:rotate-180 transition-all duration-500 shadow-sm">
-          <RotateCcw className="w-4 h-4 text-gray-400" />
-        </button>
       </div>
 
       <main className="px-4 grid grid-cols-2 gap-3 pb-8">

@@ -19,8 +19,8 @@ export function Navbar() {
   ]
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 w-full z-50">
-      <nav className="h-20 w-full bg-white/95 backdrop-blur-3xl border-t border-gray-100 flex items-center justify-around px-5 pb-[env(safe-area-inset-bottom)]">
+    <div className="fixed bottom-6 left-6 right-6 z-50 max-w-md mx-auto">
+      <nav className="h-20 w-full bg-white/90 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] flex items-center justify-around px-4">
         {navItems.map((item) => {
           const isActive = pathname === item.href || (item.href === "/discover" && (pathname === "/" || pathname === "/discover"))
           const Icon = item.icon
