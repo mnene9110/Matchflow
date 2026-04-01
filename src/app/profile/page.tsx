@@ -12,7 +12,10 @@ import {
   Settings as SettingsIcon,
   ShieldAlert,
   Loader2,
-  CheckCircle
+  CheckCircle,
+  ClipboardList,
+  Award,
+  Zap
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
@@ -21,6 +24,7 @@ import { doc, collection, query, where, getDocs, limit } from "firebase/firestor
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+import { useCollection } from "@/firebase"
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -36,6 +40,13 @@ export default function ProfilePage() {
   }, [firestore, currentUser])
 
   const { data: userProfile, isLoading } = useDoc(userRef)
+
+  // Reports for Support Agents
+  const reportsQuery = useMemoFirebase(() => {
+    if (!firestore || !userProfile?.isSupport) return null;
+    return query(collection(firestore, "reports"), where("status", "==", "pending"));
+  }, [firestore, userProfile?.isSupport]);
+  const { data: pendingReports } = useCollection(reportsQuery);
 
   const displayNumericId = userProfile?.numericId || "";
 
@@ -54,14 +65,12 @@ export default function ProfilePage() {
     setIsUpdatingAvatar(true)
     
     try {
-      // Simulate changing avatar by picking a new seed for picsum
       const newSeed = Math.floor(Math.random() * 1000)
       const newUrl = `https://picsum.photos/seed/${newSeed}/600/800`
       
       const userDocRef = doc(firestore, "userProfiles", currentUser.uid)
       await updateDocumentNonBlocking(userDocRef, {
         profilePhotoUrls: [newUrl],
-        // Reset verification when avatar changes
         isVerified: false,
         updatedAt: new Date().toISOString()
       })
@@ -176,8 +185,64 @@ export default function ProfilePage() {
           </Button>
         </div>
 
-        {!isLoading && userProfile?.isAdmin && (
+        {/* Support Specific Features */}
+        {!isLoading && userProfile?.isSupport && (
           <div className="pt-2">
+            <button 
+              onClick={() => router.push('/support/reports')}
+              className="w-full h-16 rounded-[2rem] bg-zinc-900 border border-zinc-800 flex items-center px-6 gap-4 active:scale-[0.98] transition-all shadow-xl relative"
+            >
+              <div className="w-10 h-10 rounded-xl bg-blue-500/20 flex items-center justify-center">
+                <ClipboardList className="w-5 h-5 text-blue-400" />
+              </div>
+              <div className="flex-1 text-left">
+                <span className="text-white font-black uppercase tracking-[0.1em] text-[10px] block">Review Reports</span>
+                <span className="text-zinc-500 text-[11px] font-bold">Handle user complaints</span>
+              </div>
+              {pendingReports && pendingReports.length > 0 && (
+                <div className="absolute top-4 right-4 w-2.5 h-2.5 bg-red-500 rounded-full shadow-[0_0_8px_rgba(239,68,68,0.6)] animate-pulse" />
+              )}
+              <ChevronRight className="w-5 h-5 text-zinc-700" />
+            </button>
+          </div>
+        )}
+
+        {/* Coinseller Specific Features */}
+        {!isLoading && userProfile?.isCoinseller && (
+          <div className="pt-2">
+            <button 
+              onClick={() => router.push('/coinseller/award')}
+              className="w-full h-16 rounded-[2rem] bg-amber-500/10 border border-amber-500/20 flex items-center px-6 gap-4 active:scale-[0.98] transition-all shadow-sm"
+            >
+              <div className="w-10 h-10 rounded-xl bg-amber-500 flex items-center justify-center">
+                <Award className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 text-left">
+                <span className="text-amber-600 font-black uppercase tracking-[0.1em] text-[10px] block">Award Coins</span>
+                <span className="text-amber-500/60 text-[11px] font-bold">Transfer to users</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-amber-500/40" />
+            </button>
+          </div>
+        )}
+
+        {/* Admin Specific Features */}
+        {!isLoading && userProfile?.isAdmin && (
+          <div className="pt-2 space-y-3">
+             <button 
+              onClick={() => router.push('/admin/award')}
+              className="w-full h-16 rounded-[2rem] bg-primary/10 border border-primary/20 flex items-center px-6 gap-4 active:scale-[0.98] transition-all shadow-sm"
+            >
+              <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
+                <Zap className="w-5 h-5 text-white" />
+              </div>
+              <div className="flex-1 text-left">
+                <span className="text-primary font-black uppercase tracking-[0.1em] text-[10px] block">Admin Coin Grant</span>
+                <span className="text-primary/60 text-[11px] font-bold">Unlimited granting</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-primary/40" />
+            </button>
+
             <button 
               onClick={() => router.push('/admin/roles')}
               className="w-full h-16 rounded-[2rem] bg-zinc-900 border border-zinc-800 flex items-center px-6 gap-4 active:scale-[0.98] transition-all shadow-xl"

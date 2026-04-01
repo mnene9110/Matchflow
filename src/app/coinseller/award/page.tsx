@@ -1,0 +1,220 @@
+
+"use client"
+
+import { useState } from "react"
+import { useRouter } from "next/navigation"
+import { ChevronLeft, Search, Loader2, Coins, Award, UserCheck, ArrowRight } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Label } from "@/components/ui/label"
+import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { doc, query, collection, where, getDocs, runTransaction } from "firebase/firestore"
+import { useToast } from "@/hooks/use-toast"
+import { cn } from "@/lib/utils"
+
+export default function AwardCoinsPage() {
+  const router = useRouter()
+  const { user: currentUser } = useUser()
+  const firestore = useFirestore()
+  const { toast } = useToast()
+
+  const [targetNumericId, setTargetNumericId] = useState("")
+  const [awardAmount, setAwardAmount] = useState("")
+  const [isSearching, setIsSearching] = useState(false)
+  const [isAwarding, setIsAwarding] = useState(false)
+  const [foundUser, setFoundUser] = useState<any>(null)
+
+  const currentUserRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const { data: profile } = useDoc(currentUserRef)
+
+  const isEligible = profile?.isCoinseller || profile?.isAdmin;
+
+  if (!isEligible && !isSearching) {
+    return <div className="flex h-svh items-center justify-center bg-white text-zinc-400 font-black uppercase text-xs tracking-widest">Access Denied</div>
+  }
+
+  const handleSearch = async () => {
+    if (!targetNumericId.trim()) return
+    setIsSearching(true)
+    setFoundUser(null)
+    
+    try {
+      const q = query(collection(firestore, "userProfiles"), where("numericId", "==", Number(targetNumericId)))
+      const snap = await getDocs(q)
+      
+      if (snap.empty) {
+        toast({ variant: "destructive", title: "User not found", description: "Check the numeric ID and try again." })
+      } else {
+        setFoundUser({ ...snap.docs[0].data(), docId: snap.docs[0].id })
+      }
+    } catch (error) {
+      toast({ variant: "destructive", title: "Search failed", description: "Could not connect to database." })
+    } finally {
+      setIsSearching(false)
+    }
+  }
+
+  const handleAward = async () => {
+    const amount = Number(awardAmount)
+    if (!foundUser || !amount || amount <= 0 || isAwarding) return
+
+    // Coinsellers are limited by their balance, Admin is not
+    if (profile?.isCoinseller && (profile.coinBalance || 0) < amount) {
+      toast({ variant: "destructive", title: "Insufficient Balance", description: "You don't have enough coins to award." })
+      return
+    }
+
+    setIsAwarding(true)
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        const targetRef = doc(firestore, "userProfiles", foundUser.docId)
+        const senderRef = doc(firestore, "userProfiles", profile!.id)
+
+        const targetSnap = await transaction.get(targetRef)
+        const senderSnap = await transaction.get(senderRef)
+
+        if (!targetSnap.exists() || !senderSnap.exists()) throw new Error("Profile error")
+
+        // 1. Update Target
+        const targetBalance = targetSnap.data().coinBalance || 0
+        transaction.update(targetRef, {
+          coinBalance: targetBalance + amount,
+          updatedAt: new Date().toISOString()
+        })
+
+        // 2. Update Sender (only if Coinseller)
+        if (profile?.isCoinseller && !profile?.isAdmin) {
+          const senderBalance = senderSnap.data().coinBalance || 0
+          if (senderBalance < amount) throw new Error("INSUFFICIENT_FUNDS")
+          transaction.update(senderRef, {
+            coinBalance: senderBalance - amount,
+            updatedAt: new Date().toISOString()
+          })
+        }
+
+        // 3. Log Transactions
+        const targetTxRef = doc(collection(targetRef, "transactions"))
+        transaction.set(targetTxRef, {
+          id: targetTxRef.id,
+          type: "award",
+          amount: amount,
+          transactionDate: new Date().toISOString(),
+          description: `Received coins from ${profile?.isAdmin ? 'Admin' : 'Coinseller'}`
+        })
+
+        if (profile?.isCoinseller && !profile?.isAdmin) {
+          const senderTxRef = doc(collection(senderRef, "transactions"))
+          transaction.set(senderTxRef, {
+            id: senderTxRef.id,
+            type: "deduction",
+            amount: -amount,
+            transactionDate: new Date().toISOString(),
+            description: `Awarded coins to ID: ${foundUser.numericId}`
+          })
+        }
+      })
+
+      toast({ title: "Award Successful", description: `${amount} coins have been sent.` })
+      router.back()
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Award failed", description: error.message || "An error occurred." })
+    } finally {
+      setIsAwarding(false)
+    }
+  }
+
+  return (
+    <div className="flex flex-col min-h-svh bg-transparent text-gray-900">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-transparent z-10">
+        <Button 
+          variant="ghost" 
+          size="icon" 
+          onClick={() => router.back()} 
+          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"
+        >
+          <ChevronLeft className="w-6 h-6" />
+        </Button>
+        <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Award Coins</h1>
+      </header>
+
+      <main className="flex-1 px-6 pb-20 space-y-8">
+        <div className="space-y-4">
+          <div className="bg-zinc-900 rounded-[2.5rem] p-6 text-white shadow-xl">
+             <div className="flex items-center gap-3 mb-4">
+                <Coins className="w-5 h-5 text-amber-500" />
+                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Balance</span>
+             </div>
+             <p className="text-3xl font-black font-headline">
+               {profile?.isAdmin ? "UNLIMITED" : (profile?.coinBalance || 0).toLocaleString()}
+             </p>
+          </div>
+        </div>
+
+        <section className="space-y-4">
+          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Recipient Numeric ID</Label>
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+              <Input 
+                placeholder="Enter ID" 
+                value={targetNumericId}
+                onChange={(e) => setTargetNumericId(e.target.value)}
+                className="h-14 pl-12 rounded-2xl bg-white/40 border-white/40 text-sm font-bold shadow-sm"
+                type="number"
+              />
+            </div>
+            <Button 
+              onClick={handleSearch} 
+              disabled={isSearching || !targetNumericId}
+              className="h-14 w-14 rounded-2xl bg-zinc-900"
+            >
+              {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
+            </Button>
+          </div>
+        </section>
+
+        {foundUser && (
+          <section className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+            <div className="p-6 bg-white/60 backdrop-blur-xl border border-white rounded-[2.5rem] shadow-xl flex items-center gap-4">
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
+                 <UserCheck className="w-8 h-8 text-primary" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-black text-lg text-gray-900 leading-tight">{foundUser.username}</h3>
+                <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest">ID: {foundUser.numericId}</p>
+                <p className="text-[9px] font-bold text-gray-400 mt-1">Current Balance: {foundUser.coinBalance || 0}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Award Amount</Label>
+              <div className="relative">
+                 <Award className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" />
+                 <Input 
+                   type="number"
+                   placeholder="0"
+                   value={awardAmount}
+                   onChange={(e) => setAwardAmount(e.target.value)}
+                   className="h-16 pl-14 rounded-3xl bg-white border-2 border-amber-500/20 text-2xl font-black focus-visible:ring-amber-500/10"
+                 />
+              </div>
+            </div>
+
+            <Button 
+              className="w-full h-16 rounded-full bg-zinc-900 text-white font-black text-lg shadow-2xl active:scale-95 transition-all gap-3"
+              onClick={handleAward}
+              disabled={isAwarding || !awardAmount || Number(awardAmount) <= 0}
+            >
+              {isAwarding ? <Loader2 className="w-6 h-6 animate-spin" /> : (
+                <>
+                  Grant Coins
+                  <ArrowRight className="w-5 h-5" />
+                </>
+              )}
+            </Button>
+          </section>
+        )}
+      </main>
+    </div>
+  )
+}

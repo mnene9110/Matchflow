@@ -125,7 +125,7 @@
         },
         "type": {
           "type": "string",
-          "description": "The type of coin transaction (e.g., recharge, deduction)."
+          "description": "The type of coin transaction (e.g., recharge, deduction, award)."
         },
         "amount": {
           "type": "number",
@@ -159,6 +159,20 @@
         "callType": { "type": "string", "enum": ["video", "audio"] },
         "timestamp": { "type": "number" },
         "callerName": { "type": "string" }
+      }
+    },
+    "Report": {
+      "title": "Report",
+      "type": "object",
+      "description": "A user report submitted for review.",
+      "properties": {
+        "id": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "reportedUserId": { "type": "string" },
+        "reason": { "type": "string" },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["pending", "reviewed"] }
       }
     }
   },
@@ -218,6 +232,22 @@
             {
               "name": "chatId",
               "description": "Unique ID for the call session (sorted combined UIDs)."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/reports/{reportId}",
+        "definition": {
+          "entityName": "Report",
+          "schema": {
+            "$ref": "#/backend/entities/Report"
+          },
+          "description": "User-submitted reports.",
+          "params": [
+            {
+              "name": "reportId",
+              "description": "The unique identifier for a report."
             }
           ]
         }

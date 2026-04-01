@@ -18,12 +18,13 @@ import {
   Copy,
   Headset,
   Lock,
-  CheckCircle
+  CheckCircle,
+  ShieldCheck
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { useDoc, useFirestore, useFirebase, useMemoFirebase, useUser, setDocumentNonBlocking } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { doc, collection, addDoc } from "firebase/firestore"
 import { ref, onValue } from "firebase/database"
 import { cn } from "@/lib/utils"
 import {
@@ -32,6 +33,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
 
 export default function ProfileDetailPage() {
@@ -46,6 +56,9 @@ export default function ProfileDetailPage() {
   const { data: userProfile, isLoading } = useDoc(docRef)
 
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
+  const [showReportDialog, setShowReportDialog] = useState(false)
+  const [reportDetails, setReportDetails] = useState("")
+  const [isSubmittingReport, setIsSubmittingReport] = useState(false)
 
   useEffect(() => {
     if (!database || !id) return
@@ -67,7 +80,7 @@ export default function ProfileDetailPage() {
   }, [presence]);
 
   const handleBlock = async () => {
-    if (!currentUser || !id || userProfile?.isSupport) return
+    if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin) return
     
     try {
       const blockRef = doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", id as string)
@@ -87,11 +100,31 @@ export default function ProfileDetailPage() {
     }
   }
 
-  const handleReport = () => {
-    toast({
-      title: "Report Submitted",
-      description: "Thank you for helping keep MatchFlow safe. Our team will review this profile.",
-    })
+  const handleReport = async () => {
+    if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport) return
+    setIsSubmittingReport(true)
+
+    try {
+      const reportsCol = collection(firestore, "reports")
+      await addDoc(reportsCol, {
+        reporterId: currentUser.uid,
+        reportedUserId: id,
+        details: reportDetails,
+        createdAt: new Date().toISOString(),
+        status: "pending"
+      })
+
+      toast({
+        title: "Report Submitted",
+        description: "Our team will review this profile. Thank you for keeping MatchFlow safe.",
+      })
+      setShowReportDialog(false)
+      setReportDetails("")
+    } catch (error) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to submit report." })
+    } finally {
+      setIsSubmittingReport(false)
+    }
   }
 
   const copyId = () => {
@@ -116,7 +149,6 @@ export default function ProfileDetailPage() {
     </div>
   )
 
-  // Users cannot access customer support details
   if (userProfile.isSupport) {
     return (
       <div className="flex flex-col items-center justify-center h-svh p-8 text-center space-y-6 bg-white">
@@ -152,8 +184,6 @@ export default function ProfileDetailPage() {
 
   const userImage = (userProfile.profilePhotoUrls && userProfile.profilePhotoUrls[0]) || `https://picsum.photos/seed/${userProfile.id}/600/800`
   const isVerified = !!userProfile.isVerified
-
-  // Admins and Support cannot be blocked or reported
   const isProtected = userProfile.isAdmin === true || userProfile.isSupport === true;
 
   return (
@@ -183,7 +213,7 @@ export default function ProfileDetailPage() {
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 rounded-2xl bg-white border-none shadow-2xl p-2">
                 <DropdownMenuItem 
-                  onClick={handleReport}
+                  onClick={() => setShowReportDialog(true)}
                   className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-700 rounded-xl focus:bg-gray-50 cursor-pointer"
                 >
                   <ShieldAlert className="w-4 h-4 text-amber-500" />
@@ -262,6 +292,41 @@ export default function ProfileDetailPage() {
       <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-50 flex items-center gap-4">
         <Button className="w-full h-14 rounded-full bg-primary text-white font-black text-lg shadow-xl shadow-primary/20 active:scale-95 transition-transform" onClick={() => router.push(`/chat/${id}`)}>Chat</Button>
       </div>
+
+      <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
+        <DialogContent className="rounded-[2.5rem] bg-white border-none p-8 max-w-[90%] mx-auto">
+          <DialogHeader>
+            <DialogTitle className="text-xl font-black font-headline text-gray-900 text-center">Report Profile</DialogTitle>
+            <DialogDescription className="text-center text-gray-500 font-medium">
+              Please provide details about the issue with this user.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4">
+            <Textarea 
+              placeholder="Explain the violation..."
+              value={reportDetails}
+              onChange={(e) => setReportDetails(e.target.value)}
+              className="min-h-[120px] rounded-2xl bg-gray-50 border-gray-100 focus-visible:ring-primary/20"
+            />
+          </div>
+          <DialogFooter className="flex flex-col gap-2">
+            <Button 
+              onClick={handleReport}
+              disabled={!reportDetails.trim() || isSubmittingReport}
+              className="w-full h-14 rounded-full bg-primary text-white font-black shadow-lg"
+            >
+              {isSubmittingReport ? <Loader2 className="w-5 h-5 animate-spin" /> : "Submit Report"}
+            </Button>
+            <Button 
+              variant="ghost" 
+              onClick={() => setShowReportDialog(false)}
+              className="w-full h-12 rounded-full text-gray-400 font-bold"
+            >
+              Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
