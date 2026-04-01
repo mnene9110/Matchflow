@@ -140,9 +140,6 @@ export default function ChatDetailPage() {
     if (presence.online) return "Online";
     if (!presence.lastSeen) return "Offline";
     const date = new Date(presence.lastSeen);
-    const now = new Date();
-    const diffInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
-    if (diffInDays > 2) return "Offline";
     return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }, [presence]);
 
@@ -216,8 +213,8 @@ export default function ChatDetailPage() {
         showPreJoinView: false,
         turnOnMicrophoneWhenJoining: true,
         turnOnCameraWhenJoining: callType === 'video',
-        showMyCameraToggleButton: true,
-        showMyMicrophoneToggleButton: true,
+        showMyCameraToggleButton: false,
+        showMyMicrophoneToggleButton: false,
         showAudioVideoSettingsButton: true,
         showScreenSharingButton: true,
         showTextChat: true,
@@ -360,29 +357,50 @@ export default function ChatDetailPage() {
   const handleSendMessage = async () => {
     if (!inputText.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || !currentUserProfile || isSending || isBlocked) return
     setIsSending(true)
-    const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.isCoinseller || otherUser.isSupport || otherUser.isCoinseller;
+    
+    // Deduction logic: 
+    // Female to Male is free.
+    // Male to Any is 15.
+    // Female to Female is 15.
+    const senderGender = currentUserProfile.gender?.toLowerCase() || 'male';
+    const receiverGender = otherUser.gender?.toLowerCase() || 'female';
+    
+    let isFree = currentUserProfile.isAdmin || 
+                 currentUserProfile.isSupport || 
+                 currentUserProfile.isCoinseller || 
+                 otherUser.isSupport || 
+                 otherUser.isCoinseller;
+    
+    if (senderGender === 'female' && receiverGender === 'male') {
+      isFree = true;
+    }
+
+    const messageCost = isFree ? 0 : 15;
 
     try {
-      if (!isFree) {
+      if (messageCost > 0) {
         await runTransaction(firestore, async (transaction) => {
           const userDoc = await transaction.get(doc(firestore, "userProfiles", currentUser.uid));
           if (!userDoc.exists()) throw new Error("Profile not found");
           const currentBalance = userDoc.data().coinBalance || 0;
-          if (currentBalance < 1) throw new Error("INSUFFICIENT_COINS");
+          if (currentBalance < messageCost) throw new Error("INSUFFICIENT_COINS");
+          
           transaction.update(doc(firestore, "userProfiles", currentUser.uid), {
-            coinBalance: currentBalance - 1,
+            coinBalance: currentBalance - messageCost,
             updatedAt: new Date().toISOString()
           });
+          
           const txRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
           transaction.set(txRef, {
             id: txRef.id,
             type: "deduction",
-            amount: -1,
+            amount: -messageCost,
             transactionDate: new Date().toISOString(),
             description: `Sent message to ${otherUser.username}`
           });
         });
       }
+      
       const updates: any = {}
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
       const msgData = { messageText: inputText, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
@@ -393,12 +411,16 @@ export default function ChatDetailPage() {
       setInputText("")
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
-        toast({ variant: "destructive", title: "Insufficient Coins", description: "Recharge to continue chatting." });
+        toast({ 
+          variant: "destructive", 
+          title: "Insufficient Coins", 
+          description: `You need ${messageCost} coins to send this message.` 
+        });
       }
     } finally { setIsSending(false) }
   }
 
-  if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>
+  if (isOtherUserLoading) return <div className="flex items-center justify-center h-svh bg-white" />
   if (!otherUser) return <div className="p-10 text-center bg-white h-svh flex items-center justify-center"><Button onClick={() => router.push('/discover')}>Back</Button></div>
 
   const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUser.id}/200/200`
