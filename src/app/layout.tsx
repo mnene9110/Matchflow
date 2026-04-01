@@ -5,7 +5,7 @@ import { FirebaseClientProvider } from "@/firebase"
 import Script from 'next/script';
 
 export const viewport: Viewport = {
-  themeColor: '#B36666', // Pale maroon to match top of screens
+  themeColor: '#B36666', // Pale maroon to match top of screens perfectly
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
@@ -46,11 +46,6 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased">
         <FirebaseClientProvider>
-          {/* Global Top Loader */}
-          <div className="top-loader">
-            <div className="top-loader-bar"></div>
-          </div>
-          
           <div className="app-container">
             {children}
           </div>
@@ -60,7 +55,7 @@ export default function RootLayout({
           {`
             if ('serviceWorker' in navigator) {
               window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').then(
+                navigator.worker.register('/sw.js').then(
                   function(registration) {
                     console.log('Service Worker registration successful with scope: ', registration.scope);
                   },
