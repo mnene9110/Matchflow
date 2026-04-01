@@ -1,13 +1,13 @@
-
 "use client"
 
 import { useState, use, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, CreditCard, Users, Zap, Loader2, ShieldCheck, MessageCircle } from "lucide-react"
+import { CreditCard, Users, Zap, Loader2, ShieldCheck, MessageCircle, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { collection, query, where } from "firebase/firestore"
 import { initializePaystackTransaction } from "@/app/actions/paystack"
+import { initializePesaPalTransaction } from "@/app/actions/pesapal"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -22,9 +22,8 @@ function PaymentMethodContent() {
   const amount = Number(searchParams?.get('amount'))
   const price = Number(searchParams?.get('price'))
 
-  const [isProcessing, setIsProcessing] = useState(false)
+  const [isProcessing, setIsProcessing] = useState<string | null>(null)
 
-  // Fetch verified coinsellers
   const coinsellersQuery = useMemoFirebase(() => {
     if (!firestore) return null
     return query(collection(firestore, "userProfiles"), where("isCoinseller", "==", true))
@@ -34,7 +33,7 @@ function PaymentMethodContent() {
 
   const handlePaystack = async () => {
     if (!user || !amount || !price) return
-    setIsProcessing(true)
+    setIsProcessing('paystack')
     
     const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
     const result = await initializePaystackTransaction(email, price, {
@@ -44,7 +43,7 @@ function PaymentMethodContent() {
     })
 
     if (result.error) {
-      setIsProcessing(false)
+      setIsProcessing(null)
       toast({ variant: "destructive", title: "Error", description: result.error })
       return
     }
@@ -54,12 +53,25 @@ function PaymentMethodContent() {
     }
   }
 
-  const handlePesapal = () => {
-    toast({
-      title: "PesaPal Selected",
-      description: "Redirecting to PesaPal payment gateway...",
+  const handlePesapal = async () => {
+    if (!user || !amount || !price) return
+    setIsProcessing('pesapal')
+
+    const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
+    const result = await initializePesaPalTransaction(email, price, {
+      userId: user.uid,
+      packageAmount: amount
     })
-    // PesaPal integration logic would go here
+
+    if (result.error) {
+      setIsProcessing(null)
+      toast({ variant: "destructive", title: "Error", description: result.error })
+      return
+    }
+
+    if (result.redirect_url) {
+      window.location.href = result.redirect_url
+    }
   }
 
   const darkMaroon = "bg-[#5A1010]";
@@ -97,12 +109,12 @@ function PaymentMethodContent() {
           
           <button 
             onClick={handlePaystack}
-            disabled={isProcessing}
-            className="w-full flex items-center justify-between p-5 bg-white/60 backdrop-blur-md border border-white rounded-[2rem] transition-all active:scale-[0.98] group shadow-sm hover:bg-white"
+            disabled={!!isProcessing}
+            className="w-full flex items-center justify-between p-5 bg-white/60 backdrop-blur-md border border-white rounded-[2rem] transition-all active:scale-[0.98] group shadow-sm hover:bg-white disabled:opacity-50"
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/5">
-                {isProcessing ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <CreditCard className="w-6 h-6 text-primary" />}
+                {isProcessing === 'paystack' ? <Loader2 className="w-6 h-6 animate-spin text-primary" /> : <CreditCard className="w-6 h-6 text-primary" />}
               </div>
               <div className="flex flex-col items-start">
                 <span className="text-[13px] font-bold text-gray-900">Paystack Checkout</span>
@@ -114,15 +126,16 @@ function PaymentMethodContent() {
 
           <button 
             onClick={handlePesapal}
-            className="w-full flex items-center justify-between p-5 bg-white/60 backdrop-blur-md border border-white rounded-[2rem] transition-all active:scale-[0.98] group shadow-sm hover:bg-white"
+            disabled={!!isProcessing}
+            className="w-full flex items-center justify-between p-5 bg-white/60 backdrop-blur-md border border-white rounded-[2rem] transition-all active:scale-[0.98] group shadow-sm hover:bg-white disabled:opacity-50"
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/5">
-                <ShieldCheck className="w-6 h-6 text-blue-500" />
+                {isProcessing === 'pesapal' ? <Loader2 className="w-6 h-6 animate-spin text-blue-500" /> : <ShieldCheck className="w-6 h-6 text-blue-500" />}
               </div>
               <div className="flex flex-col items-start">
                 <span className="text-[13px] font-bold text-gray-900">PesaPal Gateway</span>
-                <span className="text-[9px] font-black uppercase text-blue-400 tracking-widest mt-1">Secure Transaction</span>
+                <span className="text-[9px] font-black uppercase text-blue-400 tracking-widest mt-1">Live Payments</span>
               </div>
             </div>
           </button>
