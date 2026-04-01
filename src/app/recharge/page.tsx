@@ -3,14 +3,13 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Check, Loader2, ShieldCheck, History } from "lucide-react"
+import { ChevronLeft, Check, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { initializePaystackTransaction } from "@/app/actions/paystack"
 
 const COIN_PACKAGES = [
   { amount: 500, price: 50, label: "50" },
@@ -32,11 +31,6 @@ function RechargeContent() {
   const { toast } = useToast()
   
   const [selectedPackage, setSelectedPackage] = useState<typeof COIN_PACKAGES[0] | null>(null)
-  const [isProcessing, setIsProcessing] = useState(false)
-  
-  useEffect(() => {
-    setIsProcessing(false);
-  }, []);
 
   const userProfileRef = useMemoFirebase(() => {
     if (!firestore || !user) return null;
@@ -50,42 +44,24 @@ function RechargeContent() {
     if (status === 'success') {
       toast({
         title: "Payment Successful",
-        description: "Balance updated.",
+        description: "Your balance has been updated.",
       })
     } else if (status === 'error') {
       toast({
         variant: "destructive",
         title: "Payment Failed",
-        description: "Transaction failed.",
+        description: "The transaction could not be completed.",
       })
     }
   }, [searchParams, toast])
 
-  const handlePay = async () => {
-    if (!user || !selectedPackage) return;
-
-    setIsProcessing(true)
-    const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
-    const result = await initializePaystackTransaction(email, selectedPackage.price, {
-      userId: user.uid,
-      packageAmount: selectedPackage.amount,
-      username: user.displayName || 'User'
-    })
-
-    if (result.error) {
-      setIsProcessing(false)
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: result.error,
-      })
-      return
-    }
-
-    if (result.authorization_url) {
-      window.location.href = result.authorization_url
-    }
+  const handleNext = () => {
+    if (!selectedPackage) return;
+    // Navigate to payment method selection screen
+    router.push(`/recharge/payment-method?amount=${selectedPackage.amount}&price=${selectedPackage.price}`)
   }
+
+  const darkMaroon = "bg-[#5A1010]";
 
   return (
     <div className="flex flex-col min-h-svh bg-transparent text-gray-900">
@@ -165,15 +141,12 @@ function RechargeContent() {
       </main>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50 flex flex-col gap-4">
-        <div className="flex items-center justify-center gap-2 text-[10px] font-black text-gray-400 uppercase tracking-widest">
-          <ShieldCheck className="w-3.5 h-3.5 text-green-500" /> Secure via Paystack
-        </div>
         <Button 
-          className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl shadow-primary/20 active:scale-95 transition-all"
-          onClick={handlePay}
-          disabled={isProcessing || isLoading || !selectedPackage}
+          className={cn("w-full h-16 rounded-full text-white font-black text-lg shadow-2xl active:scale-95 transition-all", darkMaroon)}
+          onClick={handleNext}
+          disabled={isLoading || !selectedPackage}
         >
-          {isProcessing ? <Loader2 className="w-6 h-6 animate-spin" /> : selectedPackage ? `Pay ${selectedPackage.label}` : "Select a Package"}
+          Pay {selectedPackage ? `${selectedPackage.label}` : ""}
         </Button>
       </footer>
     </div>
