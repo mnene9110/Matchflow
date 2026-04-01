@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -39,7 +38,6 @@ export default function ChatDetailPage() {
   const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "userProfiles", otherUserId) : null, [firestore, otherUserId])
   const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
 
-  // Load Zego Library
   useEffect(() => {
     if (typeof window !== "undefined") {
       import('@zegocloud/zego-uikit-prebuilt').then((module) => {
@@ -50,7 +48,11 @@ export default function ChatDetailPage() {
 
   const stopAllMedia = () => {
     if (zegoInstance) {
-      try { zegoInstance.destroy(); } catch (e) { console.error("Zego destroy error", e); }
+      try { 
+        zegoInstance.destroy(); 
+      } catch (e) { 
+        console.error("Zego destroy error", e); 
+      }
       setZegoInstance(null);
     }
   };
@@ -81,14 +83,35 @@ export default function ChatDetailPage() {
 
       zp.joinRoom({
         container: zegoContainerRef.current,
-        mode: ZegoUIKitPrebuilt.OneONoneCall,
-        showPreJoinView: false,
+        scenario: {
+          mode: ZegoUIKitPrebuilt.OneONoneCall,
+        },
+        // DEFAULT STATES
         turnOnMicrophoneWhenJoining: true,
         turnOnCameraWhenJoining: callType === 'video',
-        showScreenSharingButton: false,
+        
+        // BUTTON CONTROLS
         showMyCameraToggleButton: callType === 'video',
+        showMyMicrophoneToggleButton: true,
         showAudioVideoSettingsButton: true,
+        showScreenSharingButton: false,
+        showTextChat: false,
+        showUserList: false,
+        
+        // CALL CONTROL
+        showLeaveRoomConfirmDialog: true,
+        showOnlyAudioUser: true,
+        
+        // UI DISPLAY
+        maxUsers: 2,
+        layout: "Auto",
+
+        // CALLBACKS
+        onJoinRoom: () => {
+          console.log("Joined room");
+        },
         onLeaveRoom: () => {
+          console.log("Left room");
           handleEndCall();
         },
       });
