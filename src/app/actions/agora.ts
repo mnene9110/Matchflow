@@ -14,11 +14,11 @@ const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
 /**
  * Generates an RTC token for a specific channel and user.
  * @param channelName The Firebase chatId used as the room name.
- * @param uid The numeric or string ID of the user.
+ * @param uid The numeric or string ID of the user (Firebase UID).
  */
 export async function getAgoraToken(channelName: string, uid: string) {
   if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
-    throw new Error('Agora configuration is missing on the server.');
+    throw new Error('Agora configuration is missing on the server. Please check your environment variables.');
   }
 
   // Token expires in 1 hour
@@ -26,7 +26,8 @@ export async function getAgoraToken(channelName: string, uid: string) {
   const currentTimestamp = Math.floor(Date.now() / 1000);
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
-  // We use string UIDs because Firebase UIDs are alphanumeric
+  // We use string UIDs because Firebase UIDs are alphanumeric.
+  // buildTokenWithAccount supports string UIDs.
   const token = RtcTokenBuilder.buildTokenWithAccount(
     AGORA_APP_ID,
     AGORA_APP_CERTIFICATE,

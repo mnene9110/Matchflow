@@ -19,7 +19,6 @@ export function GlobalCallOverlay() {
   const [callData, setCallData] = useState<any>(null)
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
   const [callDuration, setCallDuration] = useState(0)
-  const [localPreviewStream, setLocalPreviewStream] = useState<any>(null)
   const [isConnecting, setIsConnecting] = useState(false)
   
   // Refs for Agora
@@ -38,7 +37,7 @@ export function GlobalCallOverlay() {
     if (typeof window !== "undefined") {
       import('agora-rtc-sdk-ng').then((module) => {
         AgoraRTC = module.default;
-        AgoraRTC.setLogLevel(4); // Silence logs for performance
+        AgoraRTC.setLogLevel(4); // Silence internal logs
       });
       ringtoneRef.current = new Audio("/ringtone.mp3");
       ringtoneRef.current.loop = true;
@@ -75,7 +74,9 @@ export function GlobalCallOverlay() {
     const isCaller = data.callerId === currentUser?.uid;
 
     if (data.status === 'ringing') {
-      if (ringtoneRef.current) ringtoneRef.current.play().catch(() => {});
+      if (!isCaller && ringtoneRef.current) {
+        ringtoneRef.current.play().catch(() => {});
+      }
       setCallStatus(isCaller ? 'ringing' : 'incoming');
       
       if (!ringingTimerRef.current) {
@@ -84,8 +85,8 @@ export function GlobalCallOverlay() {
         }, 40000);
       }
 
-      // Proactive hardware engagement
-      if (isCaller && !localTracksRef.current.audioTrack) {
+      // Proactive hardware engagement for the Caller
+      if (isCaller && !localTracksRef.current.audioTrack && !localTracksRef.current.videoTrack) {
         engageHardware(data.callType);
       }
     } else if (data.status === 'accepted') {
@@ -109,10 +110,11 @@ export function GlobalCallOverlay() {
   const engageHardware = async (type: 'video' | 'audio') => {
     if (!AgoraRTC) return;
     try {
-      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
-      localTracksRef.current.audioTrack = audioTrack;
+      if (!localTracksRef.current.audioTrack) {
+        localTracksRef.current.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      }
       
-      if (type === 'video') {
+      if (type === 'video' && !localTracksRef.current.videoTrack) {
         const videoTrack = await AgoraRTC.createCameraVideoTrack();
         localTracksRef.current.videoTrack = videoTrack;
         if (previewVideoRef.current) {
@@ -120,7 +122,7 @@ export function GlobalCallOverlay() {
         }
       }
     } catch (e) {
-      console.error("Hardware engage failed", e);
+      console.error("Hardware engagement failed:", e);
     }
   };
 
@@ -133,7 +135,6 @@ export function GlobalCallOverlay() {
       const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
       agoraClientRef.current = client;
 
-      // Listen for remote user joining
       client.on("user-published", async (user: any, mediaType: string) => {
         await client.subscribe(user, mediaType);
         if (mediaType === "video") {
@@ -147,10 +148,9 @@ export function GlobalCallOverlay() {
 
       client.on("user-left", () => handleEndCall());
 
-      // Join the channel
       await client.join(appId, channelName, token, currentUser.uid);
 
-      // Ensure tracks exist before publishing
+      // Final check: ensure tracks are ready before publishing
       if (!localTracksRef.current.audioTrack) {
         await engageHardware(type);
       }
@@ -163,14 +163,14 @@ export function GlobalCallOverlay() {
       await client.publish(tracksToPublish);
       
     } catch (error) {
-      console.error("Agora init error:", error);
+      console.error("Agora join failed:", error);
       handleEndCall();
     }
   };
 
   const handleTimeout = () => {
     if (activeChatIdRef.current) {
-      logCallEnd(activeChatIdRef.current, 0, true);
+      logCallEvent(activeChatIdRef.current, 0, true);
       handleEndCall();
     }
   };
@@ -185,7 +185,7 @@ export function GlobalCallOverlay() {
       ringtoneRef.current.currentTime = 0;
     }
 
-    // Agora Cleanup
+    // Release Hardware Access Immediately
     if (localTracksRef.current.audioTrack) {
       localTracksRef.current.audioTrack.stop();
       localTracksRef.current.audioTrack.close();
@@ -202,7 +202,7 @@ export function GlobalCallOverlay() {
     }
     
     if (wasCallAcceptedRef.current && activeChatIdRef.current && currentUser?.uid === callData?.callerId) {
-      logCallEnd(activeChatIdRef.current, callDurationRef.current);
+      logCallEvent(activeChatIdRef.current, callDurationRef.current);
     }
 
     setCallStatus('idle');
@@ -215,7 +215,9 @@ export function GlobalCallOverlay() {
   };
 
   const handleAcceptCall = async () => {
-    if (!database || !activeChatIdRef.current) return
+    if (!database || !activeChatIdRef.current || !callData) return;
+    // Proactively start hardware the moment user clicks Accept
+    engageHardware(callData.callType);
     await update(ref(database, `calls/${activeChatIdRef.current}`), { status: 'accepted' });
   }
 
@@ -230,7 +232,7 @@ export function GlobalCallOverlay() {
     if (callerId) await remove(ref(database, `users/${callerId}/incomingCallId`));
   }
 
-  const logCallEnd = async (chatId: string, duration: number, isTimeout: boolean = false) => {
+  const logCallEvent = async (chatId: string, duration: number, isTimeout: boolean = false) => {
     if (!database || !currentUser) return;
     const otherId = callData?.receiverId === currentUser.uid ? callData?.callerId : callData?.receiverId;
     
@@ -274,16 +276,16 @@ export function GlobalCallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col overflow-hidden">
-      {/* Agora Remote Video Layer */}
+      {/* Agora Remote Video View */}
       <div 
         ref={remoteContainerRef} 
         className={cn(
-          "absolute inset-0 z-0 transition-opacity duration-500", 
+          "absolute inset-0 z-0 transition-opacity duration-500 bg-zinc-900", 
           callStatus === 'ongoing' && !isConnecting ? 'opacity-100' : 'opacity-0'
         )} 
       />
 
-      {/* App UI Overlay */}
+      {/* App UI Layer */}
       <div className="absolute inset-0 z-10 flex flex-col items-center justify-between py-24 px-8 pointer-events-none">
         {(callStatus !== 'ongoing' || isConnecting || callData?.callType === 'audio') && (
           <div className="absolute inset-0 z-[-1] overflow-hidden">
