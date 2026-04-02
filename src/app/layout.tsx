@@ -13,12 +13,17 @@ import Script from 'next/script';
 
 /**
  * @fileOverview Root layout component.
- * Added ExitGuard to prevent accidental app exits.
+ * Added ExitGuard to prevent accidental app exits, with bypass for payments.
  */
 
 function ExitGuard() {
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Check if we have explicitly allowed the exit (e.g. for payments)
+      if ((window as any).__bypassExitGuard) {
+        return;
+      }
+      
       // Standard way to trigger the browser's "Are you sure you want to leave?" popup
       e.preventDefault();
       e.returnValue = ''; 

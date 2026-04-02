@@ -78,6 +78,8 @@ function RechargeContent() {
       }
 
       if (result.redirect_url) {
+        // Bypass the ExitGuard so the browser doesn't show "Leave site?" popup
+        (window as any).__bypassExitGuard = true;
         window.location.href = result.redirect_url
       }
     } catch (error) {
