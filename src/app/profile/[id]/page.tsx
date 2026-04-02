@@ -8,18 +8,18 @@ import {
   MoreHorizontal, 
   Globe, 
   GraduationCap, 
-  CigaretteOff, 
-  GlassWater, 
   Sparkles, 
   Loader2, 
-  Video,
   ShieldAlert,
   UserX,
   Copy,
   Headset,
   Lock,
   CheckCircle,
-  ShieldCheck
+  ShieldCheck,
+  Compass,
+  Zap,
+  Star
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
@@ -178,27 +178,22 @@ export default function ProfileDetailPage() {
     )
   }
 
-  const infoTags = [
-    { label: "Sometimes", icon: Globe },
-    { label: "Undergraduate", icon: GraduationCap },
-    { label: "Never", icon: CigaretteOff },
-    { label: "Socially", icon: GlassWater },
-    { label: "Change the world", icon: Sparkles },
-  ]
-
-  const userImage = (userProfile?.profilePhotoUrls && userProfile.profilePhotoUrls[0]) || `https://picsum.photos/seed/${userProfile?.id}/600/800`
+  const userPhotos = userProfile?.profilePhotoUrls || []
+  const mainPhoto = userPhotos[0] || `https://picsum.photos/seed/${userProfile?.id}/600/800`
+  const extraPhotos = userPhotos.slice(1)
   const isVerified = !!userProfile?.isVerified
   const isProtected = userProfile?.isAdmin === true || userProfile?.isSupport === true;
 
   return (
-    <div className="flex flex-col min-h-svh bg-black relative">
+    <div className="flex flex-col min-h-svh bg-white relative overflow-y-auto">
+      {/* Hero Section */}
       <div className="relative aspect-[3/4] w-full shrink-0">
-        <Image src={userImage} alt={userProfile?.username || "User"} fill className="object-cover" />
-        <div className="absolute top-12 left-4 right-4 flex justify-between items-center z-10">
+        <Image src={mainPhoto} alt={userProfile?.username || "User"} fill className="object-cover" />
+        <div className="absolute top-12 left-4 right-4 flex justify-between items-center z-30">
           <Button 
             variant="ghost" 
             size="icon" 
-            className="text-white hover:bg-black/20 rounded-full" 
+            className="text-white bg-black/20 backdrop-blur-md hover:bg-black/30 rounded-full" 
             onClick={() => router.back()}
           >
             <ChevronLeft className="w-8 h-8" />
@@ -210,7 +205,7 @@ export default function ProfileDetailPage() {
                 <Button 
                   variant="ghost" 
                   size="icon" 
-                  className="text-white hover:bg-black/20 rounded-full"
+                  className="text-white bg-black/20 backdrop-blur-md hover:bg-black/30 rounded-full"
                 >
                   <MoreHorizontal className="w-8 h-8" />
                 </Button>
@@ -234,86 +229,170 @@ export default function ProfileDetailPage() {
             </DropdownMenu>
           )}
         </div>
-        <div className="absolute bottom-32 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10">
+        
+        {/* Presence Indicator */}
+        <div className="absolute bottom-20 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 z-30">
           <div className={cn("w-2.5 h-2.5 rounded-full", presence.online ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
-          <span className={cn("text-[10px] font-black uppercase tracking-tight", presence.online ? "text-white" : "text-gray-400")}>{presenceText}</span>
+          <span className={cn("text-[10px] font-black uppercase tracking-tight", presence.online ? "text-white" : "text-white/60")}>{presenceText}</span>
         </div>
+
+        {/* Name & Basic Info Overlay */}
+        <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
       </div>
 
-      <div className="flex-1 bg-white rounded-t-[3rem] -mt-16 relative z-20 px-6 pt-8 pb-32">
-        <div className="space-y-6">
-          <div className="space-y-1">
+      {/* Profile Details Container */}
+      <div className="flex-1 bg-white relative z-20 px-6 pb-32 -mt-10">
+        <div className="space-y-8">
+          {/* Header Section */}
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-black font-headline text-gray-900 leading-tight">{userProfile?.username}</h1>
-              {isVerified && <CheckCircle className="w-6 h-6 text-blue-500 fill-blue-500/10" />}
+              <h1 className="text-4xl font-black font-headline text-gray-900 leading-tight">
+                {userProfile?.username}
+              </h1>
+              {isVerified && <CheckCircle className="w-7 h-7 text-blue-500 fill-blue-500/10" />}
             </div>
-            <button 
-              onClick={copyId}
-              className="flex items-center gap-2 text-xs font-bold text-green-500 active:scale-95 transition-transform"
-            >
-              ID: {userProfile?.numericId || '...'}
-              <Copy className="w-3 h-3 opacity-50" />
-            </button>
-          </div>
-          <p className="text-sm text-gray-500 font-medium leading-relaxed">{userProfile?.bio || "No biography provided."}</p>
-          
-          <div className="flex gap-2 flex-wrap">
-            {userProfile?.isAdmin && (
-              <div className="px-3 py-1 bg-primary/10 rounded-full inline-flex items-center gap-1.5 border border-primary/20">
-                <Sparkles className="w-3 h-3 text-primary" />
-                <span className="text-[9px] font-black text-primary uppercase tracking-widest">Admin</span>
+            
+            <div className="flex items-center gap-4">
+              <button 
+                onClick={copyId}
+                className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full text-[10px] font-black text-green-600 uppercase tracking-widest active:scale-95 transition-all"
+              >
+                ID: {userProfile?.numericId || '---'}
+                <Copy className="w-3 h-3 opacity-50" />
+              </button>
+              
+              <div className="flex items-center gap-1.5 text-[10px] font-black text-gray-400 uppercase tracking-widest">
+                <Globe className="w-3 h-3" />
+                {userProfile?.location || "Kenya"}
               </div>
-            )}
-            {userProfile?.isSupport && (
-              <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20">
-                <Headset className="w-3 h-3 text-blue-500" />
-                <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Support</span>
-              </div>
-            )}
-            {isVerified && (
-              <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20">
-                <ShieldCheck className="w-3 h-3 text-blue-500" />
-                <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Verified Identity</span>
-              </div>
-            )}
+            </div>
           </div>
 
-          <div className="pt-8 border-t border-gray-50">
-             <div className="space-y-4">
-                <h3 className="text-[11px] font-black uppercase text-gray-400 tracking-widest">Basic Information</h3>
-                <div className="flex flex-wrap gap-2.5">
-                   {infoTags.map((tag) => (
-                     <div key={tag.label} className="flex items-center gap-2 px-3.5 py-2 border-2 border-primary/20 rounded-full text-[11px] font-bold text-primary bg-primary/5">
-                        <tag.icon className="w-3.5 h-3.5" />{tag.label}
-                     </div>
-                   ))}
+          {/* Badges */}
+          {(userProfile?.isAdmin || userProfile?.isSupport || isVerified) && (
+            <div className="flex gap-2 flex-wrap">
+              {userProfile?.isAdmin && (
+                <div className="px-3 py-1 bg-primary/10 rounded-full inline-flex items-center gap-1.5 border border-primary/20">
+                  <Zap className="w-3 h-3 text-primary fill-current" />
+                  <span className="text-[9px] font-black text-primary uppercase tracking-widest">Admin</span>
+                </div>
+              )}
+              {userProfile?.isSupport && (
+                <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20">
+                  <Headset className="w-3 h-3 text-blue-500" />
+                  <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Support</span>
+                </div>
+              )}
+              {isVerified && (
+                <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20">
+                  <ShieldCheck className="w-3 h-3 text-blue-500" />
+                  <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Verified Identity</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Bio Section */}
+          <div className="space-y-3">
+            <h3 className="text-[11px] font-black uppercase text-gray-400 tracking-[0.2em]">Biography</h3>
+            <p className="text-sm font-medium text-gray-600 leading-relaxed bg-gray-50/50 p-4 rounded-[1.5rem] border border-gray-100 italic">
+              "{userProfile?.bio || "This user is keeping a low profile."}"
+            </p>
+          </div>
+
+          {/* Gallery Section - Only if extra photos exist */}
+          {extraPhotos.length > 0 && (
+            <div className="space-y-4">
+              <h3 className="text-[11px] font-black uppercase text-gray-400 tracking-[0.2em]">Gallery</h3>
+              <div className="grid grid-cols-2 gap-3">
+                {extraPhotos.map((url, index) => (
+                  <div key={index} className="relative aspect-square rounded-[2rem] overflow-hidden border-2 border-white shadow-md">
+                    <Image src={url} alt={`Gallery ${index}`} fill className="object-cover" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Detailed Stats */}
+          <div className="grid grid-cols-1 gap-4 pt-4">
+             <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary">
+                  <Compass className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Zodiac Sign</p>
+                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.horoscope || "Not set"}</p>
+                </div>
+             </div>
+
+             <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary">
+                  <GraduationCap className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Education</p>
+                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.education || "Private"}</p>
+                </div>
+             </div>
+
+             <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
+                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary">
+                  <Star className="w-6 h-6" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Goal</p>
+                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.relationshipGoal || "Networking"}</p>
                 </div>
              </div>
           </div>
+
+          {/* Interests */}
+          {userProfile?.interests && userProfile.interests.length > 0 && (
+            <div className="space-y-4 pt-4">
+              <h3 className="text-[11px] font-black uppercase text-gray-400 tracking-[0.2em]">Interests</h3>
+              <div className="flex flex-wrap gap-2">
+                {userProfile.interests.map((interest: string) => (
+                  <div key={interest} className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-full text-[10px] font-black text-gray-600 uppercase tracking-widest">
+                    #{interest}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="h-20" /> {/* Spacer */}
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-md border-t border-gray-100 z-50 flex items-center gap-4">
-        <Button className="w-full h-14 rounded-full bg-primary text-white font-black text-lg shadow-xl shadow-primary/20 active:scale-95 transition-transform" onClick={() => router.push(`/chat/${id}`)}>Chat</Button>
+      {/* Action Footer */}
+      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-xl border-t border-gray-50 z-50 flex items-center gap-4">
+        <Button 
+          className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+          onClick={() => router.push(`/chat/${id}`)}
+        >
+          Send Message
+        </Button>
       </div>
 
+      {/* Report Dialog */}
       <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
-        <DialogContent className="rounded-[2.5rem] bg-white border-none p-8 max-w-[90%] mx-auto">
+        <DialogContent className="rounded-[2.5rem] bg-white border-none p-8 max-w-[90%] mx-auto shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-xl font-black font-headline text-gray-900 text-center">Report Profile</DialogTitle>
+            <DialogTitle className="text-2xl font-black font-headline text-gray-900 text-center">Report Profile</DialogTitle>
             <DialogDescription className="text-center text-gray-500 font-medium">
-              Please provide details about the issue with this user.
+              Please provide details about why you are reporting this user.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
             <Textarea 
-              placeholder="Explain the violation..."
+              placeholder="Tell us what happened..."
               value={reportDetails}
               onChange={(e) => setReportDetails(e.target.value)}
-              className="min-h-[120px] rounded-2xl bg-gray-50 border-gray-100 focus-visible:ring-primary/20"
+              className="min-h-[140px] rounded-[1.5rem] bg-gray-50 border-none focus-visible:ring-primary/20 py-4 font-medium"
             />
           </div>
-          <DialogFooter className="flex flex-col gap-2">
+          <DialogFooter className="flex flex-col gap-3">
             <Button 
               onClick={handleReport}
               disabled={!reportDetails.trim() || isSubmittingReport}
@@ -324,7 +403,7 @@ export default function ProfileDetailPage() {
             <Button 
               variant="ghost" 
               onClick={() => setShowReportDialog(false)}
-              className="w-full h-12 rounded-full text-gray-400 font-bold"
+              className="w-full h-12 rounded-full text-gray-400 font-black uppercase text-[10px] tracking-widest"
             >
               Cancel
             </Button>

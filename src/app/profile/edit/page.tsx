@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Camera, Loader2, Save, User, Sparkles } from "lucide-react"
+import { ChevronLeft, Camera, Loader2, Save, User, Plus, X } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -34,7 +34,10 @@ export default function EditProfilePage() {
   const { user: currentUser } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  const mainFileInputRef = useRef<HTMLInputElement>(null)
+  const extraPhotosInputRef = useRef<HTMLInputElement>(null)
+  const [activePhotoSlot, setActivePhotoSlot] = useState<number | null>(null)
 
   const userRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: profile, isLoading } = useDoc(userRef)
@@ -51,7 +54,6 @@ export default function EditProfilePage() {
   })
   
   const [isSaving, setIsSaving] = useState(false)
-  const [previewImage, setPreviewImage] = useState<string | null>(null)
   const [hasInitialized, setHasInitialized] = useState(false)
 
   const darkMaroon = "bg-[#5A1010]";
@@ -68,22 +70,37 @@ export default function EditProfilePage() {
         horoscope: profile.horoscope || "",
         profilePhotoUrls: profile.profilePhotoUrls || []
       })
-      setPreviewImage(profile.profilePhotoUrls?.[0] || null)
       setHasInitialized(true)
     }
   }, [profile, hasInitialized])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
-    if (file) {
+    if (file && activePhotoSlot !== null) {
       const reader = new FileReader()
       reader.onloadend = () => {
         const dataUrl = reader.result as string
-        setPreviewImage(dataUrl)
-        setFormData(prev => ({ ...prev, profilePhotoUrls: [dataUrl] }))
+        setFormData(prev => {
+          const newUrls = [...prev.profilePhotoUrls]
+          newUrls[activePhotoSlot] = dataUrl
+          return { ...prev, profilePhotoUrls: newUrls }
+        })
+        setActivePhotoSlot(null)
       }
       reader.readAsDataURL(file)
     }
+  }
+
+  const removePhoto = (index: number) => {
+    if (index === 0) {
+       toast({ title: "Primary Photo Required", description: "You cannot remove your main profile photo." })
+       return
+    }
+    setFormData(prev => {
+      const newUrls = [...prev.profilePhotoUrls]
+      newUrls.splice(index, 1)
+      return { ...prev, profilePhotoUrls: newUrls }
+    })
   }
 
   const handleSave = async () => {
@@ -115,7 +132,7 @@ export default function EditProfilePage() {
         toast({
           variant: "destructive",
           title: "Verification Revoked",
-          description: "Photo change detected. Please verify again.",
+          description: "Main photo change detected. Identity verification reset.",
         })
       }
 
@@ -123,7 +140,7 @@ export default function EditProfilePage() {
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to save changes." })
     } finally {
-      setIsSaving(false)
+      setIsSaving(true) // Stay in loading until navigation
     }
   }
 
@@ -133,10 +150,12 @@ export default function EditProfilePage() {
     </div>
   )
 
+  const extraPhotoSlots = [1, 2, 3, 4]
+
   return (
-    <div className="flex flex-col h-svh bg-transparent text-gray-900">
+    <div className="flex flex-col h-svh bg-transparent text-gray-900 overflow-hidden">
       {/* Fixed Header */}
-      <header className="shrink-0 px-4 py-6 flex items-center sticky top-0 bg-transparent z-50">
+      <header className="shrink-0 px-4 py-8 flex items-center bg-transparent z-50">
         <Button 
           variant="ghost" 
           size="icon" 
@@ -149,32 +168,71 @@ export default function EditProfilePage() {
       </header>
 
       {/* Scrollable Content */}
-      <main className="flex-1 overflow-y-auto px-6 pt-2 pb-40 space-y-8 scroll-smooth">
-        <section className="flex flex-col items-center pt-4">
-          <div className="relative">
-            <Avatar className="w-32 h-32 shadow-2xl">
-              <AvatarImage src={previewImage || ""} className="object-cover" />
-              <AvatarFallback className="bg-primary text-white text-3xl font-black">
-                {formData.username?.[0] || <User className="w-12 h-12" />}
-              </AvatarFallback>
-            </Avatar>
-            <button 
-              onClick={() => fileInputRef.current?.click()}
-              className={cn("absolute bottom-1 right-1 w-11 h-11 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform z-10", darkMaroon)}
-            >
-              <Camera className="w-5 h-5 text-white" />
-            </button>
-            <input 
-              type="file" 
-              ref={fileInputRef} 
-              className="hidden" 
-              accept="image/*"
-              onChange={handleFileChange}
-            />
+      <main className="flex-1 overflow-y-auto px-6 pt-2 pb-40 space-y-10 scroll-smooth">
+        {/* Photo Management Section */}
+        <section className="space-y-6">
+          <div className="flex flex-col items-center">
+            <div className="relative">
+              <Avatar className="w-40 h-40 shadow-[0_20px_60px_rgba(0,0,0,0.15)] border-4 border-white">
+                <AvatarImage src={formData.profilePhotoUrls[0] || ""} className="object-cover" />
+                <AvatarFallback className="bg-primary text-white text-4xl font-black">
+                  {formData.username?.[0] || <User className="w-16 h-16" />}
+                </AvatarFallback>
+              </Avatar>
+              <button 
+                onClick={() => {
+                  setActivePhotoSlot(0);
+                  mainFileInputRef.current?.click();
+                }}
+                className={cn("absolute bottom-2 right-2 w-12 h-12 rounded-full flex items-center justify-center shadow-xl active:scale-90 transition-transform z-10", darkMaroon)}
+              >
+                <Camera className="w-5 h-5 text-white" />
+              </button>
+            </div>
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70 mt-5 drop-shadow-sm">Main Photo</p>
           </div>
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70 mt-4 drop-shadow-sm">Update Profile Photo</p>
+
+          <div className="space-y-4">
+            <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/40 ml-1">Gallery (Max 4 Extra)</h3>
+            <div className="grid grid-cols-4 gap-3">
+              {extraPhotoSlots.map((slotIndex) => {
+                const photoUrl = formData.profilePhotoUrls[slotIndex];
+                return (
+                  <div key={slotIndex} className="relative aspect-square">
+                    {photoUrl ? (
+                      <>
+                        <div className="w-full h-full rounded-2xl overflow-hidden border-2 border-white/50 shadow-lg">
+                          <Image src={photoUrl} alt="Extra" fill className="object-cover" />
+                        </div>
+                        <button 
+                          onClick={() => removePhoto(slotIndex)}
+                          className="absolute -top-1.5 -right-1.5 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white shadow-md active:scale-90 transition-all z-20"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      </>
+                    ) : (
+                      <button 
+                        onClick={() => {
+                          setActivePhotoSlot(slotIndex);
+                          extraPhotosInputRef.current?.click();
+                        }}
+                        className="w-full h-full rounded-2xl border-2 border-dashed border-white/30 flex items-center justify-center bg-white/5 hover:bg-white/10 transition-colors"
+                      >
+                        <Plus className="w-5 h-5 text-white/40" />
+                      </button>
+                    )}
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+
+          <input type="file" ref={mainFileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
+          <input type="file" ref={extraPhotosInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
         </section>
 
+        {/* Details Form */}
         <section className="space-y-6 bg-white/60 backdrop-blur-2xl p-7 rounded-[2.5rem] border border-white/50 shadow-2xl">
           <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Full Name</Label>
@@ -191,7 +249,7 @@ export default function EditProfilePage() {
             <Textarea 
               value={formData.bio}
               onChange={(e) => setFormData(prev => ({ ...prev, bio: e.target.value }))}
-              className="min-h-[100px] rounded-2xl bg-white/80 border-none text-sm font-bold shadow-inner focus-visible:ring-primary/30 py-4"
+              className="min-h-[120px] rounded-2xl bg-white/80 border-none text-sm font-bold shadow-inner focus-visible:ring-primary/30 py-4"
               placeholder="Tell people about yourself..."
             />
           </div>
@@ -263,9 +321,9 @@ export default function EditProfilePage() {
         </section>
 
         <div className="flex flex-col items-center gap-2 pt-4 pb-10">
-          <Sparkles className="w-5 h-5 text-white/40" />
-          <p className="text-[9px] font-black uppercase text-white/30 tracking-[0.3em] text-center max-w-[200px]">
-            Keep your profile updated to find better matches
+          <Sparkles className="w-6 h-6 text-white/50" />
+          <p className="text-[9px] font-black uppercase text-white/30 tracking-[0.4em] text-center max-w-[200px]">
+            Keep your profile details fresh to get better matches
           </p>
         </div>
       </main>
