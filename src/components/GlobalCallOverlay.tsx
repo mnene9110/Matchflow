@@ -28,14 +28,15 @@ export function GlobalCallOverlay() {
   const previewVideoRef = useRef<HTMLVideoElement>(null)
   const ringtoneRef = useRef<HTMLAudioElement | null>(null)
   const zegoInitializingRef = useRef(false)
+  const ringingTimerRef = useRef<NodeJS.Timeout | null>(null)
   
   const callDurationRef = useRef(0)
-  const totalCostAccruedRef = useRef(0)
   const wasCallAcceptedRef = useRef(false)
   const activeChatIdRef = useRef<string | null>(null)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Pre-load Zego for faster connection
       import('@zegocloud/zego-uikit-prebuilt').then((module) => {
         ZegoUIKitPrebuilt = module.ZegoUIKitPrebuilt;
       });
@@ -71,15 +72,29 @@ export function GlobalCallOverlay() {
   const updateCallState = (data: any) => {
     if (data.status === 'ringing') {
       if (ringtoneRef.current) ringtoneRef.current.play().catch(() => {});
-      setCallStatus(data.callerId === currentUser?.uid ? 'ringing' : 'incoming');
+      const isCaller = data.callerId === currentUser?.uid;
+      setCallStatus(isCaller ? 'ringing' : 'incoming');
       
-      // Start camera preview for video caller
-      if (data.callerId === currentUser?.uid && data.callType === 'video' && !localPreviewStream) {
+      // 40-second timeout logic
+      if (!ringingTimerRef.current) {
+        ringingTimerRef.current = setTimeout(() => {
+          if (isCaller) {
+            handleTimeout();
+          }
+        }, 40000);
+      }
+
+      // Start camera preview for video caller immediately
+      if (isCaller && data.callType === 'video' && !localPreviewStream) {
         navigator.mediaDevices.getUserMedia({ video: true, audio: false })
           .then(setLocalPreviewStream)
           .catch(console.error);
       }
     } else if (data.status === 'accepted') {
+      if (ringingTimerRef.current) {
+        clearTimeout(ringingTimerRef.current);
+        ringingTimerRef.current = null;
+      }
       if (ringtoneRef.current) {
         ringtoneRef.current.pause();
         ringtoneRef.current.currentTime = 0;
@@ -92,7 +107,18 @@ export function GlobalCallOverlay() {
     }
   };
 
+  const handleTimeout = () => {
+    if (activeChatIdRef.current) {
+      logCallEnd(activeChatIdRef.current, 0, true);
+      handleEndCall();
+    }
+  };
+
   const handleCleanup = () => {
+    if (ringingTimerRef.current) {
+      clearTimeout(ringingTimerRef.current);
+      ringingTimerRef.current = null;
+    }
     if (ringtoneRef.current) {
       ringtoneRef.current.pause();
       ringtoneRef.current.currentTime = 0;
@@ -125,10 +151,10 @@ export function GlobalCallOverlay() {
     if (!ZegoUIKitPrebuilt || !currentUser || zegoInitializingRef.current) return;
     zegoInitializingRef.current = true;
 
-    const { appID, serverSecret } = await getZegoConfig();
-    if (!appID || !serverSecret) { handleEndCall(); return; }
-
     try {
+      const { appID, serverSecret } = await getZegoConfig();
+      if (!appID || !serverSecret) { handleEndCall(); return; }
+
       const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
         appID, 
         serverSecret, 
@@ -159,6 +185,7 @@ export function GlobalCallOverlay() {
         onLeaveRoom: () => handleEndCall(),
       });
     } catch (error) {
+      console.error("Zego init error:", error);
       handleEndCall();
     }
   };
@@ -179,12 +206,18 @@ export function GlobalCallOverlay() {
     if (callerId) await remove(ref(database, `users/${callerId}/incomingCallId`));
   }
 
-  const logCallEnd = async (chatId: string, duration: number) => {
+  const logCallEnd = async (chatId: string, duration: number, isTimeout: boolean = false) => {
     if (!database || !currentUser) return;
     const otherId = callData?.receiverId === currentUser.uid ? callData?.callerId : callData?.receiverId;
-    const mins = Math.floor(duration / 60);
-    const secs = duration % 60;
-    const logMsg = `[${mins}:${secs.toString().padStart(2, '0')}]`;
+    
+    let logMsg = "";
+    if (isTimeout) {
+      logMsg = "[Timeout]";
+    } else {
+      const mins = Math.floor(duration / 60);
+      const secs = duration % 60;
+      logMsg = `[${mins}:${secs.toString().padStart(2, '0')}]`;
+    }
 
     const updates: any = {}
     const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
@@ -219,7 +252,7 @@ export function GlobalCallOverlay() {
   if (callStatus === 'idle') return null;
 
   const otherUserImage = `https://picsum.photos/seed/${callData?.callerId === currentUser?.uid ? callData?.receiverId : callData?.callerId}/200/200`
-  const otherUserName = callData?.callerId === currentUser?.uid ? 'Connecting...' : (callData?.callerName || 'Incoming Call');
+  const otherUserName = callData?.callerId === currentUser?.uid ? (callStatus === 'ringing' ? 'Ringing...' : 'Connecting...') : (callData?.callerName || 'Incoming Call');
 
   return (
     <div className="fixed inset-0 z-[1000] pointer-events-none">
