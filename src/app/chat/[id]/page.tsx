@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, collection, setDoc, updateDoc as updateFirestoreDoc, increment as firestoreIncrement } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, remove } from "firebase/database"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, remove, get } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { getZegoConfig } from "@/app/actions/zego"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -51,6 +51,12 @@ function ChatDetailContent() {
   const ringtoneRef = useRef<HTMLAudioElement | null>(null)
   const zegoInitializingRef = useRef(false)
   
+  // Call History Refs
+  const callStatusRef = useRef<'idle' | 'ringing' | 'calling' | 'incoming' | 'ongoing'>('idle')
+  const callDurationRef = useRef(0)
+  const wasCallAcceptedRef = useRef(false)
+  const isInitiatorRef = useRef(false)
+
   const [mounted, setMounted] = useState(false)
   const [inputText, setInputText] = useState("")
   const [isSending, setIsSending] = useState(false)
@@ -81,6 +87,14 @@ function ChatDetailContent() {
 
   const theirBlockRef = useMemoFirebase(() => currentUser && otherUserId ? doc(firestore, "userProfiles", otherUserId, "blockedUsers", currentUser.uid) : null, [firestore, currentUser, otherUserId])
   const { data: theyBlockedMe } = useDoc(theirBlockRef)
+
+  useEffect(() => {
+    callStatusRef.current = callStatus
+  }, [callStatus])
+
+  useEffect(() => {
+    callDurationRef.current = callDuration
+  }, [callDuration])
 
   const presenceText = useMemo(() => {
     if (presence.online) return "Online";
@@ -228,6 +242,35 @@ function ChatDetailContent() {
     zegoInitializingRef.current = false;
   };
 
+  const logCallEndToChat = async (finalDuration: number, finalWasAccepted: boolean) => {
+    // Only the initiator logs the message to avoid duplicates
+    if (!isInitiatorRef.current || !database || !chatId || !currentUser) return;
+
+    let logMessage = "[cancelled]";
+    if (finalWasAccepted) {
+      const mins = Math.floor(finalDuration / 60);
+      const secs = finalDuration % 60;
+      logMessage = `[${mins}:${secs.toString().padStart(2, '0')}]`;
+    }
+
+    const updates: any = {}
+    const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
+    const msgData = { 
+      messageText: logMessage, 
+      senderId: currentUser.uid, 
+      sentAt: rtdbTimestamp(),
+      isCallLog: true 
+    }
+    
+    updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
+    updates[`/users/${currentUser.uid}/chats/${otherUserId}/lastMessage`] = logMessage
+    updates[`/users/${currentUser.uid}/chats/${otherUserId}/timestamp`] = rtdbTimestamp()
+    updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = logMessage
+    updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
+    
+    await update(ref(database), updates);
+  }
+
   const initiateZegoCall = async (roomID: string) => {
     if (!ZegoUIKitPrebuilt || !currentUser || !zegoContainerRef.current || zegoInitializingRef.current) return;
     zegoInitializingRef.current = true;
@@ -277,30 +320,44 @@ function ChatDetailContent() {
   useEffect(() => {
     if (!database || !chatId || !currentUser || !otherUser || (otherUser.isSupport && !currentUserProfile?.isAdmin)) return
     const callRef = ref(database, `calls/${chatId}`);
+    
     const unsubscribe = onValue(callRef, (snap) => {
       const data = snap.val()
+      
+      // If call data was removed (null), check if we need to log the end
       if (!data) {
-        if (callStatus !== 'idle') { 
+        if (callStatusRef.current !== 'idle') {
+          // Log to chat before resetting
+          logCallEndToChat(callDurationRef.current, wasCallAcceptedRef.current);
+          
           stopAllMedia(); 
-          setCallStatus('idle'); 
+          setCallStatus('idle');
+          wasCallAcceptedRef.current = false;
+          isInitiatorRef.current = false;
         }
         return
       }
+
       setCallType(data.callType || 'video')
       
       if (data.status === 'ringing') {
         playRingtone();
-        setCallStatus(data.callerId === currentUser.uid ? 'calling' : 'incoming')
+        const nextStatus = data.callerId === currentUser.uid ? 'calling' : 'incoming';
+        setCallStatus(nextStatus);
+        if (data.callerId === currentUser.uid) {
+          isInitiatorRef.current = true;
+        }
       } else if (data.status === 'accepted') {
         stopRingtone();
-        if (callStatus !== 'ongoing') {
+        wasCallAcceptedRef.current = true;
+        if (callStatusRef.current !== 'ongoing') {
           setCallStatus('ongoing')
           initiateZegoCall(chatId);
         }
       }
     });
     return () => unsubscribe();
-  }, [database, chatId, currentUser, callStatus, callType, !!otherUser]);
+  }, [database, chatId, currentUser, !!otherUser]);
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
     if (!database || !chatId || !currentUser || !currentUserProfile || !otherUser) return
@@ -333,6 +390,7 @@ function ChatDetailContent() {
 
     try {
       const callRef = ref(database, `calls/${chatId}`);
+      isInitiatorRef.current = true;
       await set(callRef, { 
         callerId: currentUser.uid, 
         receiverId: otherUserId, 
@@ -343,6 +401,7 @@ function ChatDetailContent() {
       });
     } catch (error: any) {
       stopAllMedia();
+      isInitiatorRef.current = false;
       toast({ variant: "destructive", title: "Call Failed", description: "Could not establish connection." });
     }
   }
@@ -357,16 +416,14 @@ function ChatDetailContent() {
     if (!database || !chatId) return
     const callRef = ref(database, `calls/${chatId}`);
     await remove(callRef);
-    setCallStatus('idle')
-    stopAllMedia();
+    // onValue will trigger the log
   }
 
   const handleEndCall = async () => {
     if (!database || !chatId) return
     const callRef = ref(database, `calls/${chatId}`);
     await remove(callRef);
-    stopAllMedia(); 
-    setCallStatus('idle')
+    // onValue will trigger the log
   }
 
   useEffect(() => {
@@ -651,12 +708,14 @@ function ChatDetailContent() {
         <div className="flex flex-col gap-4">
           {messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.uid
+            const isCallLog = msg.isCallLog === true
             return (
               <div key={msg.id} className={cn("flex w-full", isMe ? "justify-end" : "justify-start")}>
                 <div className={cn(
                   "max-w-[80%] px-4 py-3 text-[13px] font-medium leading-relaxed shadow-sm", 
                   isMe ? "bg-primary text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none",
-                  msg.isGift && "border-2 border-amber-400/30 bg-gradient-to-br from-amber-50 to-white text-amber-900 shadow-amber-100"
+                  msg.isGift && "border-2 border-amber-400/30 bg-gradient-to-br from-amber-50 to-white text-amber-900 shadow-amber-100",
+                  isCallLog && "bg-transparent shadow-none border-none py-1 px-2 font-black text-[10px] tracking-widest text-gray-300 uppercase"
                 )}>
                   <p className="whitespace-pre-wrap">{msg.messageText}</p>
                 </div>
@@ -695,6 +754,7 @@ function ChatDetailContent() {
                   </SheetTrigger>
                   <SheetContent side="bottom" className="rounded-t-[3rem] h-[75svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
                     <SheetHeader className="px-6 pt-8 pb-4 shrink-0">
+                      <SheetTitle className="sr-only">Send a Gift</SheetTitle>
                       <div className="flex items-center justify-between">
                         <div className="flex gap-6">
                           <button className="text-xs font-black uppercase tracking-widest border-b-2 border-primary pb-2">Gift</button>
