@@ -1,4 +1,3 @@
-
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -61,20 +60,18 @@ export default function RootLayout({
         <Toaster />
         <Script id="register-sw" strategy="afterInteractive">
           {`
-            if (typeof window !== 'undefined' && navigator && 'serviceWorker' in navigator) {
+            if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker) {
               window.addEventListener('load', function() {
-                if (navigator.serviceWorker) {
-                  navigator.serviceWorker.register('/sw.js').then(
-                    function(registration) {
-                      console.log('Service Worker registration successful with scope: ', registration.scope);
-                    },
-                    function(err) {
-                      console.log('Service Worker registration failed: ', err);
-                    }
-                  ).catch(function(e) {
-                     console.error('SW Error:', e);
-                  });
-                }
+                navigator.serviceWorker.register('/sw.js').then(
+                  function(registration) {
+                    console.log('Service Worker registration successful');
+                  },
+                  function(err) {
+                    console.error('Service Worker registration failed: ', err);
+                  }
+                ).catch(function(e) {
+                   console.error('SW Error:', e);
+                });
               });
             }
           `}

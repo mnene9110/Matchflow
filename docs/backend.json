@@ -1,179 +1,66 @@
-
 {
   "entities": {
     "UserProfile": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "UserProfile",
       "type": "object",
-      "description": "Represents a user's profile and wallet information within the MatchFlow app.",
+      "description": "Represents a user's profile and wallet information.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the UserProfile entity."
-        },
-        "numericId": {
-          "type": "number",
-          "description": "A unique 7-9 digit numeric identifier for the user."
-        },
-        "authProviderId": {
-          "type": "string",
-          "description": "Identifier from the external authentication system for this user."
-        },
-        "username": {
-          "type": "string",
-          "description": "A unique, user-facing name for the user."
-        },
-        "email": {
-          "type": "string",
-          "description": "The user's email address.",
-          "format": "email"
-        },
-        "bio": {
-          "type": "string",
-          "description": "A short description or biography written by the user."
-        },
-        "dateOfBirth": {
-          "type": "string",
-          "description": "The user's date of birth.",
-          "format": "date"
-        },
-        "gender": {
-          "type": "string",
-          "description": "The user's self-identified gender."
-        },
+        "id": { "type": "string" },
+        "numericId": { "type": "number" },
+        "authProviderId": { "type": "string" },
+        "username": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "bio": { "type": "string" },
+        "dateOfBirth": { "type": "string", "format": "date" },
+        "gender": { "type": "string" },
         "preferredGenders": {
           "type": "array",
-          "description": "An array of genders the user is interested in matching with.",
-          "items": {
-            "type": "string"
-          }
+          "items": { "type": "string" }
         },
-        "location": {
-          "type": "string",
-          "description": "The user's general location for proximity matching."
-        },
-        "relationshipGoal": {
-          "type": "string",
-          "description": "What the user is looking for (e.g., Casual, Long-term)."
-        },
-        "education": {
-          "type": "string",
-          "description": "The user's level of education."
-        },
-        "horoscope": {
-          "type": "string",
-          "description": "The user's zodiac sign."
-        },
+        "location": { "type": "string" },
+        "relationshipGoal": { "type": "string" },
+        "education": { "type": "string" },
+        "horoscope": { "type": "string" },
         "interests": {
           "type": "array",
-          "description": "A list of interests and hobbies of the user.",
-          "items": {
-            "type": "string"
-          }
+          "items": { "type": "string" }
         },
         "profilePhotoUrls": {
           "type": "array",
-          "description": "An array of URLs pointing to the user's profile photos.",
-          "items": {
-            "type": "string"
-          }
+          "items": { "type": "string" }
         },
-        "coinBalance": {
-          "type": "number",
-          "description": "The current virtual coin balance of the user."
-        },
-        "lastCheckInDate": {
-          "type": "string",
-          "description": "The date of the user's last daily check-in (YYYY-MM-DD).",
-          "format": "date"
-        },
-        "checkInStreak": {
-          "type": "number",
-          "description": "The current number of consecutive days the user has checked in."
-        },
-        "isVerified": {
-          "type": "boolean",
-          "description": "Whether the user's identity has been verified via AI face comparison."
-        },
-        "isAdmin": {
-          "type": "boolean",
-          "description": "Whether the user has administrative privileges."
-        },
-        "isCoinseller": {
-          "type": "boolean",
-          "description": "Whether the user is an official coin seller."
-        },
-        "isSupport": {
-          "type": "boolean",
-          "description": "Whether the user is an official support agent."
-        },
-        "createdAt": {
-          "type": "string",
-          "description": "Timestamp when the user profile was created.",
-          "format": "date-time"
-        },
-        "updatedAt": {
-          "type": "string",
-          "description": "Timestamp when the user profile was last updated.",
-          "format": "date-time"
-        },
-        "lastActiveAt": {
-          "type": "string",
-          "description": "Timestamp of the user's last activity.",
-          "format": "date-time"
-        }
+        "coinBalance": { "type": "number" },
+        "lastCheckInDate": { "type": "string", "format": "date" },
+        "checkInStreak": { "type": "number" },
+        "isVerified": { "type": "boolean" },
+        "isAdmin": { "type": "boolean" },
+        "isCoinseller": { "type": "boolean" },
+        "isSupport": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "lastActiveAt": { "type": "string", "format": "date-time" }
       },
-      "required": [
-        "id",
-        "authProviderId",
-        "username",
-        "email",
-        "dateOfBirth",
-        "gender",
-        "createdAt",
-        "coinBalance"
-      ]
+      "required": ["id", "authProviderId", "username", "dateOfBirth", "gender", "createdAt", "coinBalance"]
     },
     "CoinTransaction": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "CoinTransaction",
       "type": "object",
-      "description": "Records individual transactions of virtual coins.",
       "properties": {
-        "id": {
-          "type": "string",
-          "description": "Unique identifier for the CoinTransaction entity."
-        },
-        "type": {
-          "type": "string",
-          "description": "The type of coin transaction (e.g., recharge, deduction, award, check-in)."
-        },
-        "amount": {
-          "type": "number",
-          "description": "The amount of coins involved."
-        },
-        "transactionDate": {
-          "type": "string",
-          "description": "Timestamp when the transaction occurred.",
-          "format": "date-time"
-        },
-        "description": {
-          "type": "string",
-          "description": "A human-readable description of the transaction."
-        }
+        "id": { "type": "string" },
+        "type": { "type": "string" },
+        "amount": { "type": "number" },
+        "transactionDate": { "type": "string", "format": "date-time" },
+        "description": { "type": "string" },
+        "orderTrackingId": { "type": "string" }
       },
-      "required": [
-        "id",
-        "type",
-        "amount",
-        "transactionDate"
-      ]
+      "required": ["id", "type", "amount", "transactionDate"]
     },
     "CallSession": {
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "CallSession",
       "type": "object",
-      "description": "Represents an active call session between two users.",
       "properties": {
         "callerId": { "type": "string" },
         "receiverId": { "type": "string" },
@@ -187,12 +74,10 @@
       "$schema": "http://json-schema.org/draft-07/schema#",
       "title": "Report",
       "type": "object",
-      "description": "A user report submitted for review.",
       "properties": {
         "id": { "type": "string" },
         "reporterId": { "type": "string" },
         "reportedUserId": { "type": "string" },
-        "reason": { "type": "string" },
         "details": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["pending", "reviewed"] }
@@ -200,10 +85,7 @@
     }
   },
   "auth": {
-    "providers": [
-      "password",
-      "anonymous"
-    ]
+    "providers": ["password", "anonymous"]
   },
   "firestore": {
     "structure": [
@@ -211,68 +93,28 @@
         "path": "/userProfiles/{userId}",
         "definition": {
           "entityName": "UserProfile",
-          "schema": {
-            "$ref": "#/entities/UserProfile"
-          },
-          "description": "Stores user profiles including their coin balance.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            }
-          ]
+          "schema": { "$ref": "#/entities/UserProfile" }
         }
       },
       {
         "path": "/userProfiles/{userId}/transactions/{transactionId}",
         "definition": {
           "entityName": "CoinTransaction",
-          "schema": {
-            "$ref": "#/entities/CoinTransaction"
-          },
-          "description": "Records individual coin transactions for a user.",
-          "params": [
-            {
-              "name": "userId",
-              "description": "The unique identifier of the user."
-            },
-            {
-              "name": "transactionId",
-              "description": "The unique identifier for a specific coin transaction."
-            }
-          ]
+          "schema": { "$ref": "#/entities/CoinTransaction" }
         }
       },
       {
         "path": "/calls/{chatId}",
         "definition": {
           "entityName": "CallSession",
-          "schema": {
-            "$ref": "#/entities/CallSession"
-          },
-          "description": "Stores active call session state.",
-          "params": [
-            {
-              "name": "chatId",
-              "description": "Unique ID for the call session (sorted combined UIDs)."
-            }
-          ]
+          "schema": { "$ref": "#/entities/CallSession" }
         }
       },
       {
         "path": "/reports/{reportId}",
         "definition": {
           "entityName": "Report",
-          "schema": {
-            "$ref": "#/entities/Report"
-          },
-          "description": "User-submitted reports.",
-          "params": [
-            {
-              "name": "reportId",
-              "description": "The unique identifier for a report."
-            }
-          ]
+          "schema": { "$ref": "#/entities/Report" }
         }
       }
     ]

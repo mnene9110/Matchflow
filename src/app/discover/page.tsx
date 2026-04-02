@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -11,10 +10,6 @@ import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 
-/**
- * @fileOverview Discovery screen for finding matches.
- * Implements pagination and gender-based filtering (opposite gender only).
- */
 export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
   const { firestore, database } = useFirebase()
@@ -28,11 +23,9 @@ export default function DiscoverPage() {
   const [hasMore, setHasMore] = useState(true)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
 
-  // Fetch current user profile to determine gender for filtering
   const currentUserRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc(currentUserRef)
 
-  // Fetch presence once
   useEffect(() => {
     if (!database) return
     const presenceRef = ref(database, 'users')
@@ -48,7 +41,6 @@ export default function DiscoverPage() {
     })
   }, [database])
 
-  // Initial Fetch (Paginated and Filtered by Opposite Gender)
   useEffect(() => {
     if (!firestore || !currentUser || isProfileLoading || !currentUserProfile) return
     
@@ -88,7 +80,7 @@ export default function DiscoverPage() {
     }
 
     fetchInitialUsers()
-  }, [firestore, currentUser, isProfileLoading, currentUserProfile])
+  }, [firestore, currentUser, isProfileLoading, currentUserProfile?.gender])
 
   const loadMore = async () => {
     if (!firestore || !lastVisible || isLoadingMore || !hasMore || !currentUserProfile) return
@@ -249,12 +241,6 @@ export default function DiscoverPage() {
             >
               {isLoadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load More"}
             </Button>
-          </div>
-        )}
-
-        {!hasMore && !(isInitialLoading || isProfileLoading) && displayUsers.length > 0 && (
-          <div className="col-span-2 flex justify-center py-8">
-             <p className="text-[9px] font-black text-white/40 uppercase tracking-[0.2em]">No more users to show</p>
           </div>
         )}
       </main>

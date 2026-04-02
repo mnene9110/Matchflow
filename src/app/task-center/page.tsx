@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -22,7 +21,7 @@ export default function TaskCenterPage() {
   const [todayStr, setTodayStr] = useState<string>("")
 
   useEffect(() => {
-    // Set today's date only on the client to avoid hydration mismatch
+    // CRITICAL: Set date on client only to prevent Hydration Mismatch
     setTodayStr(new Date().toISOString().split('T')[0]);
   }, []);
 
@@ -93,6 +92,7 @@ export default function TaskCenterPage() {
     }
   }
 
+  // Show loading state while waiting for data or client-side date hydration
   if (isLoading || !todayStr) {
     return (
       <div className="flex h-svh items-center justify-center bg-zinc-950">
@@ -106,7 +106,6 @@ export default function TaskCenterPage() {
 
   return (
     <div className="flex flex-col h-svh bg-zinc-950 text-white overflow-hidden font-body">
-      {/* Header */}
       <header className="px-6 pt-12 pb-6 flex items-center justify-between shrink-0 relative">
         <Button 
           variant="ghost" 
@@ -132,9 +131,7 @@ export default function TaskCenterPage() {
         </Button>
       </header>
 
-      {/* Main Content */}
       <main className="flex-1 overflow-y-auto px-6 pb-20 space-y-8 scroll-smooth">
-        {/* Check-in Section */}
         <section className="bg-zinc-900/50 rounded-[3rem] p-8 border border-zinc-800 relative overflow-hidden group">
           <div className="absolute top-0 right-0 w-32 h-32 bg-[#FF7A00]/10 blur-[60px] rounded-full -translate-y-1/2 translate-x-1/2" />
           
@@ -197,7 +194,6 @@ export default function TaskCenterPage() {
                     </div>
                     <span className={cn("text-xs font-black", isActive ? "text-white" : "text-zinc-400")}>{reward}</span>
                   </div>
-                  {dayNum === 7 && <SparkleIcon className="absolute top-2 right-2 w-3 h-3 text-white/50" />}
                 </div>
               )
             })}
@@ -215,7 +211,6 @@ export default function TaskCenterPage() {
           </Button>
         </section>
 
-        {/* Stats Section */}
         <section className="grid grid-cols-2 gap-4">
            <div className="bg-zinc-900/50 rounded-[2.5rem] p-6 border border-zinc-800 flex flex-col gap-3">
               <div className="flex items-center gap-2">
@@ -239,13 +234,5 @@ export default function TaskCenterPage() {
         </section>
       </main>
     </div>
-  )
-}
-
-function SparkleIcon({ className }: { className?: string }) {
-  return (
-    <svg viewBox="0 0 24 24" className={className} fill="currentColor">
-      <path d="M12 2l2.4 7.6H22l-6.2 4.6 2.4 7.6-6.2-4.6-6.2 4.6 2.4-7.6L2 9.6h7.6L12 2z" />
-    </svg>
   )
 }
