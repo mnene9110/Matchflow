@@ -57,13 +57,10 @@ export default function SettingsPage() {
       badge: isGuest ? "Guest Mode" : "Verified",
       onClick: () => isGuest ? router.push("/settings/bind") : toast({ title: "Already verified", description: "Your account is linked to an email." })
     },
-    { label: "Charge settings", icon: CreditCard },
-    { label: "Rights Center", icon: Award },
+    { label: "Charge settings", icon: CreditCard, onClick: () => router.push("/settings/charges") },
     { label: "Chat settings", icon: MessageSquare },
     { label: "Blocked List", icon: Ban, onClick: () => router.push("/settings/blocked") },
-    { label: "Language", icon: Languages },
-    { label: "Clear Cache", icon: Trash2 },
-    { label: "About MatchFlow", icon: Info },
+    { label: "About MatchFlow", icon: Info, onClick: () => router.push("/settings/about") },
   ]
 
   return (
@@ -142,9 +139,9 @@ export default function SettingsPage() {
         <div className="text-center space-y-2">
           <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.3em]">VERSION 3.1.0</p>
           <div className="flex items-center gap-4 text-[9px] font-black text-gray-400 uppercase tracking-tighter">
-            <span className="cursor-pointer hover:text-primary transition-colors">Privacy</span>
+            <span onClick={() => router.push('/settings/privacy')} className="cursor-pointer hover:text-primary transition-colors">Privacy</span>
             <span className="w-px h-2 bg-gray-100" />
-            <span className="cursor-pointer hover:text-primary transition-colors">Terms</span>
+            <span onClick={() => router.push('/settings/terms')} className="cursor-pointer hover:text-primary transition-colors">Terms</span>
             {!isAdmin && (
               <>
                 <span className="w-px h-2 bg-gray-100" />

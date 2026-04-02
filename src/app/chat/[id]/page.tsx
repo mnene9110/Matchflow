@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -264,8 +265,10 @@ function ChatDetailContent() {
     updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
     updates[`/users/${currentUser.uid}/chats/${otherUserId}/lastMessage`] = logMessage
     updates[`/users/${currentUser.uid}/chats/${otherUserId}/timestamp`] = rtdbTimestamp()
+    updates[`/users/${currentUser.uid}/chats/${otherUserId}/hidden`] = false
     updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = logMessage
     updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
+    updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
     
     await update(ref(database), updates);
   }
@@ -492,12 +495,13 @@ function ChatDetailContent() {
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
       const msgData = { messageText: textToUse, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: textToUse, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0 }
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: textToUse, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0, hidden: false }
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = textToUse
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/otherUserId`] = currentUser.uid
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/chatId`] = chatId
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
       await update(ref(database), updates)
       if (!textOverride) setInputText("")
     } catch (error: any) {
@@ -571,9 +575,11 @@ function ChatDetailContent() {
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
       updates[`/users/${currentUser.uid}/chats/${otherUserId}/lastMessage`] = giftMessage
       updates[`/users/${currentUser.uid}/chats/${otherUserId}/timestamp`] = rtdbTimestamp()
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}/hidden`] = false
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = giftMessage
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
       await update(ref(database), updates)
 
       toast({ title: "Gift Sent!", description: `You sent a ${selectedGift.name}.` });
