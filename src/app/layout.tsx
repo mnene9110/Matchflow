@@ -1,4 +1,7 @@
 
+"use client"
+
+import { useEffect } from 'react';
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -8,28 +11,19 @@ import { Navbar } from "@/components/Navbar"
 import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 import Script from 'next/script';
 
-export const viewport: Viewport = {
-  themeColor: '#B36666',
-  width: 'device-width',
-  initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
-  viewportFit: 'cover',
-};
+function ExitGuard() {
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = ''; // Standard browser confirmation popup
+    };
 
-export const metadata: Metadata = {
-  title: 'MatchFlow - Genuine Connections',
-  description: 'Find your perfect match with video calls and AI icebreakers.',
-  manifest: '/manifest.json',
-  appleWebApp: {
-    capable: true,
-    statusBarStyle: 'default',
-    title: 'MatchFlow',
-  },
-  formatDetection: {
-    telephone: false,
-  },
-};
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, []);
+
+  return null;
+}
 
 export default function RootLayout({
   children,
@@ -54,6 +48,7 @@ export default function RootLayout({
         <FirebaseClientProvider>
           <OfflineDetector>
             <div className="app-container">
+              <ExitGuard />
               {children}
               <Navbar />
               <GlobalCallOverlay />

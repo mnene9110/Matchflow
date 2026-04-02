@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, Gift, PhoneOff, Ban, CheckCircle, UserX, X } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, Gift, Ban, CheckCircle, UserX } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, collection, setDoc, updateDoc as updateFirestoreDoc, increment as firestoreIncrement } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, remove } from "firebase/database"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
@@ -50,7 +50,6 @@ function ChatDetailContent() {
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
   const [userCoins, setUserCoins] = useState(0)
   
-  // Gift State
   const [isGiftSheetOpen, setIsGiftSheetOpen] = useState(false)
   const [selectedGift, setSelectedGift] = useState<typeof GIFTS[0] | null>(null)
   const [isSendingGift, setIsSendingGift] = useState(false)
@@ -138,9 +137,7 @@ function ChatDetailContent() {
         callerName: currentUserProfile.username || 'Someone'
       });
 
-      // Global trigger for receiver
       await set(ref(database, `users/${otherUserId}/incomingCallId`), chatId);
-      // Global trigger for caller (to open UI)
       await set(ref(database, `users/${currentUser.uid}/incomingCallId`), chatId);
 
     } catch (error: any) {
@@ -406,11 +403,6 @@ function ChatDetailContent() {
                   <SheetContent side="bottom" className="rounded-t-[3rem] h-[75svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
                     <SheetHeader className="px-6 pt-8 pb-4 shrink-0">
                       <SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Select a Gift</SheetTitle>
-                      <div className="flex items-center justify-between">
-                        <div className="flex gap-6">
-                          <button className="text-xs font-black uppercase tracking-widest border-b-2 border-primary pb-2">Gifts</button>
-                        </div>
-                      </div>
                     </SheetHeader>
                     
                     <div className="flex-1 overflow-y-auto px-4 pb-32">
