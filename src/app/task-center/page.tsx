@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { X, RotateCcw, Coins, Trophy, Loader2, ChevronLeft, Check } from "lucide-react"
+import { RotateCcw, Trophy, Loader2, ChevronLeft, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, runTransaction, collection } from "firebase/firestore"
@@ -22,7 +22,7 @@ export default function TaskCenterPage() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    // Set date on client only to prevent Hydration Mismatch
+    // CRITICAL: Set date on client only to prevent Hydration Mismatch
     setTodayStr(new Date().toISOString().split('T')[0]);
     setMounted(true);
   }, []);

@@ -44,6 +44,7 @@
     },
     "CoinTransaction": {
       "title": "CoinTransaction",
+      "description": "Represents a single coin-related activity (recharge, award, or deduction).",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -57,6 +58,7 @@
     },
     "CallSession": {
       "title": "CallSession",
+      "description": "Stores state for active or ringing video/audio calls.",
       "type": "object",
       "properties": {
         "callerId": { "type": "string" },
@@ -65,10 +67,12 @@
         "callType": { "type": "string", "enum": ["video", "audio"] },
         "timestamp": { "type": "number" },
         "callerName": { "type": "string" }
-      }
+      },
+      "required": ["callerId", "receiverId", "status", "callType", "timestamp"]
     },
     "Report": {
       "title": "Report",
+      "description": "User feedback regarding another user's behavior or profile.",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
@@ -77,7 +81,8 @@
         "details": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" },
         "status": { "type": "string", "enum": ["pending", "reviewed"] }
-      }
+      },
+      "required": ["id", "reporterId", "reportedUserId", "details", "createdAt", "status"]
     }
   },
   "auth": {
