@@ -1,9 +1,11 @@
+
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from "@/firebase"
 import { OfflineDetector } from "@/components/OfflineDetector"
 import { Navbar } from "@/components/Navbar"
+import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 import Script from 'next/script';
 
 export const viewport: Viewport = {
@@ -54,6 +56,7 @@ export default function RootLayout({
             <div className="app-container">
               {children}
               <Navbar />
+              <GlobalCallOverlay />
             </div>
           </OfflineDetector>
         </FirebaseClientProvider>

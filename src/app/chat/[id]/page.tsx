@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -10,27 +11,23 @@ import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, collection, setDoc, updateDoc as updateFirestoreDoc, increment as firestoreIncrement } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, remove, get } from "firebase/database"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, remove } from "firebase/database"
 import { cn } from "@/lib/utils"
-import { getZegoConfig } from "@/app/actions/zego"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import Image from "next/image"
 
-let ZegoUIKitPrebuilt: any = null;
-
-const GIFTS = [
-  { id: 'mask', name: '🎭 Party mask', price: 20, image: 'https://picsum.photos/seed/mask/200/200' },
-  { id: 'handbag', name: '👜 Luxury Handbag', price: 800, image: 'https://picsum.photos/seed/bag/200/200' },
-  { id: 'tea', name: '🍵 Strong Tea', price: 100, image: 'https://picsum.photos/seed/tea/200/200' },
-  { id: 'duck', name: '🦆 Cute duck', price: 20, image: 'https://picsum.photos/seed/duck/200/200' },
-  { id: 'treasure', name: '💎 Pearl treasure', price: 500, image: 'https://picsum.photos/seed/treasure/200/200' },
-  { id: 'puppy', name: '🐶 Puppy', price: 150, image: 'https://picsum.photos/seed/puppy/200/200' },
-  { id: 'castle', name: '🏰 Moon castle', price: 800, image: 'https://picsum.photos/seed/castle/200/200' },
-  { id: 'rabbit', name: '🐰 Rabbit', price: 150, image: 'https://picsum.photos/seed/rabbit/200/200' },
-  { id: 'cat', name: '🐱 Cat', price: 150, image: 'https://picsum.photos/seed/cat/200/200' },
-  { id: 'balloon', name: '🎈 Balloon', price: 20, image: 'https://picsum.photos/seed/balloon/200/200' },
-  { id: 'soulmate', name: '💖 Soul mate', price: 30, image: 'https://picsum.photos/seed/hearts/200/200' },
-  { id: 'ufo', name: '🛸 UFO', price: 1990, image: 'https://picsum.photos/seed/ufo/200/200' },
+export const GIFTS = [
+  { id: 'mask', name: 'Party mask', emoji: '🎭', price: 20 },
+  { id: 'handbag', name: 'Luxury Bag', emoji: '👜', price: 800 },
+  { id: 'tea', name: 'Strong Tea', emoji: '🍵', price: 100 },
+  { id: 'duck', name: 'Cute duck', emoji: '🦆', price: 20 },
+  { id: 'treasure', name: 'Treasure', emoji: '💎', price: 500 },
+  { id: 'puppy', name: 'Puppy', emoji: '🐶', price: 150 },
+  { id: 'castle', name: 'Moon castle', emoji: '🏰', price: 800 },
+  { id: 'rabbit', name: 'Rabbit', emoji: '🐰', price: 150 },
+  { id: 'cat', name: 'Cat', emoji: '🐱', price: 150 },
+  { id: 'balloon', name: 'Balloon', emoji: '🎈', price: 20 },
+  { id: 'soulmate', name: 'Soul mate', emoji: '💖', price: 30 },
+  { id: 'ufo', name: 'UFO', emoji: '🛸', price: 1990 },
 ]
 
 function ChatDetailContent() {
@@ -45,28 +42,12 @@ function ChatDetailContent() {
   const { toast } = useToast()
   
   const scrollRef = useRef<HTMLDivElement>(null)
-  const zegoContainerRef = useRef<HTMLDivElement>(null)
-  const previewVideoRef = useRef<HTMLVideoElement>(null)
-  const ringtoneRef = useRef<HTMLAudioElement | null>(null)
-  const zegoInitializingRef = useRef(false)
   
-  // ECONOMY: Tracking call usage for deferred Firestore sync
-  const callStatusRef = useRef<'idle' | 'ringing' | 'calling' | 'incoming' | 'ongoing'>('idle')
-  const callDurationRef = useRef(0)
-  const totalCostAccruedRef = useRef(0)
-  const wasCallAcceptedRef = useRef(false)
-  const isInitiatorRef = useRef(false)
-
   const [mounted, setMounted] = useState(false)
   const [inputText, setInputText] = useState("")
   const [isSending, setIsSending] = useState(false)
-  const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'calling' | 'incoming' | 'ongoing'>('idle')
-  const [callType, setCallType] = useState<'video' | 'audio'>('video')
-  const [zegoInstance, setZegoInstance] = useState<any>(null)
   const [messages, setMessages] = useState<any[]>([])
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
-  const [callDuration, setCallDuration] = useState(0)
-  const [localPreviewStream, setLocalPreviewStream] = useState<MediaStream | null>(null)
   const [userCoins, setUserCoins] = useState(0)
   
   // Gift State
@@ -89,36 +70,8 @@ function ChatDetailContent() {
   const { data: theyBlockedMe } = useDoc(theirBlockRef)
 
   useEffect(() => {
-    callStatusRef.current = callStatus
-  }, [callStatus])
-
-  useEffect(() => {
-    callDurationRef.current = callDuration
-  }, [callDuration])
-
-  const presenceText = useMemo(() => {
-    if (presence.online) return "Online";
-    if (!presence.lastSeen) return "Offline";
-    const date = new Date(presence.lastSeen);
-    const now = new Date();
-    const diffInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
-    if (diffInDays > 2) return "Offline";
-    return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }, [presence]);
-
-  useEffect(() => {
     setMounted(true)
-    if (typeof window !== "undefined") {
-      import('@zegocloud/zego-uikit-prebuilt').then((module) => {
-        ZegoUIKitPrebuilt = module.ZegoUIKitPrebuilt;
-      });
-      ringtoneRef.current = new Audio("/ringtone.mp3");
-      ringtoneRef.current.loop = true;
-    }
-    return () => {
-      setMounted(false)
-      stopAllMedia();
-    }
+    return () => setMounted(false)
   }, []);
 
   useEffect(() => {
@@ -126,12 +79,6 @@ function ChatDetailContent() {
     const coinRef = ref(database, `users/${currentUser.uid}/coinBalance`)
     return onValue(coinRef, (snap) => setUserCoins(snap.val() || 0))
   }, [database, currentUser])
-
-  useEffect(() => {
-    if (previewVideoRef.current && localPreviewStream) {
-      previewVideoRef.current.srcObject = localPreviewStream;
-    }
-  }, [localPreviewStream]);
 
   useEffect(() => {
     if (initialMsg && currentUser && otherUserId && database && otherUser && !isSending) {
@@ -150,227 +97,15 @@ function ChatDetailContent() {
     set(unreadRef, 0)
   }, [database, currentUser, otherUserId])
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (callStatus === 'ongoing') {
-      interval = setInterval(() => {
-        if (!mounted) return;
-        setCallDuration((prev) => {
-          const nextVal = prev + 1;
-          // ECONOMY: Deductions happen every 60 seconds starting at 11s
-          if (nextVal === 11) {
-            handleRecurringDeduction();
-          } else if (nextVal > 11 && nextVal % 60 === 0) {
-            handleRecurringDeduction();
-          }
-          return nextVal;
-        });
-      }, 1000);
-    } else {
-      setCallDuration(0);
-    }
-    return () => clearInterval(interval);
-  }, [callStatus, mounted, callType]);
-
-  const handleRecurringDeduction = async () => {
-    if (!currentUser || !firestore || !chatId || !currentUserProfile || !database) return;
-    const isFree = currentUserProfile.isAdmin || 
-                   currentUserProfile.isSupport || 
-                   currentUserProfile.isCoinseller ||
-                   (currentUserProfile.gender === 'female' && otherUser?.gender === 'male');
-    if (isFree) return;
-    
-    const costPerMin = callType === 'video' ? 160 : 80;
-    const userCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
-
-    try {
-      const result = await runRtdbTransaction(userCoinRef, (current) => {
-        if (current === null) return current; 
-        if (current < costPerMin) return undefined;
-        return current - costPerMin;
-      });
-
-      if (!result.committed) {
-        handleEndCall();
-        return;
-      }
-
-      // ECONOMY: Accumulate cost locally, deferred Firestore write until call end
-      totalCostAccruedRef.current += costPerMin;
-      
-    } catch (error) {
-      handleEndCall();
-    }
-  };
-
-  const syncFinalCallCostsToFirestore = async () => {
-    const totalCost = totalCostAccruedRef.current;
-    if (totalCost <= 0 || !currentUser || !firestore) return;
-
-    // ECONOMY: Batch Firestore backup write at the end of the session
-    updateFirestoreDoc(doc(firestore, "userProfiles", currentUser.uid), {
-      coinBalance: firestoreIncrement(-totalCost),
-      updatedAt: new Date().toISOString()
-    });
-
-    const txRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
-    setDoc(txRef, {
-      id: txRef.id,
-      type: "deduction",
-      amount: -totalCost,
-      transactionDate: new Date().toISOString(),
-      description: `Call summary: ${otherUser?.username || 'user'} (${Math.floor(callDurationRef.current / 60)}m)`
-    });
-
-    totalCostAccruedRef.current = 0;
-  };
-
-  const stopRingtone = () => {
-    if (ringtoneRef.current) {
-      try { 
-        ringtoneRef.current.pause(); 
-        ringtoneRef.current.currentTime = 0; 
-      } catch (e) {}
-    }
-  };
-
-  const playRingtone = () => {
-    if (ringtoneRef.current) {
-      ringtoneRef.current.play().catch(() => {});
-    }
-  };
-
-  const stopAllMedia = () => {
-    stopRingtone();
-    if (previewVideoRef.current) previewVideoRef.current.srcObject = null;
-    if (localPreviewStream) {
-      localPreviewStream.getTracks().forEach(track => track.stop());
-      setLocalPreviewStream(null);
-    }
-    if (zegoInstance) {
-      try { zegoInstance.destroy(); } catch (e) {}
-      setZegoInstance(null);
-    }
-    zegoInitializingRef.current = false;
-    
-    // ECONOMY: Final Firestore Sync on cleanup
-    syncFinalCallCostsToFirestore();
-  };
-
-  const logCallEndToChat = async (finalDuration: number, finalWasAccepted: boolean) => {
-    if (!isInitiatorRef.current || !database || !chatId || !currentUser) return;
-
-    let logMessage = "[cancelled]";
-    if (finalWasAccepted) {
-      const mins = Math.floor(finalDuration / 60);
-      const secs = finalDuration % 60;
-      logMessage = `[${mins}:${secs.toString().padStart(2, '0')}]`;
-    }
-
-    const updates: any = {}
-    const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-    const msgData = { 
-      messageText: logMessage, 
-      senderId: currentUser.uid, 
-      sentAt: rtdbTimestamp(),
-      isCallLog: true 
-    }
-    
-    updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-    updates[`/users/${currentUser.uid}/chats/${otherUserId}/lastMessage`] = logMessage
-    updates[`/users/${currentUser.uid}/chats/${otherUserId}/timestamp`] = rtdbTimestamp()
-    updates[`/users/${currentUser.uid}/chats/${otherUserId}/hidden`] = false
-    updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = logMessage
-    updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
-    updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
-    
-    await update(ref(database), updates);
-  }
-
-  const initiateZegoCall = async (roomID: string) => {
-    if (!ZegoUIKitPrebuilt || !currentUser || !zegoContainerRef.current || zegoInitializingRef.current) return;
-    zegoInitializingRef.current = true;
-    
-    if (localPreviewStream) {
-      localPreviewStream.getTracks().forEach(t => t.stop());
-      setLocalPreviewStream(null);
-    }
-
-    const { appID, serverSecret } = await getZegoConfig();
-    if (!appID || !serverSecret) { handleEndCall(); return; }
-    try {
-      const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-        appID, 
-        serverSecret, 
-        roomID, 
-        currentUser.uid, 
-        currentUser.displayName || `User_${currentUser.uid.slice(0, 5)}`
-      );
-      const zp = ZegoUIKitPrebuilt.create(kitToken);
-      setZegoInstance(zp);
-      zp.joinRoom({
-        container: zegoContainerRef.current,
-        showPreJoinView: false,
-        turnOnMicrophoneWhenJoining: true,
-        turnOnCameraWhenJoining: callType === 'video',
-        showMyCameraToggleButton: false,
-        showMyMicrophoneToggleButton: false,
-        showAudioVideoSettingsButton: false,
-        showScreenSharingButton: false,
-        showTextChat: false,
-        showUserList: false,
-        maxUsers: 2,
-        layout: "Auto",
-        showLayoutButton: false,
-        scenario: {
-          mode: ZegoUIKitPrebuilt.OneONoneCall,
-          config: { role: "Host" },
-        },
-        onLeaveRoom: () => handleEndCall(),
-      });
-    } catch (error) {
-      handleEndCall();
-    }
-  };
-
-  useEffect(() => {
-    if (!database || !chatId || !currentUser || !otherUser) return
-    const callRef = ref(database, `calls/${chatId}`);
-    
-    const unsubscribe = onValue(callRef, (snap) => {
-      const data = snap.val()
-      
-      if (!data) {
-        if (callStatusRef.current !== 'idle') {
-          logCallEndToChat(callDurationRef.current, wasCallAcceptedRef.current);
-          stopAllMedia(); 
-          setCallStatus('idle');
-          wasCallAcceptedRef.current = false;
-          isInitiatorRef.current = false;
-        }
-        return
-      }
-
-      setCallType(data.callType || 'video')
-      
-      if (data.status === 'ringing') {
-        playRingtone();
-        const nextStatus = data.callerId === currentUser.uid ? 'calling' : 'incoming';
-        setCallStatus(nextStatus);
-        if (data.callerId === currentUser.uid) {
-          isInitiatorRef.current = true;
-        }
-      } else if (data.status === 'accepted') {
-        stopRingtone();
-        wasCallAcceptedRef.current = true;
-        if (callStatusRef.current !== 'ongoing') {
-          setCallStatus('ongoing')
-          initiateZegoCall(chatId);
-        }
-      }
-    });
-    return () => unsubscribe();
-  }, [database, chatId, currentUser, !!otherUser]);
+  const presenceText = useMemo(() => {
+    if (presence.online) return "Online";
+    if (!presence.lastSeen) return "Offline";
+    const date = new Date(presence.lastSeen);
+    const now = new Date();
+    const diffInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
+    if (diffInDays > 2) return "Offline";
+    return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  }, [presence]);
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
     if (!database || !chatId || !currentUser || !currentUserProfile || !otherUser) return
@@ -392,18 +127,8 @@ function ChatDetailContent() {
       return;
     }
 
-    if (type === 'video') {
-      try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-        setLocalPreviewStream(stream);
-      } catch (e) {
-        console.error("Camera preview failed", e);
-      }
-    }
-
     try {
       const callRef = ref(database, `calls/${chatId}`);
-      isInitiatorRef.current = true;
       await set(callRef, { 
         callerId: currentUser.uid, 
         receiverId: otherUserId, 
@@ -412,29 +137,15 @@ function ChatDetailContent() {
         timestamp: Date.now(),
         callerName: currentUserProfile.username || 'Someone'
       });
+
+      // Global trigger for receiver
+      await set(ref(database, `users/${otherUserId}/incomingCallId`), chatId);
+      // Global trigger for caller (to open UI)
+      await set(ref(database, `users/${currentUser.uid}/incomingCallId`), chatId);
+
     } catch (error: any) {
-      stopAllMedia();
-      isInitiatorRef.current = false;
       toast({ variant: "destructive", title: "Call Failed", description: "Could not establish connection." });
     }
-  }
-
-  const handleAcceptCall = async () => {
-    if (!database || !chatId) return
-    const callRef = ref(database, `calls/${chatId}`);
-    await update(callRef, { status: 'accepted' });
-  }
-
-  const handleDeclineCall = async () => {
-    if (!database || !chatId) return
-    const callRef = ref(database, `calls/${chatId}`);
-    await remove(callRef);
-  }
-
-  const handleEndCall = async () => {
-    if (!database || !chatId) return
-    const callRef = ref(database, `calls/${chatId}`);
-    await remove(callRef);
   }
 
   useEffect(() => {
@@ -486,7 +197,6 @@ function ChatDetailContent() {
 
         if (!result.committed) throw new Error("INSUFFICIENT_COINS");
 
-        // ECONOMY: Direct sync to Firestore Backup for permanent logging
         updateFirestoreDoc(doc(firestore, "userProfiles", currentUser.uid), {
           coinBalance: firestoreIncrement(-messageCost),
           updatedAt: new Date().toISOString()
@@ -550,7 +260,6 @@ function ChatDetailContent() {
       const receiverDiamondRef = ref(database, `users/${otherUserId}/diamondBalance`);
       await runRtdbTransaction(receiverDiamondRef, (current) => (current || 0) + diamondGain);
 
-      // ECONOMY: Instant RTDB update followed by deferred Firestore sync
       updateFirestoreDoc(doc(firestore, "userProfiles", currentUser.uid), {
         coinBalance: firestoreIncrement(-giftPrice),
         updatedAt: new Date().toISOString()
@@ -619,67 +328,6 @@ function ChatDetailContent() {
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
-      {(callStatus === 'calling' || callStatus === 'incoming') && (
-        <div className="absolute inset-0 z-[300] bg-zinc-950 flex flex-col items-center justify-between py-24 px-8 text-white animate-in fade-in duration-500">
-          <div className="absolute inset-0 z-0 overflow-hidden">
-             {callType === 'video' && localPreviewStream ? (
-               <video 
-                 ref={previewVideoRef} 
-                 autoPlay 
-                 muted 
-                 playsInline 
-                 className="w-full h-full object-cover scale-x-[-1] opacity-40 blur-[2px]" 
-               />
-             ) : (
-               <div className="w-full h-full bg-zinc-900" />
-             )}
-             <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/20 to-zinc-950/60" />
-          </div>
-          <div className="relative z-10 flex flex-col items-center gap-10 mt-12 w-full">
-            <div className="relative">
-              <div className="absolute -inset-8 bg-primary/20 rounded-full animate-ping opacity-20" />
-              <Avatar className="w-44 h-44 border-[10px] border-white/5 shadow-2xl">
-                <AvatarImage src={otherUserImage} className="object-cover" />
-                <AvatarFallback className="text-5xl bg-zinc-800">{otherUserName[0] || '?'}</AvatarFallback>
-              </Avatar>
-            </div>
-            <div className="text-center space-y-4">
-              <div className="flex items-center justify-center gap-2">
-                <h2 className="text-4xl font-black font-headline tracking-tight text-white">{otherUserName}</h2>
-                {isOtherUserVerified && <CheckCircle className="w-8 h-8 text-blue-400 fill-blue-400/20" />}
-              </div>
-              <div className="px-4 py-1.5 bg-white/5 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2 mx-auto w-fit">
-                {callType === 'video' ? <Video className="w-4 h-4 text-primary" /> : <Phone className="w-4 h-4 text-primary" />}
-                <p className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] animate-pulse">
-                  {callStatus === 'calling' ? 'Calling...' : `Incoming call`}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="relative z-10 flex items-center gap-16 mb-12">
-            {callStatus === 'incoming' ? (
-              <>
-                <button onClick={handleDeclineCall} className="w-24 h-24 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all"><PhoneOff className="w-10 h-10 text-white" /></button>
-                <button onClick={handleAcceptCall} className="w-24 h-24 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all animate-bounce"><Phone className="w-10 h-10 text-white" /></button>
-              </>
-            ) : (
-              <button onClick={handleEndCall} className="w-24 h-24 rounded-full bg-white/10 flex items-center justify-center border border-white/10 shadow-2xl active:scale-90 transition-all hover:bg-red-500"><PhoneOff className="w-10 h-10 text-white" /></button>
-            )}
-          </div>
-        </div>
-      )}
-
-      <div ref={zegoContainerRef} className={cn("absolute inset-0 z-[200] bg-black transition-opacity duration-700", callStatus === 'ongoing' ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none')}>
-        {callStatus === 'ongoing' && (
-          <div className="absolute top-12 left-1/2 -translate-x-1/2 z-[210] px-5 py-2 bg-black/40 backdrop-blur-xl rounded-full border border-white/20">
-            <div className="flex items-center gap-3">
-               <div className="w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-               <span className="text-white font-black text-sm tracking-[0.2em]">{Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')}</span>
-            </div>
-          </div>
-        )}
-      </div>
-
       <header className="px-5 pt-8 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-full bg-gray-50 text-gray-500"><ChevronLeft className="w-5 h-5" /></Button>
         <div 
@@ -778,8 +426,8 @@ function ChatDetailContent() {
                               selectedGift?.id === gift.id ? "bg-primary/20 border-primary shadow-lg" : "bg-transparent border-transparent"
                             )}
                           >
-                            <div className="relative w-14 h-14">
-                              <Image src={gift.image} alt={gift.name} fill className="object-contain" />
+                            <div className="w-14 h-14 flex items-center justify-center text-4xl">
+                              {gift.emoji}
                             </div>
                             <div className="flex flex-col items-center gap-0.5">
                               <div className="flex items-center gap-1">
