@@ -19,10 +19,11 @@ export default function TaskCenterPage() {
   
   const [isClaiming, setIsClaiming] = useState(false)
   const [todayStr, setTodayStr] = useState<string>("")
+  const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    // CRITICAL: Set date on client only to prevent Hydration Mismatch
     setTodayStr(new Date().toISOString().split('T')[0]);
+    setMounted(true);
   }, []);
 
   const userRef = useMemoFirebase(() => {
@@ -92,8 +93,8 @@ export default function TaskCenterPage() {
     }
   }
 
-  // Show loading state while waiting for data or client-side date hydration
-  if (isLoading || !todayStr) {
+  // Prevent hydration mismatch by waiting for mount
+  if (!mounted || isLoading) {
     return (
       <div className="flex h-svh items-center justify-center bg-zinc-950">
         <div className="flex flex-col items-center gap-4">
