@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Camera, Loader2, Save, User, Plus, X } from "lucide-react"
+import { ChevronLeft, Camera, Loader2, Save, User, Plus, X, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -14,6 +14,7 @@ import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
+import Image from "next/image"
 
 const COUNTRIES = [
   "Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", 
@@ -139,8 +140,7 @@ export default function EditProfilePage() {
       router.push("/profile")
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to save changes." })
-    } finally {
-      setIsSaving(true) // Stay in loading until navigation
+      setIsSaving(false)
     }
   }
 
@@ -154,7 +154,6 @@ export default function EditProfilePage() {
 
   return (
     <div className="flex flex-col h-svh bg-transparent text-gray-900 overflow-hidden">
-      {/* Fixed Header */}
       <header className="shrink-0 px-4 py-8 flex items-center bg-transparent z-50">
         <Button 
           variant="ghost" 
@@ -167,9 +166,7 @@ export default function EditProfilePage() {
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase text-white drop-shadow-md">Edit Profile</h1>
       </header>
 
-      {/* Scrollable Content */}
       <main className="flex-1 overflow-y-auto px-6 pt-2 pb-40 space-y-10 scroll-smooth">
-        {/* Photo Management Section */}
         <section className="space-y-6">
           <div className="flex flex-col items-center">
             <div className="relative">
@@ -232,7 +229,6 @@ export default function EditProfilePage() {
           <input type="file" ref={extraPhotosInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
         </section>
 
-        {/* Details Form */}
         <section className="space-y-6 bg-white/60 backdrop-blur-2xl p-7 rounded-[2.5rem] border border-white/50 shadow-2xl">
           <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Full Name</Label>
@@ -328,7 +324,6 @@ export default function EditProfilePage() {
         </div>
       </main>
 
-      {/* Fixed Footer */}
       <footer className="shrink-0 fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white/90 via-white/80 to-transparent backdrop-blur-sm z-50">
         <div className="max-w-md mx-auto">
           <Button 

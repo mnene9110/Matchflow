@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useCallback } from "react"
@@ -34,7 +35,6 @@ export default function FullOnboardingPage() {
   const handleSave = useCallback(() => {
     if (!user || !name || !dob || !gender || !country || !lookingFor) return
 
-    // Age Verification
     const birthDate = new Date(dob)
     const today = new Date()
     let age = today.getFullYear() - birthDate.getFullYear()
@@ -52,7 +52,6 @@ export default function FullOnboardingPage() {
       return
     }
 
-    // Generate unique numeric ID
     const numericId = Math.floor(10000000 + Math.random() * 90000000);
 
     const userRef = doc(firestore, "userProfiles", user.uid)
@@ -124,8 +123,8 @@ export default function FullOnboardingPage() {
                   gender === "male" ? "border-[#5A1010] ring-1" : "border-transparent"
                 )}
               >
-                <RadioGroupItem value="male" id="male" />
-                <Label htmlFor="male" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "male" ? darkMaroonText : "text-gray-400")}>Man</Label>
+                <RadioGroupItem value="male" id="gender_male" />
+                <Label htmlFor="gender_male" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "male" ? darkMaroonText : "text-gray-400")}>Man</Label>
               </div>
               <div 
                 onClick={() => setGender("female")}
@@ -134,8 +133,8 @@ export default function FullOnboardingPage() {
                   gender === "female" ? "border-[#5A1010] ring-1" : "border-transparent"
                 )}
               >
-                <RadioGroupItem value="female" id="female" />
-                <Label htmlFor="female" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "female" ? darkMaroonText : "text-gray-400")}>Woman</Label>
+                <RadioGroupItem value="female" id="gender_female" />
+                <Label htmlFor="gender_female" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "female" ? darkMaroonText : "text-gray-400")}>Woman</Label>
               </div>
             </RadioGroup>
           </div>

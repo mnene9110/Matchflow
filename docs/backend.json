@@ -1,3 +1,4 @@
+
 {
   "entities": {
     "UserProfile": {
@@ -90,19 +91,19 @@
   },
   "firestore": {
     "/userProfiles/{userId}": {
-      "schema": { "$ref": "#/backend/entities/UserProfile" },
+      "schema": { "$ref": "#/entities/UserProfile" },
       "description": "User profile document."
     },
     "/userProfiles/{userId}/transactions/{transactionId}": {
-      "schema": { "$ref": "#/backend/entities/CoinTransaction" },
+      "schema": { "$ref": "#/entities/CoinTransaction" },
       "description": "User transaction history."
     },
     "/calls/{chatId}": {
-      "schema": { "$ref": "#/backend/entities/CallSession" },
+      "schema": { "$ref": "#/entities/CallSession" },
       "description": "Active call sessions."
     },
     "/reports/{reportId}": {
-      "schema": { "$ref": "#/backend/entities/Report" },
+      "schema": { "$ref": "#/entities/Report" },
       "description": "User violation reports."
     }
   }
