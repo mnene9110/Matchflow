@@ -90,6 +90,8 @@ export default function EditProfilePage() {
       }
       reader.readAsDataURL(file)
     }
+    // Clear the input so the same file can be selected again if removed
+    e.target.value = ''
   }
 
   const removePhoto = (index: number) => {
