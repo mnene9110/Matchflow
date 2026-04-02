@@ -22,6 +22,7 @@ export default function TaskCenterPage() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
+    // CRITICAL: Set date on client only to prevent Hydration Mismatch
     setTodayStr(new Date().toISOString().split('T')[0]);
     setMounted(true);
   }, []);

@@ -165,7 +165,7 @@ export default function DiscoverPage() {
               onClick={() => setActiveTab('recommend')}
               className={cn(
                 "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
-                activeTab === 'recommend' ? cn(darkMaroon, "text-white") : "text-gray-500"
+                activeTab === 'recommend' ? cn(darkMaroon, "text-white") : "text-gray-50"
               )}
             >
               Recommend
@@ -174,7 +174,7 @@ export default function DiscoverPage() {
               onClick={() => setActiveTab('nearby')}
               className={cn(
                 "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
-                activeTab === 'nearby' ? cn(darkMaroon, "text-white") : "text-gray-500"
+                activeTab === 'nearby' ? cn(darkMaroon, "text-white") : "text-gray-50"
               )}
             >
               Nearby
@@ -213,7 +213,7 @@ export default function DiscoverPage() {
                 <div className={cn("w-1.5 h-1.5 rounded-full", user.isOnline ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-gray-400")} />
               </div>
               <div className="flex items-center gap-1 opacity-80">
-                <Globe className="w-2.5 h-2.5 text-[#5A1010]" />
+                <Globe className="w-2.5 h-2.5 text-white/60" />
                 <span className="text-[8px] font-bold text-white uppercase tracking-wider">{user.location}</span>
               </div>
             </div>
