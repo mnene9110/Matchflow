@@ -10,6 +10,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { useFirestore, useUser, setDocumentNonBlocking } from "@/firebase"
 import { doc } from "firebase/firestore"
+import { cn } from "@/lib/utils"
 
 const TARGET_COUNTRIES = [
   "Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", 
@@ -61,75 +62,78 @@ export default function FullOnboardingPage() {
   }
 
   return (
-    <div className="flex flex-col h-svh bg-white p-8 overflow-y-auto">
-      <div className="mt-8 space-y-8 pb-10">
+    <div className="flex flex-col h-svh bg-transparent p-6 overflow-y-auto">
+      <div className="mt-8 space-y-8 pb-10 max-w-sm mx-auto w-full">
         <header className="space-y-2">
-          <h1 className="text-3xl font-bold text-primary font-headline">Complete Profile</h1>
-          <p className="text-muted-foreground">Tell us a bit more about yourself.</p>
+          <h1 className="text-4xl font-black text-white font-headline drop-shadow-md">Complete Profile</h1>
+          <p className="text-white/80 font-bold uppercase text-[10px] tracking-[0.2em]">Tell us a bit more about yourself</p>
         </header>
 
         <div className="space-y-6">
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-muted-foreground/60">Full Name</Label>
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase text-white/40 ml-1 tracking-widest">Full Name</Label>
             <Input 
               placeholder="What should we call you?" 
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="h-14 rounded-xl bg-secondary/50 border-none"
+              className="h-16 rounded-[2rem] bg-white/10 backdrop-blur-xl border-white/20 text-white font-bold px-6 placeholder:text-white/30 focus-visible:ring-white/20"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-muted-foreground/60">Date of Birth</Label>
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase text-white/40 ml-1 tracking-widest">Date of Birth</Label>
             <Input 
               type="date"
               value={dob}
               onChange={(e) => setDob(e.target.value)}
-              className="h-14 rounded-xl bg-secondary/50 border-none"
+              className="h-16 rounded-[2rem] bg-white/10 backdrop-blur-xl border-white/20 text-white font-bold px-6 focus-visible:ring-white/20"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-muted-foreground/60">I am a</Label>
+          <div className="space-y-4">
+            <Label className="text-[10px] font-black uppercase text-white/40 ml-1 tracking-widest">I am a</Label>
             <RadioGroup onValueChange={setGender} className="flex gap-4">
-              <div className="flex items-center space-x-2 bg-secondary/50 px-4 py-3 rounded-xl flex-1">
-                <RadioGroupItem value="male" id="male" />
-                <Label htmlFor="male">Man</Label>
+              <div className={cn(
+                "flex items-center space-x-3 bg-white/10 backdrop-blur-xl border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all",
+                gender === "male" ? "bg-white/20 border-white" : "border-white/10"
+              )}>
+                <RadioGroupItem value="male" id="male" className="border-white/40" />
+                <Label htmlFor="male" className="font-bold cursor-pointer">Man</Label>
               </div>
-              <div className="flex items-center space-x-2 bg-secondary/50 px-4 py-3 rounded-xl flex-1">
-                <RadioGroupItem value="female" id="female" />
-                <Label htmlFor="female">Woman</Label>
+              <div className={cn(
+                "flex items-center space-x-3 bg-white/10 backdrop-blur-xl border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all",
+                gender === "female" ? "bg-white/20 border-white" : "border-white/10"
+              )}>
+                <RadioGroupItem value="female" id="female" className="border-white/40" />
+                <Label htmlFor="female" className="font-bold cursor-pointer">Woman</Label>
               </div>
             </RadioGroup>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-muted-foreground/60">Looking for</Label>
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase text-white/40 ml-1 tracking-widest">Looking for</Label>
             <RadioGroup onValueChange={setLookingFor} className="flex flex-col gap-2">
-              <div className="flex items-center space-x-2 bg-secondary/50 px-4 py-3 rounded-xl">
-                <RadioGroupItem value="long-term" id="goal_long" />
-                <Label htmlFor="goal_long">Long term</Label>
-              </div>
-              <div className="flex items-center space-x-2 bg-secondary/50 px-4 py-3 rounded-xl">
-                <RadioGroupItem value="casual" id="goal_casual" />
-                <Label htmlFor="goal_casual">Casual</Label>
-              </div>
-              <div className="flex items-center space-x-2 bg-secondary/50 px-4 py-3 rounded-xl">
-                <RadioGroupItem value="friendship" id="goal_friend" />
-                <Label htmlFor="goal_friend">Friendship</Label>
-              </div>
+              {['long-term', 'casual', 'friendship'].map((goal) => (
+                <div key={goal} className={cn(
+                  "flex items-center space-x-3 bg-white/10 backdrop-blur-xl border px-5 py-4 rounded-[1.75rem] cursor-pointer transition-all",
+                  lookingFor === goal ? "bg-white/20 border-white" : "border-white/10"
+                )}>
+                  <RadioGroupItem value={goal} id={`goal_${goal}`} className="border-white/40" />
+                  <Label htmlFor={`goal_${goal}`} className="font-bold cursor-pointer capitalize">{goal.replace('-', ' ')}</Label>
+                </div>
+              ))}
             </RadioGroup>
           </div>
 
-          <div className="space-y-2">
-            <Label className="text-xs font-bold uppercase text-muted-foreground/60">Country</Label>
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase text-white/40 ml-1 tracking-widest">Country</Label>
             <Select onValueChange={setCountry}>
-              <SelectTrigger className="h-14 rounded-xl bg-secondary/50 border-none">
+              <SelectTrigger className="h-16 rounded-[2rem] bg-white/10 backdrop-blur-xl border-white/20 text-white font-bold px-6">
                 <SelectValue placeholder="Select country" />
               </SelectTrigger>
-              <SelectContent>
+              <SelectContent className="bg-zinc-900/95 backdrop-blur-2xl border-white/10 text-white rounded-[2rem] p-2">
                 {TARGET_COUNTRIES.map(c => (
-                  <SelectItem key={c} value={c}>{c}</SelectItem>
+                  <SelectItem key={c} value={c} className="rounded-xl py-3 px-4 font-bold">{c}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
@@ -137,7 +141,7 @@ export default function FullOnboardingPage() {
         </div>
 
         <Button 
-          className="w-full h-16 rounded-full bg-primary text-white text-xl font-bold shadow-xl shadow-primary/20 active:scale-95 transition-transform"
+          className="w-full h-18 rounded-full bg-white text-[#B36666] text-xl font-black shadow-2xl active:scale-95 transition-all mt-6"
           disabled={!name || !dob || !gender || !country || !lookingFor}
           onClick={handleSave}
         >
