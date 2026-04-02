@@ -32,7 +32,7 @@ export default function CoinHistoryPage() {
           variant="ghost" 
           size="icon" 
           onClick={() => router.back()} 
-          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full"
+          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
@@ -48,7 +48,9 @@ export default function CoinHistoryPage() {
         ) : transactions && transactions.length > 0 ? (
           <div className="space-y-3">
             {transactions.map((tx: any) => {
-              const isAddition = tx.type === "recharge" || tx.type === "bonus"
+              // Reliably determine if addition or deduction based on amount sign
+              const isAddition = tx.amount > 0
+              
               return (
                 <div 
                   key={tx.id} 
@@ -56,7 +58,7 @@ export default function CoinHistoryPage() {
                 >
                   <div className={cn(
                     "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner",
-                    isAddition ? "bg-green-500/10 text-green-500" : "bg-primary/10 text-primary"
+                    isAddition ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
                   )}>
                     {isAddition ? (
                       <ArrowUpRight className="w-6 h-6" />
@@ -67,7 +69,7 @@ export default function CoinHistoryPage() {
                   
                   <div className="flex-1 min-w-0">
                     <h3 className="text-xs font-black text-gray-900 truncate uppercase tracking-tight">
-                      {tx.description || (isAddition ? "Coin Recharge" : "Service Payment")}
+                      {tx.description || (isAddition ? "Credit" : "Service Payment")}
                     </h3>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">
                       {tx.transactionDate ? format(new Date(tx.transactionDate), "MMM d, yyyy • HH:mm") : "Recently"}
@@ -77,7 +79,7 @@ export default function CoinHistoryPage() {
                   <div className="text-right">
                     <span className={cn(
                       "text-sm font-black flex items-center justify-end gap-1 font-headline",
-                      isAddition ? "text-green-500" : "text-gray-900"
+                      isAddition ? "text-green-500" : "text-red-500"
                     )}>
                       {isAddition ? "+" : "-"}{Math.abs(tx.amount).toLocaleString()}
                       <Coins className="w-3 h-3 opacity-40" />
