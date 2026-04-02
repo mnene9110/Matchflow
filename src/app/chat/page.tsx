@@ -17,9 +17,14 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
-// Session cache for chat sessions
+// Session cache
 let cachedSessions: any[] = []
 let cachedLoaded: boolean = false
+
+export function clearChatCache() {
+  cachedSessions = []
+  cachedLoaded = false
+}
 
 function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: (id: string) => void }) {
   const { firestore, database } = useFirebase()
@@ -177,7 +182,6 @@ export default function ChatListPage() {
     setIsHiding(true)
     try {
       const updates: any = {}
-      // phrased as 'Delete' in UI, but technically 'hidden' in DB
       updates[`/users/${currentUser.uid}/chats/${hidingTarget}/hidden`] = true
       updates[`/users/${currentUser.uid}/chats/${hidingTarget}/unreadCount`] = 0
       await update(ref(database), updates)

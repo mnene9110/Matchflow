@@ -36,8 +36,7 @@ export default function ProfilePage() {
   const { toast } = useToast()
   
   const [isFindingSupport, setIsFindingSupport] = useState(false)
-  const [liveCoinBalance, setLiveCoinBalance] = useState(0)
-  const [liveDiamondBalance, setLiveDiamondBalance] = useState(0)
+  const [wallet, setWallet] = useState({ coins: 0, diamonds: 0 })
 
   const userRef = useMemoFirebase(() => {
     if (!firestore || !currentUser) return null;
@@ -46,16 +45,20 @@ export default function ProfilePage() {
 
   const { data: userProfile, isLoading } = useDoc(userRef)
 
-  // Realtime Balance Listeners from RTDB
+  // Combined Wallet Listener for better economy
   useEffect(() => {
     if (!database || !currentUser) return
-    const coinRef = ref(database, `users/${currentUser.uid}/coinBalance`)
-    const diamondRef = ref(database, `users/${currentUser.uid}/diamondBalance`)
+    const userRef = ref(database, `users/${currentUser.uid}`)
     
-    const unsubCoin = onValue(coinRef, (snap) => setLiveCoinBalance(snap.val() || 0))
-    const unsubDiamond = onValue(diamondRef, (snap) => setLiveDiamondBalance(snap.val() || 0))
-    
-    return () => { unsubCoin(); unsubDiamond(); }
+    return onValue(userRef, (snap) => {
+      const data = snap.val()
+      if (data) {
+        setWallet({
+          coins: data.coinBalance || 0,
+          diamonds: data.diamondBalance || 0
+        })
+      }
+    })
   }, [database, currentUser])
 
   const reportsQuery = useMemoFirebase(() => {
@@ -135,7 +138,7 @@ export default function ProfilePage() {
               <div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center"><Coins className="w-3 h-3 text-primary" /></div>
               <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Coins</span>
             </div>
-            <span className="text-2xl font-black text-gray-900 font-headline">{liveCoinBalance.toLocaleString()}</span>
+            <span className="text-2xl font-black text-gray-900 font-headline">{wallet.coins.toLocaleString()}</span>
             <Button onClick={() => router.push('/recharge')} className={cn("w-full h-10 rounded-full text-white font-black uppercase tracking-widest text-[8px] shadow-lg", darkMaroon)}>Buy</Button>
           </div>
 
@@ -144,7 +147,7 @@ export default function ProfilePage() {
               <div className="w-5 h-5 rounded-full bg-blue-500/10 flex items-center justify-center"><Gem className="w-3 h-3 text-blue-500" /></div>
               <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Diamonds</span>
             </div>
-            <span className="text-2xl font-black text-gray-900 font-headline">{liveDiamondBalance.toLocaleString()}</span>
+            <span className="text-2xl font-black text-gray-900 font-headline">{wallet.diamonds.toLocaleString()}</span>
             <Button onClick={() => router.push('/profile/income')} className="w-full h-10 rounded-full bg-blue-500/10 border border-blue-500/20 flex items-center justify-center active:bg-blue-500/20"><span className="text-[8px] font-black text-blue-500 uppercase tracking-widest">Income</span></Button>
           </div>
         </div>

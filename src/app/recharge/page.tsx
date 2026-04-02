@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
@@ -28,14 +29,14 @@ function RechargeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useUser()
-  const { firestore, database } = useFirebase()
+  const { database } = useFirebase()
   const { toast } = useToast()
   
   const [selectedPackage, setSelectedPackage] = useState<typeof COIN_PACKAGES[0] | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [liveCoinBalance, setLiveCoinBalance] = useState<number | null>(null)
 
-  // Realtime Balance Listener
+  // Economical Live Balance Listener
   useEffect(() => {
     if (!database || !user) return
     const coinRef = ref(database, `users/${user.uid}/coinBalance`)

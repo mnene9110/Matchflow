@@ -8,6 +8,8 @@ import { useAuth, useUser, useDoc, useFirestore, useMemoFirebase } from "@/fireb
 import { signOut } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
 import { doc } from "firebase/firestore"
+import { clearDiscoverCache } from "@/app/discover/page"
+import { clearChatCache } from "@/app/chat/page"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -36,6 +38,10 @@ export default function SettingsPage() {
 
   const handleSignOut = async () => {
     try {
+      // Clear economical caches
+      clearDiscoverCache();
+      clearChatCache();
+      
       await signOut(auth)
       router.push("/welcome")
     } catch (error) {

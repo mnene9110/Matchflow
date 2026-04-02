@@ -6,16 +6,23 @@ import Image from "next/image"
 import { Sparkles, ClipboardList, RotateCcw, Globe, Loader2, CheckCircle } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot, where, doc } from "firebase/firestore"
-import { ref, onValue, set, get } from "firebase/database"
+import { ref, set, get } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 
-// Global session cache to avoid re-fetching until app is fully closed
+// Global session cache
 let cachedUsers: any[] = []
 let cachedLastVisible: QueryDocumentSnapshot<DocumentData> | null = null
 let cachedHasMore: boolean = true
 let cachedInitialLoaded: boolean = false
+
+export function clearDiscoverCache() {
+  cachedUsers = []
+  cachedLastVisible = null
+  cachedHasMore = true
+  cachedInitialLoaded = false
+}
 
 export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
@@ -24,7 +31,6 @@ export default function DiscoverPage() {
   const router = useRouter()
 
   const [users, setUsers] = useState<any[]>(cachedUsers)
-  const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
   const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(cachedLastVisible)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(cachedHasMore)
@@ -33,7 +39,6 @@ export default function DiscoverPage() {
   const currentUserRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc(currentUserRef)
 
-  // One-time Sync Balance if RTDB is empty but Firestore has coins
   useEffect(() => {
     if (!database || !currentUser || isProfileLoading || !currentUserProfile) return;
 
@@ -54,21 +59,6 @@ export default function DiscoverPage() {
     }
     syncBalance();
   }, [database, currentUser, isProfileLoading, !!currentUserProfile]);
-
-  useEffect(() => {
-    if (!database) return
-    const presenceRef = ref(database, 'users')
-    return onValue(presenceRef, (snapshot) => {
-      const usersVal = snapshot.val()
-      if (usersVal) {
-        const statuses: Record<string, boolean> = {}
-        Object.entries(usersVal).forEach(([uid, data]: [string, any]) => {
-          statuses[uid] = !!data.presence?.online
-        })
-        setPresenceData(statuses)
-      }
-    })
-  }, [database])
 
   useEffect(() => {
     if (!firestore || !currentUser || isProfileLoading || !currentUserProfile || cachedInitialLoaded) {
@@ -177,7 +167,6 @@ export default function DiscoverPage() {
     id: u.id,
     name: u.username || "Match",
     location: u.location || "Kenya",
-    isOnline: !!presenceData[u.id],
     isVerified: !!u.isVerified,
     image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/400/600`
   }))
@@ -193,7 +182,6 @@ export default function DiscoverPage() {
       <div className="pt-4 px-4 grid grid-cols-2 gap-3 shrink-0">
         <button className={cn("flex flex-col items-center justify-center gap-2 rounded-[2rem] py-6 shadow-xl group active:scale-95 transition-all", darkMaroon)}>
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
-            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="white" />
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <span className="text-white font-black text-[9px] tracking-[0.1em] uppercase">Mystery Note</span>
@@ -234,7 +222,7 @@ export default function DiscoverPage() {
           </div>
           <button 
             onClick={() => {
-              cachedInitialLoaded = false;
+              clearDiscoverCache();
               window.location.reload();
             }} 
             className="w-14 h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center active:rotate-180 transition-all duration-500 shadow-lg shadow-black/5"
@@ -268,7 +256,6 @@ export default function DiscoverPage() {
                   <h3 className="text-white font-black text-xs truncate max-w-[80px]">{user.name}</h3>
                   {user.isVerified && <CheckCircle className="w-3 h-3 text-blue-400 fill-blue-400/20" />}
                 </div>
-                <div className={cn("w-1.5 h-1.5 rounded-full", user.isOnline ? "bg-green-500 shadow-[0_0_6px_rgba(34,197,94,0.6)]" : "bg-gray-400")} />
               </div>
               <div className="flex items-center gap-1 opacity-80">
                 <Globe className="w-2.5 h-2.5 text-white/60" />

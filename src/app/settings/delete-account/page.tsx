@@ -12,6 +12,8 @@ import { doc } from "firebase/firestore"
 import { ref, remove } from "firebase/database"
 import { deleteUser } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
+import { clearDiscoverCache } from "@/app/discover/page"
+import { clearChatCache } from "@/app/chat/page"
 
 export default function DeleteAccountPage() {
   const router = useRouter()
@@ -36,18 +38,22 @@ export default function DeleteAccountPage() {
 
     setIsDeleting(true)
     try {
-      // 1. Delete Firestore Profile Data
+      // 1. Clear ECONOMICAL caches immediately
+      clearDiscoverCache();
+      clearChatCache();
+
+      // 2. Delete Firestore Profile Data
       const firestoreDocRef = doc(firestore, "userProfiles", user.uid)
       deleteDocumentNonBlocking(firestoreDocRef)
 
-      // 2. Delete Realtime Database User Node (Coins, Presence, etc.)
+      // 3. Delete Realtime Database User Node (Coins, Presence, etc.)
       const rtdbUserRef = ref(database, `users/${user.uid}`)
       await remove(rtdbUserRef)
 
-      // 3. Clear local storage if it was a persistent guest
+      // 4. Clear local storage
       localStorage.removeItem('mf_guest_recovery')
 
-      // 4. Delete from Firebase Auth (This permanently kills the session)
+      // 5. Delete from Firebase Auth
       await deleteUser(user)
 
       toast({
