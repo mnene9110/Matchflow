@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -89,60 +88,60 @@ export default function FullOnboardingPage() {
       <div className="mt-8 space-y-8 pb-10 max-w-sm mx-auto w-full">
         <header className="space-y-2">
           <h1 className={cn("text-4xl font-black font-headline drop-shadow-sm", darkMaroon)}>Complete Profile</h1>
-          <p className="text-zinc-500 font-bold uppercase text-[10px] tracking-[0.2em]">Tell us a bit more about yourself</p>
+          <p className="text-[#5A1010]/60 font-bold uppercase text-[10px] tracking-[0.2em]">Tell us a bit more about yourself</p>
         </header>
 
         <div className="space-y-6">
           <div className="space-y-3">
-            <Label className="text-[10px] font-black uppercase text-zinc-400 ml-1 tracking-widest">Full Name</Label>
+            <Label className="text-[10px] font-black uppercase text-[#5A1010]/70 ml-1 tracking-widest">Full Name</Label>
             <Input 
               placeholder="What should we call you?" 
               value={name}
               onChange={(e) => setName(e.target.value)}
-              className="h-16 rounded-[2rem] bg-white/60 backdrop-blur-xl border-[#B36666]/20 text-zinc-900 font-bold px-6 placeholder:text-zinc-300 focus-visible:ring-primary/20"
+              className="h-16 rounded-[2rem] bg-white/70 backdrop-blur-xl border-[#B36666]/30 text-zinc-900 font-bold px-6 placeholder:text-zinc-400 focus-visible:ring-[#B36666]/50"
             />
           </div>
 
           <div className="space-y-3">
-            <Label className="text-[10px] font-black uppercase text-zinc-400 ml-1 tracking-widest">Date of Birth</Label>
+            <Label className="text-[10px] font-black uppercase text-[#5A1010]/70 ml-1 tracking-widest">Date of Birth</Label>
             <Input 
               type="date"
               value={dob}
               onChange={(e) => setDob(e.target.value)}
-              className="h-16 rounded-[2rem] bg-white/60 backdrop-blur-xl border-[#B36666]/20 text-zinc-900 font-bold px-6 focus-visible:ring-primary/20"
+              className="h-16 rounded-[2rem] bg-white/70 backdrop-blur-xl border-[#B36666]/30 text-zinc-900 font-bold px-6 focus-visible:ring-[#B36666]/50"
             />
           </div>
 
           <div className="space-y-4">
-            <Label className="text-[10px] font-black uppercase text-zinc-400 ml-1 tracking-widest">I am a</Label>
+            <Label className="text-[10px] font-black uppercase text-[#5A1010]/70 ml-1 tracking-widest">I am a</Label>
             <RadioGroup onValueChange={setGender} className="flex gap-4">
               <div className={cn(
-                "flex items-center space-x-3 bg-white/40 backdrop-blur-xl border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "male" ? "bg-white border-[#B36666]" : "border-[#B36666]/10"
+                "flex items-center space-x-3 bg-white/50 backdrop-blur-xl border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
+                gender === "male" ? "bg-white border-[#5A1010]" : "border-[#B36666]/20"
               )}>
-                <RadioGroupItem value="male" id="male" className="border-primary" />
-                <Label htmlFor="male" className={cn("font-bold cursor-pointer", gender === "male" ? darkMaroon : "text-zinc-500")}>Man</Label>
+                <RadioGroupItem value="male" id="male" className="border-[#5A1010]" />
+                <Label htmlFor="male" className={cn("font-bold cursor-pointer", gender === "male" ? darkMaroon : "text-[#5A1010]/50")}>Man</Label>
               </div>
               <div className={cn(
-                "flex items-center space-x-3 bg-white/40 backdrop-blur-xl border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "female" ? "bg-white border-[#B36666]" : "border-[#B36666]/10"
+                "flex items-center space-x-3 bg-white/50 backdrop-blur-xl border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
+                gender === "female" ? "bg-white border-[#5A1010]" : "border-[#B36666]/20"
               )}>
-                <RadioGroupItem value="female" id="female" className="border-primary" />
-                <Label htmlFor="female" className={cn("font-bold cursor-pointer", gender === "female" ? darkMaroon : "text-zinc-500")}>Woman</Label>
+                <RadioGroupItem value="female" id="female" className="border-[#5A1010]" />
+                <Label htmlFor="female" className={cn("font-bold cursor-pointer", gender === "female" ? darkMaroon : "text-[#5A1010]/50")}>Woman</Label>
               </div>
             </RadioGroup>
           </div>
 
           <div className="space-y-3">
-            <Label className="text-[10px] font-black uppercase text-zinc-400 ml-1 tracking-widest">Looking for</Label>
+            <Label className="text-[10px] font-black uppercase text-[#5A1010]/70 ml-1 tracking-widest">Looking for</Label>
             <RadioGroup onValueChange={setLookingFor} className="flex flex-col gap-2">
               {['long-term', 'casual', 'friendship'].map((goal) => (
                 <div key={goal} className={cn(
-                  "flex items-center space-x-3 bg-white/40 backdrop-blur-xl border px-5 py-4 rounded-[1.75rem] cursor-pointer transition-all shadow-sm",
-                  lookingFor === goal ? "bg-white border-[#B36666]" : "border-[#B36666]/10"
+                  "flex items-center space-x-3 bg-white/50 backdrop-blur-xl border px-5 py-4 rounded-[1.75rem] cursor-pointer transition-all shadow-sm",
+                  lookingFor === goal ? "bg-white border-[#5A1010]" : "border-[#B36666]/20"
                 )}>
-                  <RadioGroupItem value={goal} id={`goal_${goal}`} className="border-primary" />
-                  <Label htmlFor={`goal_${goal}`} className={cn("font-bold cursor-pointer capitalize", lookingFor === goal ? darkMaroon : "text-zinc-500")}>
+                  <RadioGroupItem value={goal} id={`goal_${goal}`} className="border-[#5A1010]" />
+                  <Label htmlFor={`goal_${goal}`} className={cn("font-bold cursor-pointer capitalize", lookingFor === goal ? darkMaroon : "text-[#5A1010]/50")}>
                     {goal.replace('-', ' ')}
                   </Label>
                 </div>
@@ -151,9 +150,9 @@ export default function FullOnboardingPage() {
           </div>
 
           <div className="space-y-3">
-            <Label className="text-[10px] font-black uppercase text-zinc-400 ml-1 tracking-widest">Country</Label>
+            <Label className="text-[10px] font-black uppercase text-[#5A1010]/70 ml-1 tracking-widest">Country</Label>
             <Select onValueChange={setCountry}>
-              <SelectTrigger className="h-16 rounded-[2rem] bg-white/60 backdrop-blur-xl border-[#B36666]/20 text-zinc-900 font-bold px-6">
+              <SelectTrigger className="h-16 rounded-[2rem] bg-white/70 backdrop-blur-xl border-[#B36666]/30 text-zinc-900 font-bold px-6">
                 <SelectValue placeholder="Select country" />
               </SelectTrigger>
               <SelectContent className="bg-white/95 backdrop-blur-2xl border-zinc-100 text-zinc-900 rounded-[2rem] p-2">

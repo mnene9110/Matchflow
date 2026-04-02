@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -61,34 +60,34 @@ export default function FastOnboardingPage() {
       <div className="mt-12 space-y-10 flex-1 flex flex-col max-w-sm mx-auto w-full">
         <header className="space-y-3">
           <h1 className={cn("text-4xl font-black font-headline leading-tight drop-shadow-sm", darkMaroon)}>Fast Setup</h1>
-          <p className="text-zinc-500 font-bold uppercase text-[10px] tracking-widest">Quickly set your basic info</p>
+          <p className="text-[#5A1010]/60 font-bold uppercase text-[10px] tracking-widest">Quickly set your basic info</p>
         </header>
 
         <div className="space-y-8 flex-1">
           <div className="space-y-4">
-            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 ml-1">I am a</Label>
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#5A1010]/70 ml-1">I am a</Label>
             <RadioGroup onValueChange={setGender} className="flex gap-4">
               <div className={cn(
-                "flex items-center space-x-3 bg-white/40 backdrop-blur-xl border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "male" ? "bg-white border-[#B36666]" : "border-[#B36666]/10"
+                "flex items-center space-x-3 bg-white/50 backdrop-blur-xl border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
+                gender === "male" ? "bg-white border-[#5A1010]" : "border-[#B36666]/20"
               )}>
-                <RadioGroupItem value="male" id="male" className="border-primary" />
-                <Label htmlFor="male" className={cn("cursor-pointer font-black text-sm tracking-wide", gender === "male" ? darkMaroon : "text-zinc-500")}>Man</Label>
+                <RadioGroupItem value="male" id="male" className="border-[#5A1010]" />
+                <Label htmlFor="male" className={cn("cursor-pointer font-black text-sm tracking-wide", gender === "male" ? darkMaroon : "text-[#5A1010]/50")}>Man</Label>
               </div>
               <div className={cn(
-                "flex items-center space-x-3 bg-white/40 backdrop-blur-xl border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "female" ? "bg-white border-[#B36666]" : "border-[#B36666]/10"
+                "flex items-center space-x-3 bg-white/50 backdrop-blur-xl border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
+                gender === "female" ? "bg-white border-[#5A1010]" : "border-[#B36666]/20"
               )}>
-                <RadioGroupItem value="female" id="female" className="border-primary" />
-                <Label htmlFor="female" className={cn("cursor-pointer font-black text-sm tracking-wide", gender === "female" ? darkMaroon : "text-zinc-500")}>Woman</Label>
+                <RadioGroupItem value="female" id="female" className="border-[#5A1010]" />
+                <Label htmlFor="female" className={cn("cursor-pointer font-black text-sm tracking-wide", gender === "female" ? darkMaroon : "text-[#5A1010]/50")}>Woman</Label>
               </div>
             </RadioGroup>
           </div>
 
           <div className="space-y-4">
-            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 ml-1">My Country</Label>
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#5A1010]/70 ml-1">My Country</Label>
             <Select onValueChange={setCountry}>
-              <SelectTrigger className="h-16 rounded-[2.25rem] bg-white/60 backdrop-blur-xl border-[#B36666]/20 text-zinc-900 text-lg font-black px-8">
+              <SelectTrigger className="h-16 rounded-[2.25rem] bg-white/70 backdrop-blur-xl border-[#B36666]/30 text-zinc-900 text-lg font-black px-8">
                 <SelectValue placeholder="Select country" />
               </SelectTrigger>
               <SelectContent className="bg-white/95 backdrop-blur-2xl border-zinc-100 text-zinc-900 rounded-[2rem] p-2">
