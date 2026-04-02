@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -6,9 +7,10 @@ import { useFirebase, useUser } from "@/firebase"
 import { ref, onValue, remove, update, push, serverTimestamp as rtdbTimestamp } from "firebase/database"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
-import { getZegoConfig } from "@/app/actions/zego"
+import { getAgoraToken } from "@/app/actions/agora"
 
-let ZegoUIKitPrebuilt: any = null;
+// Dynamic import for Agora to avoid SSR issues
+let AgoraRTC: any = null;
 
 export function GlobalCallOverlay() {
   const { user: currentUser } = useUser()
@@ -17,13 +19,15 @@ export function GlobalCallOverlay() {
   const [callData, setCallData] = useState<any>(null)
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
   const [callDuration, setCallDuration] = useState(0)
-  const [localPreviewStream, setLocalPreviewStream] = useState<MediaStream | null>(null)
+  const [localPreviewStream, setLocalPreviewStream] = useState<any>(null)
   const [isConnecting, setIsConnecting] = useState(false)
   
-  const zegoContainerRef = useRef<HTMLDivElement>(null)
+  // Refs for Agora
+  const agoraClientRef = useRef<any>(null)
+  const localTracksRef = useRef<{ videoTrack?: any; audioTrack?: any }>({})
+  const remoteContainerRef = useRef<HTMLDivElement>(null)
   const previewVideoRef = useRef<HTMLVideoElement>(null)
   const ringtoneRef = useRef<HTMLAudioElement | null>(null)
-  const zegoInitializingRef = useRef(false)
   const ringingTimerRef = useRef<NodeJS.Timeout | null>(null)
   
   const callDurationRef = useRef(0)
@@ -32,8 +36,9 @@ export function GlobalCallOverlay() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      import('@zegocloud/zego-uikit-prebuilt').then((module) => {
-        ZegoUIKitPrebuilt = module.ZegoUIKitPrebuilt;
+      import('agora-rtc-sdk-ng').then((module) => {
+        AgoraRTC = module.default;
+        AgoraRTC.setLogLevel(4); // Silence logs for performance
       });
       ringtoneRef.current = new Audio("/ringtone.mp3");
       ringtoneRef.current.loop = true;
@@ -44,7 +49,7 @@ export function GlobalCallOverlay() {
     if (!database || !currentUser) return;
 
     const incomingCallRef = ref(database, `users/${currentUser.uid}/incomingCallId`);
-    return onValue(incomingCallRef, (snap) => {
+    const unsubscribe = onValue(incomingCallRef, (snap) => {
       const chatId = snap.val();
       if (chatId) {
         activeChatIdRef.current = chatId;
@@ -62,6 +67,8 @@ export function GlobalCallOverlay() {
         handleCleanup();
       }
     });
+
+    return () => unsubscribe();
   }, [database, currentUser]);
 
   const updateCallState = (data: any) => {
@@ -77,15 +84,9 @@ export function GlobalCallOverlay() {
         }, 40000);
       }
 
-      // Proactively warm up media devices for the caller
-      if (isCaller && !localPreviewStream) {
-        const constraints = { 
-          video: data.callType === 'video', 
-          audio: true 
-        };
-        navigator.mediaDevices.getUserMedia(constraints)
-          .then(setLocalPreviewStream)
-          .catch(console.error);
+      // Proactive hardware engagement
+      if (isCaller && !localTracksRef.current.audioTrack) {
+        engageHardware(data.callType);
       }
     } else if (data.status === 'accepted') {
       if (ringingTimerRef.current) {
@@ -100,26 +101,70 @@ export function GlobalCallOverlay() {
       if (callStatus !== 'ongoing') {
         setCallStatus('ongoing');
         setIsConnecting(true);
-        
-        // If receiver, warm up devices instantly on accept
-        if (!isCaller && !localPreviewStream) {
-          const constraints = { 
-            video: data.callType === 'video', 
-            audio: true 
-          };
-          navigator.mediaDevices.getUserMedia(constraints)
-            .then((stream) => {
-              setLocalPreviewStream(stream);
-              initiateZegoCall(activeChatIdRef.current!, data.callType, stream);
-            })
-            .catch((err) => {
-              console.error(err);
-              initiateZegoCall(activeChatIdRef.current!, data.callType);
-            });
-        } else {
-          initiateZegoCall(activeChatIdRef.current!, data.callType, localPreviewStream || undefined);
+        initiateAgoraCall(activeChatIdRef.current!, data.callType);
+      }
+    }
+  };
+
+  const engageHardware = async (type: 'video' | 'audio') => {
+    if (!AgoraRTC) return;
+    try {
+      const audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+      localTracksRef.current.audioTrack = audioTrack;
+      
+      if (type === 'video') {
+        const videoTrack = await AgoraRTC.createCameraVideoTrack();
+        localTracksRef.current.videoTrack = videoTrack;
+        if (previewVideoRef.current) {
+          videoTrack.play(previewVideoRef.current);
         }
       }
+    } catch (e) {
+      console.error("Hardware engage failed", e);
+    }
+  };
+
+  const initiateAgoraCall = async (channelName: string, type: 'video' | 'audio') => {
+    if (!AgoraRTC || !currentUser || agoraClientRef.current) return;
+
+    try {
+      const { token, appId } = await getAgoraToken(channelName, currentUser.uid);
+      
+      const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
+      agoraClientRef.current = client;
+
+      // Listen for remote user joining
+      client.on("user-published", async (user: any, mediaType: string) => {
+        await client.subscribe(user, mediaType);
+        if (mediaType === "video") {
+          user.videoTrack.play(remoteContainerRef.current);
+        }
+        if (mediaType === "audio") {
+          user.audioTrack.play();
+        }
+        setIsConnecting(false);
+      });
+
+      client.on("user-left", () => handleEndCall());
+
+      // Join the channel
+      await client.join(appId, channelName, token, currentUser.uid);
+
+      // Ensure tracks exist before publishing
+      if (!localTracksRef.current.audioTrack) {
+        await engageHardware(type);
+      }
+
+      const tracksToPublish = [localTracksRef.current.audioTrack];
+      if (type === 'video' && localTracksRef.current.videoTrack) {
+        tracksToPublish.push(localTracksRef.current.videoTrack);
+      }
+
+      await client.publish(tracksToPublish);
+      
+    } catch (error) {
+      console.error("Agora init error:", error);
+      handleEndCall();
     }
   };
 
@@ -139,10 +184,21 @@ export function GlobalCallOverlay() {
       ringtoneRef.current.pause();
       ringtoneRef.current.currentTime = 0;
     }
-    if (previewVideoRef.current) previewVideoRef.current.srcObject = null;
-    if (localPreviewStream) {
-      localPreviewStream.getTracks().forEach(track => track.stop());
-      setLocalPreviewStream(null);
+
+    // Agora Cleanup
+    if (localTracksRef.current.audioTrack) {
+      localTracksRef.current.audioTrack.stop();
+      localTracksRef.current.audioTrack.close();
+    }
+    if (localTracksRef.current.videoTrack) {
+      localTracksRef.current.videoTrack.stop();
+      localTracksRef.current.videoTrack.close();
+    }
+    localTracksRef.current = {};
+
+    if (agoraClientRef.current) {
+      agoraClientRef.current.leave();
+      agoraClientRef.current = null;
     }
     
     if (wasCallAcceptedRef.current && activeChatIdRef.current && currentUser?.uid === callData?.callerId) {
@@ -153,53 +209,9 @@ export function GlobalCallOverlay() {
     setCallData(null);
     setCallDuration(0);
     callDurationRef.current = 0;
-    zegoInitializingRef.current = false;
     activeChatIdRef.current = null;
     wasCallAcceptedRef.current = false;
     setIsConnecting(false);
-  };
-
-  const initiateZegoCall = async (roomID: string, type: 'video' | 'audio', existingStream?: MediaStream) => {
-    if (!ZegoUIKitPrebuilt || !currentUser || zegoInitializingRef.current) return;
-    zegoInitializingRef.current = true;
-
-    try {
-      const { appID, serverSecret } = await getZegoConfig();
-      if (!appID || !serverSecret) { handleEndCall(); return; }
-
-      const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(
-        appID, 
-        serverSecret, 
-        roomID, 
-        currentUser.uid, 
-        currentUser.displayName || `User_${currentUser.uid.slice(0, 5)}`
-      );
-      const zp = ZegoUIKitPrebuilt.create(kitToken);
-      zp.joinRoom({
-        container: zegoContainerRef.current,
-        showPreJoinView: false,
-        turnOnMicrophoneWhenJoining: true,
-        turnOnCameraWhenJoining: type === 'video',
-        showMyCameraToggleButton: false,
-        showMyMicrophoneToggleButton: false,
-        showAudioVideoSettingsButton: false,
-        showScreenSharingButton: false,
-        showTextChat: false,
-        showUserList: false,
-        maxUsers: 2,
-        layout: "Auto",
-        showLayoutButton: false,
-        scenario: {
-          mode: ZegoUIKitPrebuilt.OneONoneCall,
-          config: { role: "Host" },
-        },
-        onJoinRoom: () => setIsConnecting(false),
-        onLeaveRoom: () => handleEndCall(),
-      });
-    } catch (error) {
-      console.error("Zego init error:", error);
-      handleEndCall();
-    }
   };
 
   const handleAcceptCall = async () => {
@@ -255,12 +267,6 @@ export function GlobalCallOverlay() {
     return () => clearInterval(interval);
   }, [callStatus]);
 
-  useEffect(() => {
-    if (previewVideoRef.current && localPreviewStream) {
-      previewVideoRef.current.srcObject = localPreviewStream;
-    }
-  }, [localPreviewStream]);
-
   if (callStatus === 'idle') return null;
 
   const otherUserImage = `https://picsum.photos/seed/${callData?.callerId === currentUser?.uid ? callData?.receiverId : callData?.callerId}/400/600`
@@ -268,22 +274,21 @@ export function GlobalCallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col overflow-hidden">
-      {/* Zego Video Layer */}
+      {/* Agora Remote Video Layer */}
       <div 
-        ref={zegoContainerRef} 
+        ref={remoteContainerRef} 
         className={cn(
           "absolute inset-0 z-0 transition-opacity duration-500", 
           callStatus === 'ongoing' && !isConnecting ? 'opacity-100' : 'opacity-0'
         )} 
       />
 
-      {/* App's Call UI Layer (Always Overlay) */}
+      {/* App UI Overlay */}
       <div className="absolute inset-0 z-10 flex flex-col items-center justify-between py-24 px-8 pointer-events-none">
-        {/* Background visual for ringing/audio */}
         {(callStatus !== 'ongoing' || isConnecting || callData?.callType === 'audio') && (
           <div className="absolute inset-0 z-[-1] overflow-hidden">
-             {callData?.callType === 'video' && localPreviewStream ? (
-               <video ref={previewVideoRef} autoPlay muted playsInline className="w-full h-full object-cover scale-x-[-1] opacity-40 blur-[2px]" />
+             {callData?.callType === 'video' ? (
+               <div ref={previewVideoRef as any} className="w-full h-full object-cover scale-x-[-1] opacity-40 blur-[2px]" />
              ) : (
                <img src={otherUserImage} className="w-full h-full object-cover opacity-20 blur-xl scale-110" alt="" />
              )}
@@ -291,7 +296,6 @@ export function GlobalCallOverlay() {
           </div>
         )}
         
-        {/* Top Info Section */}
         <div className="flex flex-col items-center gap-8 mt-12 w-full">
           {(callStatus !== 'ongoing' || isConnecting) && (
             <div className="relative">
@@ -325,7 +329,6 @@ export function GlobalCallOverlay() {
           </div>
         </div>
 
-        {/* Bottom Actions Section */}
         <div className="flex items-center gap-16 mb-12 pointer-events-auto">
           {callStatus === 'incoming' ? (
             <>
