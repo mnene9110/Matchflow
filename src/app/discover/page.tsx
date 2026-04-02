@@ -1,10 +1,11 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
 import Image from "next/image"
 import { Sparkles, ClipboardList, RotateCcw, Globe, Loader2, CheckCircle } from "lucide-react"
-import { useFirebase, useUser } from "@/firebase"
-import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot, where } from "firebase/firestore"
+import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot, where, doc } from "firebase/firestore"
 import { ref, onValue } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button"
 
 /**
  * @fileOverview Discovery screen for finding matches.
- * Implements pagination (10 users at a time) and optimized loading.
+ * Implements pagination and gender-based filtering (opposite gender only).
  */
 export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
@@ -26,6 +27,10 @@ export default function DiscoverPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(true)
   const [isInitialLoading, setIsInitialLoading] = useState(true)
+
+  // Fetch current user profile to determine gender for filtering
+  const currentUserRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const { data: currentUserProfile } = useDoc(currentUserRef)
 
   // Fetch presence once
   useEffect(() => {
@@ -43,15 +48,20 @@ export default function DiscoverPage() {
     })
   }, [database])
 
-  // Initial Fetch (Paginated)
+  // Initial Fetch (Paginated and Filtered by Opposite Gender)
   useEffect(() => {
-    if (!firestore || !currentUser) return
+    if (!firestore || !currentUser || !currentUserProfile) return
     
     async function fetchInitialUsers() {
       setIsInitialLoading(true)
       try {
+        // Determine target gender (opposite of current user)
+        const currentGender = currentUserProfile?.gender?.toLowerCase()
+        const targetGender = currentGender === 'male' ? 'female' : 'male'
+
         const q = query(
           collection(firestore, 'userProfiles'), 
+          where('gender', '==', targetGender),
           orderBy('createdAt', 'desc'),
           limit(20)
         )
@@ -79,15 +89,19 @@ export default function DiscoverPage() {
     }
 
     fetchInitialUsers()
-  }, [firestore, currentUser])
+  }, [firestore, currentUser, !!currentUserProfile])
 
   const loadMore = async () => {
-    if (!firestore || !lastVisible || isLoadingMore || !hasMore) return
+    if (!firestore || !lastVisible || isLoadingMore || !hasMore || !currentUserProfile) return
     setIsLoadingMore(true)
 
     try {
+      const currentGender = currentUserProfile?.gender?.toLowerCase()
+      const targetGender = currentGender === 'male' ? 'female' : 'male'
+
       const q = query(
         collection(firestore, 'userProfiles'),
+        where('gender', '==', targetGender),
         orderBy('createdAt', 'desc'),
         startAfter(lastVisible),
         limit(15)
