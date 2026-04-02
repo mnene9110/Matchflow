@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -66,9 +65,10 @@ export function GlobalCallOverlay() {
   }, [database, currentUser]);
 
   const updateCallState = (data: any) => {
+    const isCaller = data.callerId === currentUser?.uid;
+
     if (data.status === 'ringing') {
       if (ringtoneRef.current) ringtoneRef.current.play().catch(() => {});
-      const isCaller = data.callerId === currentUser?.uid;
       setCallStatus(isCaller ? 'ringing' : 'incoming');
       
       if (!ringingTimerRef.current) {
@@ -77,8 +77,13 @@ export function GlobalCallOverlay() {
         }, 40000);
       }
 
-      if (isCaller && data.callType === 'video' && !localPreviewStream) {
-        navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+      // Proactively warm up media devices for the caller
+      if (isCaller && !localPreviewStream) {
+        const constraints = { 
+          video: data.callType === 'video', 
+          audio: true 
+        };
+        navigator.mediaDevices.getUserMedia(constraints)
           .then(setLocalPreviewStream)
           .catch(console.error);
       }
@@ -95,7 +100,25 @@ export function GlobalCallOverlay() {
       if (callStatus !== 'ongoing') {
         setCallStatus('ongoing');
         setIsConnecting(true);
-        initiateZegoCall(activeChatIdRef.current!, data.callType);
+        
+        // If receiver, warm up devices instantly on accept
+        if (!isCaller && !localPreviewStream) {
+          const constraints = { 
+            video: data.callType === 'video', 
+            audio: true 
+          };
+          navigator.mediaDevices.getUserMedia(constraints)
+            .then((stream) => {
+              setLocalPreviewStream(stream);
+              initiateZegoCall(activeChatIdRef.current!, data.callType, stream);
+            })
+            .catch((err) => {
+              console.error(err);
+              initiateZegoCall(activeChatIdRef.current!, data.callType);
+            });
+        } else {
+          initiateZegoCall(activeChatIdRef.current!, data.callType, localPreviewStream || undefined);
+        }
       }
     }
   };
@@ -136,7 +159,7 @@ export function GlobalCallOverlay() {
     setIsConnecting(false);
   };
 
-  const initiateZegoCall = async (roomID: string, type: 'video' | 'audio') => {
+  const initiateZegoCall = async (roomID: string, type: 'video' | 'audio', existingStream?: MediaStream) => {
     if (!ZegoUIKitPrebuilt || !currentUser || zegoInitializingRef.current) return;
     zegoInitializingRef.current = true;
 
