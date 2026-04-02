@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Camera, Loader2, Save, User, Plus, X, Sparkles } from "lucide-react"
+import { ChevronLeft, Camera, Loader2, Save, User, Plus, X, Sparkles, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -38,6 +38,11 @@ const EDUCATION_OPTIONS = [
 
 const GOALS = ["Casual", "Long-term", "Friendship", "Networking"]
 
+const INTEREST_OPTIONS = [
+  "Music", "Travel", "Movies", "Gaming", "Sports", 
+  "Cooking", "Nature", "Art", "Photography", "Fitness"
+]
+
 export default function EditProfilePage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
@@ -59,7 +64,8 @@ export default function EditProfilePage() {
     relationshipGoal: "",
     education: "",
     horoscope: "",
-    profilePhotoUrls: [] as string[]
+    profilePhotoUrls: [] as string[],
+    interests: [] as string[]
   })
   
   const [isSaving, setIsSaving] = useState(false)
@@ -77,7 +83,8 @@ export default function EditProfilePage() {
         relationshipGoal: profile.relationshipGoal || "",
         education: profile.education || "",
         horoscope: profile.horoscope || "",
-        profilePhotoUrls: profile.profilePhotoUrls || []
+        profilePhotoUrls: profile.profilePhotoUrls || [],
+        interests: profile.interests || []
       })
       setHasInitialized(true)
     }
@@ -110,6 +117,21 @@ export default function EditProfilePage() {
       const newUrls = [...prev.profilePhotoUrls]
       newUrls.splice(index, 1)
       return { ...prev, profilePhotoUrls: newUrls }
+    })
+  }
+
+  const toggleInterest = (interest: string) => {
+    setFormData(prev => {
+      const isSelected = prev.interests.includes(interest)
+      if (isSelected) {
+        return { ...prev, interests: prev.interests.filter(i => i !== interest) }
+      } else {
+        if (prev.interests.length >= 3) {
+          toast({ title: "Limit Reached", description: "Please select up to 3 interests only." })
+          return prev
+        }
+        return { ...prev, interests: [...prev.interests, interest] }
+      }
     })
   }
 
@@ -267,6 +289,30 @@ export default function EditProfilePage() {
               onChange={(e) => setFormData(prev => ({ ...prev, dateOfBirth: e.target.value }))}
               className="h-14 rounded-2xl bg-white/80 border-none text-sm font-bold shadow-inner focus-visible:ring-primary/30"
             />
+          </div>
+
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">My Interests (Pick 3)</Label>
+            <div className="grid grid-cols-2 gap-2">
+              {INTEREST_OPTIONS.map((interest) => {
+                const isSelected = formData.interests.includes(interest)
+                return (
+                  <button
+                    key={interest}
+                    onClick={() => toggleInterest(interest)}
+                    className={cn(
+                      "flex items-center justify-between px-4 py-3 rounded-xl border text-[10px] font-black uppercase tracking-widest transition-all",
+                      isSelected 
+                        ? "bg-primary text-white border-primary shadow-lg" 
+                        : "bg-white/50 text-gray-500 border-gray-100"
+                    )}
+                  >
+                    {interest}
+                    {isSelected && <Check className="w-3 h-3" />}
+                  </button>
+                )
+              })}
+            </div>
           </div>
 
           <div className="space-y-3">
