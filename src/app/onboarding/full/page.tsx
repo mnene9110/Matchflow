@@ -27,14 +27,14 @@ export default function FullOnboardingPage() {
   const [lookingFor, setLookingFor] = useState("")
   
   const router = useRouter()
-  const { user } = useUser()
+  const { user } = userUser()
   const firestore = useFirestore()
   const { toast } = useToast()
 
   const handleSave = () => {
     if (!user || !name || !dob || !gender || !country || !lookingFor) return
 
-    // 18+ Validation
+    // CRITICAL: 18+ Age Verification
     const birthDate = new Date(dob)
     const today = new Date()
     let age = today.getFullYear() - birthDate.getFullYear()
@@ -46,8 +46,8 @@ export default function FullOnboardingPage() {
     if (age < 18) {
       toast({
         variant: "destructive",
-        title: "Age Restricted",
-        description: "You must be at least 18 years old to join MatchFlow.",
+        title: "Access Denied",
+        description: "You must be 18 or older to use MatchFlow.",
       })
       return
     }

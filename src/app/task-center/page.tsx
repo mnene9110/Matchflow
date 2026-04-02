@@ -22,11 +22,7 @@ export default function TaskCenterPage() {
   const [mounted, setMounted] = useState(false)
 
   useEffect(() => {
-    /**
-     * CRITICAL: Use useEffect to set client-side values.
-     * This prevents a Hydration Mismatch error where the server and client
-     * produce different initial HTML.
-     */
+    // CRITICAL: Prevent Hydration Mismatch by moving date calculation to Client-side
     setTodayStr(new Date().toISOString().split('T')[0]);
     setMounted(true);
   }, []);
@@ -59,7 +55,7 @@ export default function TaskCenterPage() {
         yesterday.setDate(yesterday.getDate() - 1)
         const yesterdayStr = yesterday.toISOString().split('T')[0]
 
-        // If claimed yesterday, increment streak, else reset to 1
+        // Persistence: Check if streak is continued or reset
         if (lastDate === yesterdayStr) {
           newStreak = (currentStreak % 7) + 1
         }
@@ -67,6 +63,7 @@ export default function TaskCenterPage() {
         const rewardAmount = REWARDS[newStreak - 1]
         const currentBalance = userDoc.data()?.coinBalance || 0
 
+        // Security: Prevent double claim and update balance
         transaction.update(userRef, {
           coinBalance: currentBalance + rewardAmount,
           lastCheckInDate: todayStr,
@@ -102,12 +99,13 @@ export default function TaskCenterPage() {
   const darkMaroon = "text-[#5A1010]";
   const darkMaroonBg = "bg-[#5A1010]";
 
+  // Match the app's background to stop the "blinking"
   if (!mounted || isLoading) {
     return (
       <div className="flex h-svh items-center justify-center bg-[#B36666]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-white" />
-          <span className="text-[10px] font-black uppercase text-white/60 tracking-[0.2em]">Preparing rewards...</span>
+          <span className="text-[10px] font-black uppercase text-white/60 tracking-[0.2em]">Checking rewards...</span>
         </div>
       </div>
     )

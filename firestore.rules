@@ -37,7 +37,7 @@ service cloud.firestore {
 
       allow update: if (
         isOwner(userId) && (
-          // Allow updates to profile fields including balance, but block role changes
+          // Allow updates to profile fields including balance and check-in info, but block role changes
           !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'isCoinseller', 'isSupport'])
         )
       ) || (
