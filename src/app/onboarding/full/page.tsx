@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -115,18 +114,24 @@ export default function FullOnboardingPage() {
 
           <div className="space-y-4">
             <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>I am a</Label>
-            <RadioGroup onValueChange={setGender} className="flex gap-4">
-              <div className={cn(
-                "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "male" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
-              )}>
+            <RadioGroup value={gender} onValueChange={setGender} className="flex gap-4">
+              <div 
+                onClick={() => setGender("male")}
+                className={cn(
+                  "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
+                  gender === "male" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
+                )}
+              >
                 <RadioGroupItem value="male" id="male" className="border-primary" />
                 <Label htmlFor="male" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "male" ? darkMaroonText : "text-gray-400")}>Man</Label>
               </div>
-              <div className={cn(
-                "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "female" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
-              )}>
+              <div 
+                onClick={() => setGender("female")}
+                className={cn(
+                  "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
+                  gender === "female" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
+                )}
+              >
                 <RadioGroupItem value="female" id="female" className="border-primary" />
                 <Label htmlFor="female" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "female" ? darkMaroonText : "text-gray-400")}>Woman</Label>
               </div>
@@ -135,7 +140,7 @@ export default function FullOnboardingPage() {
 
           <div className="space-y-3">
             <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Looking for</Label>
-            <div className="grid grid-cols-1 gap-2">
+            <RadioGroup value={lookingFor} onValueChange={setLookingFor} className="grid grid-cols-1 gap-2">
               {['long-term', 'casual', 'friendship'].map((goal) => (
                 <div 
                   key={goal} 
@@ -145,13 +150,13 @@ export default function FullOnboardingPage() {
                     lookingFor === goal ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
                   )}
                 >
-                  <RadioGroupItem value={goal} id={`goal_${goal}`} checked={lookingFor === goal} className="border-primary" />
+                  <RadioGroupItem value={goal} id={`goal_${goal}`} className="border-primary" />
                   <Label htmlFor={`goal_${goal}`} className={cn("font-black cursor-pointer uppercase text-[10px] tracking-widest", lookingFor === goal ? darkMaroonText : "text-gray-400")}>
                     {goal.replace('-', ' ')}
                   </Label>
                 </div>
               ))}
-            </div>
+            </RadioGroup>
           </div>
 
           <div className="space-y-3">

@@ -90,19 +90,19 @@
   },
   "firestore": {
     "/userProfiles/{userId}": {
-      "schema": { "$ref": "#/entities/UserProfile" },
+      "schema": { "$ref": "#/backend/entities/UserProfile" },
       "description": "User profile document."
     },
     "/userProfiles/{userId}/transactions/{transactionId}": {
-      "schema": { "$ref": "#/entities/CoinTransaction" },
+      "schema": { "$ref": "#/backend/entities/CoinTransaction" },
       "description": "User transaction history."
     },
     "/calls/{chatId}": {
-      "schema": { "$ref": "#/entities/CallSession" },
+      "schema": { "$ref": "#/backend/entities/CallSession" },
       "description": "Active call sessions."
     },
     "/reports/{reportId}": {
-      "schema": { "$ref": "#/entities/Report" },
+      "schema": { "$ref": "#/backend/entities/Report" },
       "description": "User violation reports."
     }
   }

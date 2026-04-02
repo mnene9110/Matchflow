@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -69,18 +68,24 @@ export default function FastOnboardingPage() {
         <div className="space-y-8 flex-1">
           <div className="space-y-4">
             <Label className={cn("text-[10px] font-black uppercase tracking-[0.2em] ml-1", darkMaroonText)}>I am a</Label>
-            <RadioGroup onValueChange={setGender} className="flex gap-4">
-              <div className={cn(
-                "flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "male" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
-              )}>
+            <RadioGroup value={gender} onValueChange={setGender} className="flex gap-4">
+              <div 
+                onClick={() => setGender("male")}
+                className={cn(
+                  "flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
+                  gender === "male" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
+                )}
+              >
                 <RadioGroupItem value="male" id="male" className="border-primary" />
                 <Label htmlFor="male" className={cn("cursor-pointer font-black text-xs tracking-widest uppercase", gender === "male" ? darkMaroonText : "text-gray-400")}>Man</Label>
               </div>
-              <div className={cn(
-                "flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "female" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
-              )}>
+              <div 
+                onClick={() => setGender("female")}
+                className={cn(
+                  "flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
+                  gender === "female" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
+                )}
+              >
                 <RadioGroupItem value="female" id="female" className="border-primary" />
                 <Label htmlFor="female" className={cn("cursor-pointer font-black text-xs tracking-widest uppercase", gender === "female" ? darkMaroonText : "text-gray-400")}>Woman</Label>
               </div>
