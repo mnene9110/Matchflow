@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -10,18 +11,24 @@ import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 
+// Global session cache to avoid re-fetching until app is fully closed
+let cachedUsers: any[] = []
+let cachedLastVisible: QueryDocumentSnapshot<DocumentData> | null = null
+let cachedHasMore: boolean = true
+let cachedInitialLoaded: boolean = false
+
 export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
   const { firestore, database } = useFirebase()
   const { user: currentUser } = useUser()
   const router = useRouter()
 
-  const [users, setUsers] = useState<any[]>([])
+  const [users, setUsers] = useState<any[]>(cachedUsers)
   const [presenceData, setPresenceData] = useState<Record<string, boolean>>({})
-  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(null)
+  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(cachedLastVisible)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
-  const [isInitialLoading, setIsInitialLoading] = useState(true)
+  const [hasMore, setHasMore] = useState(cachedHasMore)
+  const [isInitialLoading, setIsInitialLoading] = useState(!cachedInitialLoaded)
 
   const currentUserRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc(currentUserRef)
@@ -35,7 +42,6 @@ export default function DiscoverPage() {
       const snap = await get(rtdbRef);
       const data = snap.val();
 
-      // If coinBalance doesn't exist in RTDB but profile has it in Firestore, bridge it.
       if (!data || data.coinBalance === undefined) {
         set(rtdbRef, {
           ...data,
@@ -65,7 +71,10 @@ export default function DiscoverPage() {
   }, [database])
 
   useEffect(() => {
-    if (!firestore || !currentUser || isProfileLoading || !currentUserProfile) return
+    if (!firestore || !currentUser || isProfileLoading || !currentUserProfile || cachedInitialLoaded) {
+      if (cachedInitialLoaded) setIsInitialLoading(false)
+      return
+    }
     
     async function fetchInitialUsers() {
       setIsInitialLoading(true)
@@ -83,7 +92,9 @@ export default function DiscoverPage() {
         const snap = await getDocs(q)
         if (snap.empty) {
           setHasMore(false)
+          cachedHasMore = false
           setUsers([])
+          cachedUsers = []
           return
         }
 
@@ -93,8 +104,17 @@ export default function DiscoverPage() {
           .slice(0, 10)
         
         setUsers(fetchedUsers)
-        setLastVisible(snap.docs[snap.docs.length - 1])
-        if (snap.docs.length < 10) setHasMore(false)
+        cachedUsers = fetchedUsers
+        
+        const last = snap.docs[snap.docs.length - 1]
+        setLastVisible(last)
+        cachedLastVisible = last
+        
+        const more = snap.docs.length >= 10
+        setHasMore(more)
+        cachedHasMore = more
+        
+        cachedInitialLoaded = true
       } catch (error) {
         console.error("Error fetching initial users:", error)
       } finally {
@@ -124,6 +144,7 @@ export default function DiscoverPage() {
       const snap = await getDocs(q)
       if (snap.empty) {
         setHasMore(false)
+        cachedHasMore = false
         setIsLoadingMore(false)
         return
       }
@@ -133,11 +154,18 @@ export default function DiscoverPage() {
         .filter(u => u.id !== currentUser?.uid && !u.isSupport)
 
       if (nextUsers.length > 0) {
-        setUsers(prev => [...prev, ...nextUsers])
-        setLastVisible(snap.docs[snap.docs.length - 1])
+        const updatedUsers = [...users, ...nextUsers]
+        setUsers(updatedUsers)
+        cachedUsers = updatedUsers
+        
+        const last = snap.docs[snap.docs.length - 1]
+        setLastVisible(last)
+        cachedLastVisible = last
       }
       
-      if (snap.docs.length < 15) setHasMore(false)
+      const more = snap.docs.length >= 15
+      setHasMore(more)
+      cachedHasMore = more
     } catch (error) {
       console.error("Error loading more users:", error)
     } finally {
@@ -165,6 +193,7 @@ export default function DiscoverPage() {
       <div className="pt-4 px-4 grid grid-cols-2 gap-3 shrink-0">
         <button className={cn("flex flex-col items-center justify-center gap-2 rounded-[2rem] py-6 shadow-xl group active:scale-95 transition-all", darkMaroon)}>
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z" fill="white" />
             <Sparkles className="w-5 h-5 text-white" />
           </div>
           <span className="text-white font-black text-[9px] tracking-[0.1em] uppercase">Mystery Note</span>
@@ -203,7 +232,13 @@ export default function DiscoverPage() {
               Nearby
             </button>
           </div>
-          <button onClick={() => window.location.reload()} className="w-14 h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center active:rotate-180 transition-all duration-500 shadow-lg shadow-black/5">
+          <button 
+            onClick={() => {
+              cachedInitialLoaded = false;
+              window.location.reload();
+            }} 
+            className="w-14 h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center active:rotate-180 transition-all duration-500 shadow-lg shadow-black/5"
+          >
             <RotateCcw className="w-4 h-4 text-gray-400" />
           </button>
         </div>

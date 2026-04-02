@@ -2,7 +2,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
-import { MessageSquare, ChevronRight, CheckCircle, Ban, EyeOff, Loader2 } from "lucide-react"
+import { MessageSquare, ChevronRight, CheckCircle, Ban, EyeOff, Loader2, Trash2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import Link from "next/link"
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
@@ -16,6 +16,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+
+// Session cache for chat sessions
+let cachedSessions: any[] = []
+let cachedLoaded: boolean = false
 
 function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: (id: string) => void }) {
   const { firestore, database } = useFirebase()
@@ -138,8 +142,8 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
 export default function ChatListPage() {
   const { database, firestore } = useFirebase()
   const { user: currentUser } = useUser()
-  const [sessions, setSessions] = useState<any[]>([])
-  const [hasFetched, setHasFetched] = useState(false)
+  const [sessions, setSessions] = useState<any[]>(cachedSessions)
+  const [hasFetched, setHasFetched] = useState(cachedLoaded)
   const [hidingTarget, setHidingTarget] = useState<string | null>(null)
   const [isHiding, setIsHiding] = useState(false)
 
@@ -158,10 +162,13 @@ export default function ChatListPage() {
         }))
         sessionList.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))
         setSessions(sessionList)
+        cachedSessions = sessionList
       } else {
         setSessions([])
+        cachedSessions = []
       }
       setHasFetched(true)
+      cachedLoaded = true
     })
   }, [database, currentUser])
 
@@ -170,12 +177,13 @@ export default function ChatListPage() {
     setIsHiding(true)
     try {
       const updates: any = {}
+      // phrased as 'Delete' in UI, but technically 'hidden' in DB
       updates[`/users/${currentUser.uid}/chats/${hidingTarget}/hidden`] = true
       updates[`/users/${currentUser.uid}/chats/${hidingTarget}/unreadCount`] = 0
       await update(ref(database), updates)
       setHidingTarget(null)
     } catch (e) {
-      console.error("Failed to hide chat", e)
+      console.error("Failed to delete chat", e)
     } finally {
       setIsHiding(false)
     }
@@ -216,26 +224,33 @@ export default function ChatListPage() {
                 <MessageSquare className="w-8 h-8 text-gray-200" />
               </div>
               <div className="text-center space-y-1">
-                <p className="text-xs font-bold text-gray-900">No more chats</p>
+                <p className="text-xs font-bold text-gray-900">No conversations</p>
               </div>
             </div>
-          ) : null}
+          ) : (
+            <div className="flex justify-center py-20">
+              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            </div>
+          )}
         </section>
       </main>
 
       <Dialog open={!!hidingTarget} onOpenChange={(open) => !open && setHidingTarget(null)}>
         <DialogContent className="rounded-[2.5rem] bg-white border-none p-8 max-w-[85%] mx-auto shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black font-headline text-gray-900 text-center">Manage Chat</DialogTitle>
+            <DialogTitle className="text-2xl font-black font-headline text-gray-900 text-center">Delete Conversation</DialogTitle>
           </DialogHeader>
           <div className="flex flex-col gap-3 pt-4">
+            <p className="text-sm text-gray-500 font-medium text-center mb-2 leading-relaxed">
+              Are you sure you want to remove this conversation from your list?
+            </p>
             <Button 
               onClick={handleHideChat}
               disabled={isHiding}
-              className="h-14 rounded-full bg-zinc-900 text-white font-black uppercase text-xs tracking-widest gap-3 shadow-xl active:scale-95 transition-all"
+              className="h-14 rounded-full bg-red-500 text-white font-black uppercase text-xs tracking-widest gap-3 shadow-xl active:scale-95 transition-all hover:bg-red-600"
             >
-              {isHiding ? <Loader2 className="w-4 h-4 animate-spin" /> : <EyeOff className="w-4 h-4" />}
-              Hide Conversation
+              {isHiding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+              Delete
             </Button>
             <Button 
               variant="ghost" 
