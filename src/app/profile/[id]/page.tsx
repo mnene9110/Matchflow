@@ -197,10 +197,10 @@ export default function ProfileDetailPage() {
   const isProtected = userProfile?.isAdmin === true || userProfile?.isSupport === true;
 
   return (
-    <div className="flex flex-col min-h-svh bg-white relative overflow-y-auto">
+    <div className="flex flex-col h-svh bg-white relative overflow-y-auto scroll-smooth">
       {/* Hero Section */}
       <div className="relative aspect-[3/4] w-full shrink-0">
-        <Image src={mainPhoto} alt={userProfile?.username || "User"} fill className="object-cover" />
+        <Image src={mainPhoto} alt={userProfile?.username || "User"} fill className="object-cover" priority />
         <div className="absolute top-12 left-4 right-4 flex justify-between items-center z-30">
           <Button 
             variant="ghost" 
@@ -248,15 +248,15 @@ export default function ProfileDetailPage() {
           <span className={cn("text-[10px] font-black uppercase tracking-tight", presence.online ? "text-white" : "text-white/60")}>{presenceText}</span>
         </div>
 
-        {/* Name & Basic Info Overlay */}
+        {/* Gradient Overlay for name transition */}
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
       </div>
 
       {/* Profile Details Container */}
-      <div className="flex-1 bg-white relative z-20 px-6 pb-32 -mt-10">
+      <div className="flex-1 bg-white relative z-20 px-6 pb-40 -mt-10">
         <div className="space-y-8">
           {/* Header Section */}
-          <div className="space-y-3">
+          <div className="space-y-2">
             <div className="flex items-center gap-2">
               <h1 className="text-3xl font-black font-headline text-gray-900 leading-none">
                 {userProfile?.username}
@@ -264,12 +264,12 @@ export default function ProfileDetailPage() {
               {isVerified && <CheckCircle className="w-6 h-6 text-blue-500 fill-blue-500/10" />}
             </div>
             
-            <div className="flex flex-col gap-2">
-              <p className="text-sm font-medium text-gray-500 capitalize leading-none">
+            <div className="flex flex-col gap-1.5">
+              <p className="text-[13px] font-medium text-gray-500 capitalize leading-none">
                 {userProfile?.gender || "Not specified"} • {age ? `${age} years old` : 'Age hidden'}
               </p>
               
-              <div className="flex items-center gap-4 mt-1">
+              <div className="flex items-center gap-4 mt-2">
                 <button 
                   onClick={copyId}
                   className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full text-[9px] font-black text-green-600 uppercase tracking-widest active:scale-95 transition-all"
@@ -365,7 +365,7 @@ export default function ProfileDetailPage() {
             </div>
           </div>
 
-          {/* Gallery Section - Only if extra photos exist */}
+          {/* Gallery Section */}
           {extraPhotos.length > 0 && (
             <div className="space-y-4 pt-4">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Gallery</h3>
@@ -393,18 +393,20 @@ export default function ProfileDetailPage() {
             </div>
           )}
 
-          <div className="h-20" /> {/* Spacer */}
+          <div className="h-40" /> {/* Large spacer to ensure content clears action bar */}
         </div>
       </div>
 
-      {/* Action Footer */}
-      <div className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-xl border-t border-gray-50 z-50 flex items-center gap-4">
-        <Button 
-          className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-3"
-          onClick={() => router.push(`/chat/${id}`)}
-        >
-          Send Message
-        </Button>
+      {/* Action Footer - Fixed at bottom */}
+      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-[60] flex flex-col items-center">
+        <div className="w-full max-w-md">
+          <Button 
+            className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-3"
+            onClick={() => router.push(`/chat/${id}`)}
+          >
+            Send Message
+          </Button>
+        </div>
       </div>
 
       {/* Report Dialog */}
