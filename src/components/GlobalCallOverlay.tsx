@@ -62,9 +62,6 @@ export function GlobalCallOverlay() {
           setCallData(data);
           updateCallState(data);
         });
-      } else {
-        // If the ID is removed from our user node, but call might still be active?
-        // We only cleanup if the data is gone or we manually end it.
       }
     });
 
@@ -118,7 +115,6 @@ export function GlobalCallOverlay() {
       if (type === 'video' && !localTracksRef.current.videoTrack) {
         const videoTrack = await AgoraRTC.createCameraVideoTrack();
         localTracksRef.current.videoTrack = videoTrack;
-        // Play in preview if we are still ringing or just accepted
         if (previewVideoRef.current) {
           videoTrack.play(previewVideoRef.current);
         }
@@ -137,15 +133,26 @@ export function GlobalCallOverlay() {
       const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
       agoraClientRef.current = client;
 
+      // Handle client events as requested
       client.on("user-published", async (user: any, mediaType: string) => {
+        // Subscribe to the remote user
         await client.subscribe(user, mediaType);
+
+        // If video track is published
         if (mediaType === "video" && remoteContainerRef.current) {
           user.videoTrack.play(remoteContainerRef.current);
         }
+
+        // If audio track is published
         if (mediaType === "audio") {
-          user.audioTrack.play();
+          const remoteAudioTrack = user.audioTrack;
+          remoteAudioTrack.play();
         }
         setIsConnecting(false);
+      });
+
+      client.on("user-unpublished", async (user: any) => {
+        // Remote user unpublished tracks
       });
 
       client.on("user-left", () => handleEndCall());
@@ -159,7 +166,6 @@ export function GlobalCallOverlay() {
       const tracksToPublish = [localTracksRef.current.audioTrack];
       if (type === 'video' && localTracksRef.current.videoTrack) {
         tracksToPublish.push(localTracksRef.current.videoTrack);
-        // Ensure local preview is playing in the PiP box
         if (previewVideoRef.current) {
           localTracksRef.current.videoTrack.play(previewVideoRef.current);
         }
@@ -296,17 +302,15 @@ export function GlobalCallOverlay() {
         <div ref={previewVideoRef as any} className="w-full h-full object-cover scale-x-[-1]" />
       </div>
 
-      {/* Ringing/Connecting/Audio-only UI Layer */}
-      <div className="absolute inset-0 z-10 flex flex-col items-center justify-between py-24 px-8 pointer-events-none">
-        {(callStatus !== 'ongoing' || isConnecting || callData?.callType === 'audio') && (
+      {/* Ringing/Connecting UI Layer */}
+      {(callStatus !== 'ongoing' || isConnecting) && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-between py-24 px-8 pointer-events-none">
           <div className="absolute inset-0 z-[-1]">
              <img src={otherUserImage} className="w-full h-full object-cover opacity-20 blur-2xl scale-110" alt="" />
              <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-950/40 to-zinc-950/80" />
           </div>
-        )}
-        
-        <div className="flex flex-col items-center gap-8 mt-12 w-full">
-          {(callStatus !== 'ongoing' || isConnecting) && (
+          
+          <div className="flex flex-col items-center gap-8 mt-12 w-full">
             <div className="relative">
               <div className="absolute -inset-8 bg-white/5 rounded-full animate-pulse" />
               <Avatar className="w-44 h-44 border-[10px] border-white/5 shadow-2xl">
@@ -314,56 +318,57 @@ export function GlobalCallOverlay() {
                 <AvatarFallback className="text-5xl bg-zinc-800">?</AvatarFallback>
               </Avatar>
             </div>
-          )}
-          
-          <div className="text-center space-y-4">
-            <h2 className="text-4xl font-black font-headline tracking-tight text-white drop-shadow-md">
-              {callStatus === 'ongoing' && !isConnecting ? (callData?.callerName || 'Connected') : isCaller ? 'Ringing...' : (callData?.callerName || 'Incoming...')}
-            </h2>
             
-            <div className="px-5 py-2 bg-black/40 backdrop-blur-xl rounded-full border border-white/10 flex items-center gap-3 mx-auto w-fit">
-              {isConnecting ? (
+            <div className="text-center space-y-4">
+              <h2 className="text-4xl font-black font-headline tracking-tight text-white drop-shadow-md">
+                {isCaller ? 'Ringing...' : (callData?.callerName || 'Incoming...')}
+              </h2>
+              <div className="px-5 py-2 bg-black/40 backdrop-blur-xl rounded-full border border-white/10 flex items-center gap-3 mx-auto w-fit">
                 <Loader2 className="w-4 h-4 text-primary animate-spin" />
-              ) : callData?.callType === 'video' ? (
-                <Video className="w-4 h-4 text-white/60" />
-              ) : (
-                <Mic className="w-4 h-4 text-white/60" />
-              )}
-              <p className="text-[11px] font-black text-white/80 uppercase tracking-[0.2em]">
-                {callStatus === 'ongoing' && !isConnecting 
-                  ? `${Math.floor(callDuration / 60)}:${(callDuration % 60).toString().padStart(2, '0')}`
-                  : isConnecting ? 'Connecting...' : `Standard Agora ${callData?.callType}`}
-              </p>
+                <p className="text-[11px] font-black text-white/80 uppercase tracking-[0.2em]">Connecting</p>
+              </div>
             </div>
           </div>
         </div>
+      )}
 
-        {/* Standard Controls (Circles only) */}
-        <div className="flex items-center gap-16 mb-12 pointer-events-auto">
-          {callStatus === 'incoming' ? (
-            <>
-              <button 
-                onClick={handleEndCall} 
-                className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all"
-              >
-                <PhoneOff className="w-8 h-8 text-white" />
-              </button>
-              <button 
-                onClick={handleAcceptCall} 
-                className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all animate-bounce"
-              >
-                <Phone className="w-8 h-8 text-white" />
-              </button>
-            </>
-          ) : (
+      {/* Persistent Status Indicator (Minimal) */}
+      {callStatus === 'ongoing' && !isConnecting && (
+        <div className="absolute top-12 left-6 z-50 pointer-events-none">
+          <div className="px-4 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
+            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <span className="text-[10px] font-black tracking-widest uppercase">
+              {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Control Buttons */}
+      <div className="absolute bottom-16 left-0 right-0 z-[60] flex items-center justify-center gap-12 px-8">
+        {callStatus === 'incoming' ? (
+          <>
             <button 
               onClick={handleEndCall} 
-              className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all"
+              className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all pointer-events-auto"
             >
               <PhoneOff className="w-8 h-8 text-white" />
             </button>
-          )}
-        </div>
+            <button 
+              onClick={handleAcceptCall} 
+              className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all animate-bounce pointer-events-auto"
+            >
+              <Phone className="w-8 h-8 text-white" />
+            </button>
+          </>
+        ) : (
+          <button 
+            onClick={handleEndCall} 
+            className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all pointer-events-auto"
+          >
+            <PhoneOff className="w-8 h-8 text-white" />
+          </button>
+        )}
       </div>
     </div>
   )

@@ -16,18 +16,18 @@ import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 export const GIFTS = [
-  { id: 'mask', name: 'Party mask', emoji: '🎭', price: 20 },
-  { id: 'handbag', name: 'Luxury Bag', emoji: '👜', price: 800 },
-  { id: 'tea', name: 'Strong Tea', emoji: '🍵', price: 100 },
-  { id: 'duck', name: 'Cute duck', emoji: '🦆', price: 20 },
-  { id: 'treasure', name: 'Treasure', emoji: '💎', price: 500 },
-  { id: 'puppy', name: 'Puppy', emoji: '🐶', price: 150 },
-  { id: 'castle', name: 'Moon castle', emoji: '🏰', price: 800 },
-  { id: 'rabbit', name: 'Rabbit', emoji: '🐰', price: 150 },
-  { id: 'cat', name: 'Cat', emoji: '🐱', price: 150 },
-  { id: 'balloon', name: 'Balloon', emoji: '🎈', price: 20 },
-  { id: 'soulmate', name: 'Soul mate', emoji: '💖', price: 30 },
-  { id: 'ufo', name: 'UFO', emoji: '🛸', price: 1990 },
+  { id: 'mask', name: 'Party mask 🎭', emoji: '🎭', price: 20 },
+  { id: 'handbag', name: 'Luxury Bag 👜', emoji: '👜', price: 800 },
+  { id: 'tea', name: 'Strong Tea 🍵', emoji: '🍵', price: 100 },
+  { id: 'duck', name: 'Cute duck 🦆', emoji: '🦆', price: 20 },
+  { id: 'treasure', name: 'Treasure 💎', emoji: '💎', price: 500 },
+  { id: 'puppy', name: 'Puppy 🐶', emoji: '🐶', price: 150 },
+  { id: 'castle', name: 'Moon castle 🏰', emoji: '🏰', price: 800 },
+  { id: 'rabbit', name: 'Rabbit 🐰', emoji: '🐰', price: 150 },
+  { id: 'cat', name: 'Cat 🐱', emoji: '🐱', price: 150 },
+  { id: 'balloon', name: 'Balloon 🎈', emoji: '🎈', price: 20 },
+  { id: 'soulmate', name: 'Soul mate 💖', emoji: '💖', price: 30 },
+  { id: 'ufo', name: 'UFO 🛸', emoji: '🛸', price: 1990 },
 ]
 
 function ChatDetailContent() {
