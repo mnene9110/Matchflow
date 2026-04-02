@@ -6,7 +6,7 @@ import Image from "next/image"
 import { Sparkles, ClipboardList, RotateCcw, Globe, Loader2, CheckCircle } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot, where, doc } from "firebase/firestore"
-import { ref, set, get } from "firebase/database"
+import { ref, update, get } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -49,11 +49,9 @@ export default function DiscoverPage() {
       const data = snap.val();
 
       if (!data || data.coinBalance === undefined) {
-        set(rtdbRef, {
-          ...data,
+        update(rtdbRef, {
           coinBalance: currentUserProfile.coinBalance || 0,
           diamondBalance: currentUserProfile.diamondBalance || 0,
-          presence: { online: true, lastSeen: Date.now() },
           inCall: false
         });
       }
@@ -70,7 +68,7 @@ export default function DiscoverPage() {
     async function fetchInitialUsers() {
       setIsInitialLoading(true)
       try {
-        const currentGender = currentUserProfile?.gender?.toLowerCase() || 'male'
+        const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
         const targetGender = currentGender === 'male' ? 'female' : 'male'
 
         const q = query(
@@ -121,7 +119,7 @@ export default function DiscoverPage() {
     setIsLoadingMore(true)
 
     try {
-      const currentGender = currentUserProfile?.gender?.toLowerCase() || 'male'
+      const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
       const targetGender = currentGender === 'male' ? 'female' : 'male'
 
       const q = query(
