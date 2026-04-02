@@ -20,7 +20,8 @@ import {
   Star,
   Calendar,
   Zap,
-  Tag
+  Tag,
+  X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
@@ -60,6 +61,9 @@ export default function ProfileDetailPage() {
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportDetails, setReportDetails] = useState("")
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
+  
+  // Fullscreen Image state
+  const [fullscreenImage, setFullscreenImage] = useState<string | null>(null)
 
   useEffect(() => {
     if (!database || !id) return
@@ -69,6 +73,35 @@ export default function ProfileDetailPage() {
       setPresence(val || { online: false })
     })
   }, [database, id])
+
+  // Handle back button to close fullscreen image
+  useEffect(() => {
+    const handlePopState = () => {
+      if (fullscreenImage) {
+        setFullscreenImage(null);
+      }
+    };
+
+    if (fullscreenImage) {
+      // Push a dummy state so back button works to close overlay
+      window.history.pushState({ gallery: true }, "");
+      window.addEventListener("popstate", handlePopState);
+    }
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
+  }, [fullscreenImage]);
+
+  const openFullscreen = (url: string) => {
+    setFullscreenImage(url);
+  }
+
+  const closeFullscreen = () => {
+    if (fullscreenImage) {
+      window.history.back(); // This triggers the popstate listener which sets state to null
+    }
+  }
 
   const age = useMemo(() => {
     if (!userProfile?.dateOfBirth) return null;
@@ -201,7 +234,14 @@ export default function ProfileDetailPage() {
     <div className="flex flex-col h-svh bg-white relative overflow-y-auto scroll-smooth">
       {/* Hero Section */}
       <div className="relative aspect-[3/4] w-full shrink-0">
-        <Image src={mainPhoto} alt={userProfile?.username || "User"} fill className="object-cover" priority />
+        <Image 
+          src={mainPhoto} 
+          alt={userProfile?.username || "User"} 
+          fill 
+          className="object-cover cursor-pointer active:opacity-90" 
+          priority 
+          onClick={() => openFullscreen(mainPhoto)}
+        />
         <div className="absolute top-12 left-4 right-4 flex justify-between items-center z-30">
           <Button 
             variant="ghost" 
@@ -389,7 +429,11 @@ export default function ProfileDetailPage() {
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Gallery</h3>
               <div className="grid grid-cols-2 gap-3">
                 {extraPhotos.map((url, index) => (
-                  <div key={index} className="relative aspect-square rounded-[2rem] overflow-hidden border-2 border-white shadow-md">
+                  <div 
+                    key={index} 
+                    className="relative aspect-square rounded-[2rem] overflow-hidden border-2 border-white shadow-md cursor-pointer active:scale-[0.98] transition-transform"
+                    onClick={() => openFullscreen(url)}
+                  >
                     <Image src={url} alt={`Gallery ${index}`} fill className="object-cover" />
                   </div>
                 ))}
@@ -412,6 +456,30 @@ export default function ProfileDetailPage() {
           </Button>
         </div>
       </div>
+
+      {/* Fullscreen Overlay */}
+      {fullscreenImage && (
+        <div className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center animate-in fade-in duration-300">
+          <div className="relative w-full flex-1">
+            <Image 
+              src={fullscreenImage} 
+              alt="Fullscreen" 
+              fill 
+              className="object-contain" 
+              priority
+            />
+          </div>
+          <div className="p-10 shrink-0">
+            <Button 
+              onClick={closeFullscreen}
+              className="h-16 px-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all gap-3"
+            >
+              <X className="w-5 h-5" />
+              Close Viewer
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Report Dialog */}
       <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
