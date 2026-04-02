@@ -85,103 +85,105 @@ export default function FullOnboardingPage() {
   const darkMaroonBg = "bg-[#5A1010]";
 
   return (
-    <div className="flex flex-col min-h-svh bg-transparent p-6 overflow-y-auto">
-      <div className="mt-8 space-y-8 pb-20 max-w-sm mx-auto w-full">
-        <header className="space-y-2">
-          <h1 className={cn("text-4xl font-black font-headline drop-shadow-sm", darkMaroonText)}>Complete Profile</h1>
-          <p className="text-[#5A1010] font-bold uppercase text-[10px] tracking-[0.2em]">Tell us a bit more about yourself</p>
-        </header>
+    <div className="h-svh bg-transparent overflow-y-auto">
+      <div className="flex flex-col p-6 min-h-full">
+        <div className="mt-8 space-y-8 pb-32 max-w-sm mx-auto w-full">
+          <header className="space-y-2">
+            <h1 className={cn("text-4xl font-black font-headline drop-shadow-sm", darkMaroonText)}>Complete Profile</h1>
+            <p className="text-[#5A1010] font-bold uppercase text-[10px] tracking-[0.2em]">Tell us a bit more about yourself</p>
+          </header>
 
-        <div className="space-y-6">
-          <div className="space-y-3">
-            <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Full Name</Label>
-            <Input 
-              placeholder="What should we call you?" 
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm"
-            />
-          </div>
+          <div className="space-y-6">
+            <div className="space-y-3">
+              <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Full Name</Label>
+              <Input 
+                placeholder="What should we call you?" 
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm"
+              />
+            </div>
 
-          <div className="space-y-3">
-            <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Date of Birth</Label>
-            <Input 
-              type="date"
-              value={dob}
-              onChange={(e) => setDob(e.target.value)}
-              className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm"
-            />
-          </div>
+            <div className="space-y-3">
+              <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Date of Birth</Label>
+              <Input 
+                type="date"
+                value={dob}
+                onChange={(e) => setDob(e.target.value)}
+                className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm"
+              />
+            </div>
 
-          <div className="space-y-4">
-            <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>I am a</Label>
-            <RadioGroup value={gender} onValueChange={setGender} className="flex gap-4">
-              <div 
-                onClick={() => setGender("male")}
-                className={cn(
-                  "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
-                  gender === "male" ? "border-[#5A1010] ring-1" : "border-transparent"
-                )}
-              >
-                <RadioGroupItem value="male" id="gender_male" />
-                <Label htmlFor="gender_male" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "male" ? darkMaroonText : "text-gray-400")}>Man</Label>
-              </div>
-              <div 
-                onClick={() => setGender("female")}
-                className={cn(
-                  "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
-                  gender === "female" ? "border-[#5A1010] ring-1" : "border-transparent"
-                )}
-              >
-                <RadioGroupItem value="female" id="gender_female" />
-                <Label htmlFor="gender_female" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "female" ? darkMaroonText : "text-gray-400")}>Woman</Label>
-              </div>
-            </RadioGroup>
-          </div>
-
-          <div className="space-y-3">
-            <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Looking for</Label>
-            <RadioGroup value={lookingFor} onValueChange={setLookingFor} className="grid grid-cols-1 gap-2">
-              {['long-term', 'casual', 'friendship'].map((goal) => (
+            <div className="space-y-4">
+              <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>I am a</Label>
+              <RadioGroup value={gender} onValueChange={setGender} className="flex gap-4">
                 <div 
-                  key={goal} 
-                  onClick={() => setLookingFor(goal)}
+                  onClick={() => setGender("male")}
                   className={cn(
-                    "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[1.75rem] cursor-pointer transition-all shadow-sm",
-                    lookingFor === goal ? "border-[#5A1010] ring-1" : "border-transparent"
+                    "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
+                    gender === "male" ? "border-[#5A1010] ring-1" : "border-transparent"
                   )}
                 >
-                  <RadioGroupItem value={goal} id={`goal_${goal}`} />
-                  <Label htmlFor={`goal_${goal}`} className={cn("font-black cursor-pointer uppercase text-[10px] tracking-widest", lookingFor === goal ? darkMaroonText : "text-gray-400")}>
-                    {goal.replace('-', ' ')}
-                  </Label>
+                  <RadioGroupItem value="male" id="gender_male" />
+                  <Label htmlFor="gender_male" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "male" ? darkMaroonText : "text-gray-400")}>Man</Label>
                 </div>
-              ))}
-            </RadioGroup>
-          </div>
+                <div 
+                  onClick={() => setGender("female")}
+                  className={cn(
+                    "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[2rem] flex-1 cursor-pointer transition-all shadow-sm",
+                    gender === "female" ? "border-[#5A1010] ring-1" : "border-transparent"
+                  )}
+                >
+                  <RadioGroupItem value="female" id="gender_female" />
+                  <Label htmlFor="gender_female" className={cn("font-black cursor-pointer uppercase text-xs tracking-widest", gender === "female" ? darkMaroonText : "text-gray-400")}>Woman</Label>
+                </div>
+              </RadioGroup>
+            </div>
 
-          <div className="space-y-3">
-            <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Country</Label>
-            <Select onValueChange={setCountry}>
-              <SelectTrigger className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm">
-                <SelectValue placeholder="Select country" />
-              </SelectTrigger>
-              <SelectContent className="bg-white border-zinc-100 text-gray-900 rounded-[2rem] p-2">
-                {TARGET_COUNTRIES.map(c => (
-                  <SelectItem key={c} value={c} className="rounded-xl py-3 px-4 font-bold">{c}</SelectItem>
+            <div className="space-y-3">
+              <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Looking for</Label>
+              <RadioGroup value={lookingFor} onValueChange={setLookingFor} className="grid grid-cols-1 gap-2">
+                {['long-term', 'casual', 'friendship'].map((goal) => (
+                  <div 
+                    key={goal} 
+                    onClick={() => setLookingFor(goal)}
+                    className={cn(
+                      "flex items-center space-x-3 bg-white border px-5 py-4 rounded-[1.75rem] cursor-pointer transition-all shadow-sm",
+                      lookingFor === goal ? "border-[#5A1010] ring-1" : "border-transparent"
+                    )}
+                  >
+                    <RadioGroupItem value={goal} id={`goal_${goal}`} />
+                    <Label htmlFor={`goal_${goal}`} className={cn("font-black cursor-pointer uppercase text-[10px] tracking-widest", lookingFor === goal ? darkMaroonText : "text-gray-400")}>
+                      {goal.replace('-', ' ')}
+                    </Label>
+                  </div>
                 ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
+              </RadioGroup>
+            </div>
 
-        <Button 
-          className={cn("w-full h-18 rounded-full text-white text-xl font-black shadow-2xl active:scale-95 transition-all mt-6", darkMaroonBg)}
-          disabled={!name || !dob || !gender || !country || !lookingFor}
-          onClick={handleSave}
-        >
-          Finish Setup
-        </Button>
+            <div className="space-y-3">
+              <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Country</Label>
+              <Select onValueChange={setCountry}>
+                <SelectTrigger className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm">
+                  <SelectValue placeholder="Select country" />
+                </SelectTrigger>
+                <SelectContent className="bg-white border-zinc-100 text-gray-900 rounded-[2rem] p-2">
+                  {TARGET_COUNTRIES.map(c => (
+                    <SelectItem key={c} value={c} className="rounded-xl py-3 px-4 font-bold">{c}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Button 
+            className={cn("w-full h-18 rounded-full text-white text-xl font-black shadow-2xl active:scale-95 transition-all mt-6", darkMaroonBg)}
+            disabled={!name || !dob || !gender || !country || !lookingFor}
+            onClick={handleSave}
+          >
+            Finish Setup
+          </Button>
+        </div>
       </div>
     </div>
   )

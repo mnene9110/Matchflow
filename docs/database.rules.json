@@ -13,6 +13,7 @@
           ".validate": "newData.isNumber()"
         },
         "diamondBalance": {
+          // Allows other users to increase this value when sending a gift via transaction
           ".write": "auth != null",
           ".validate": "newData.isNumber()"
         },
@@ -21,6 +22,7 @@
         },
         "chats": {
           "$otherId": {
+            // Allows the sender (otherId) to update unreadCount on the receiver profile
             ".write": "auth.uid === $uid || auth.uid === $otherId",
             "unreadCount": {
                ".validate": "newData.isNumber() && newData >= 0"
