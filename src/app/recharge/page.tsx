@@ -5,8 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, Check, History, Loader2, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { useDoc, useFirestore, useUser, useMemoFirebase } from "@/firebase"
+import { useDoc, useFirestore, useUser, useMemoFirebase, useFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
+import { ref, onValue } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { initializePesaPalTransaction } from "@/app/actions/pesapal"
@@ -27,18 +28,19 @@ function RechargeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { user } = useUser()
-  const firestore = useFirestore()
+  const { firestore, database } = useFirebase()
   const { toast } = useToast()
   
   const [selectedPackage, setSelectedPackage] = useState<typeof COIN_PACKAGES[0] | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [liveCoinBalance, setLiveCoinBalance] = useState<number | null>(null)
 
-  const userProfileRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, "userProfiles", user.uid);
-  }, [firestore, user])
-  
-  const { data: userProfile, isLoading } = useDoc(userProfileRef)
+  // Realtime Balance Listener
+  useEffect(() => {
+    if (!database || !user) return
+    const coinRef = ref(database, `users/${user.uid}/coinBalance`)
+    return onValue(coinRef, (snap) => setLiveCoinBalance(snap.val() || 0))
+  }, [database, user])
 
   useEffect(() => {
     const status = searchParams?.get('status')
@@ -118,7 +120,7 @@ function RechargeContent() {
             </div>
             <div className="flex flex-col">
               <span className="text-4xl font-black font-headline tracking-tighter text-gray-900">
-                {isLoading ? "..." : (userProfile?.coinBalance || 0).toLocaleString()}
+                {liveCoinBalance === null ? "..." : liveCoinBalance.toLocaleString()}
               </span>
               <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Available Coins</span>
             </div>
@@ -175,7 +177,7 @@ function RechargeContent() {
         <Button 
           className={cn("w-full h-16 rounded-full text-white font-black text-lg shadow-2xl active:scale-95 transition-all", darkMaroon)}
           onClick={handlePayWithPesapal}
-          disabled={isLoading || isProcessing || !selectedPackage}
+          disabled={liveCoinBalance === null || isProcessing || !selectedPackage}
         >
           {isProcessing ? (
             <div className="flex items-center gap-3">

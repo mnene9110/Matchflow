@@ -9,10 +9,10 @@
           "lastSeen": { ".validate": "newData.isNumber()" }
         },
         "coinBalance": {
-          ".validate": "newData.isNumber() && (auth.token.is_admin === true || auth.token.is_coinseller === true || !data.exists() || newData.val() <= data.val())"
+          ".validate": "newData.isNumber()"
         },
         "diamondBalance": {
-          ".validate": "newData.isNumber() && (auth.token.is_admin === true || !data.exists() || newData.val() <= data.val())"
+          ".validate": "newData.isNumber()"
         },
         "inCall": {
           ".validate": "newData.isBoolean()"

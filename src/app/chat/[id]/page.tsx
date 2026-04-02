@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -184,7 +183,7 @@ function ChatDetailContent() {
 
     try {
       const result = await runRtdbTransaction(userCoinRef, (current) => {
-        if (current === null) return 0;
+        if (current === null) return current; // Retry once fetched
         if (current < costPerMin) return undefined;
         return current - costPerMin;
       });
@@ -318,7 +317,7 @@ function ChatDetailContent() {
   };
 
   useEffect(() => {
-    if (!database || !chatId || !currentUser || !otherUser || (otherUser.isSupport && !currentUserProfile?.isAdmin)) return
+    if (!database || !chatId || !currentUser || !otherUser) return
     const callRef = ref(database, `calls/${chatId}`);
     
     const unsubscribe = onValue(callRef, (snap) => {
@@ -416,14 +415,12 @@ function ChatDetailContent() {
     if (!database || !chatId) return
     const callRef = ref(database, `calls/${chatId}`);
     await remove(callRef);
-    // onValue will trigger the log
   }
 
   const handleEndCall = async () => {
     if (!database || !chatId) return
     const callRef = ref(database, `calls/${chatId}`);
     await remove(callRef);
-    // onValue will trigger the log
   }
 
   useEffect(() => {
@@ -447,8 +444,13 @@ function ChatDetailContent() {
 
   const handleSendMessage = async (textOverride?: string) => {
     const textToUse = textOverride || inputText;
-    if (!textToUse.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || !currentUserProfile || isSending) return
+    if (!textToUse.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || isSending) return
     
+    if (!currentUserProfile) {
+      toast({ variant: "destructive", title: "Loading profile", description: "Please wait..." });
+      return;
+    }
+
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
                    currentUserProfile.isCoinseller || 
@@ -463,7 +465,7 @@ function ChatDetailContent() {
       if (messageCost > 0) {
         const userCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
         const result = await runRtdbTransaction(userCoinRef, (current) => {
-          if (current === null) return 0;
+          if (current === null) return current; // Wait for initial fetch
           if (current < messageCost) return undefined;
           return current - messageCost;
         });
@@ -508,6 +510,7 @@ function ChatDetailContent() {
           action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button>
         });
       } else {
+        console.error("Message send error:", error);
         toast({ variant: "destructive", title: "Error", description: "Could not send message." });
       }
     } finally { setIsSending(false) }
@@ -523,7 +526,7 @@ function ChatDetailContent() {
     try {
       const senderCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
       const result = await runRtdbTransaction(senderCoinRef, (current) => {
-        if (current === null) return 0;
+        if (current === null) return current;
         if (current < giftPrice) return undefined;
         return current - giftPrice;
       });
@@ -754,7 +757,7 @@ function ChatDetailContent() {
                   </SheetTrigger>
                   <SheetContent side="bottom" className="rounded-t-[3rem] h-[75svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
                     <SheetHeader className="px-6 pt-8 pb-4 shrink-0">
-                      <SheetTitle className="sr-only">Send a Gift</SheetTitle>
+                      <SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Select a Gift</SheetTitle>
                       <div className="flex items-center justify-between">
                         <div className="flex gap-6">
                           <button className="text-xs font-black uppercase tracking-widest border-b-2 border-primary pb-2">Gift</button>

@@ -5,7 +5,7 @@ import Image from "next/image"
 import { Sparkles, ClipboardList, RotateCcw, Globe, Loader2, CheckCircle } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot, where, doc } from "firebase/firestore"
-import { ref, onValue } from "firebase/database"
+import { ref, onValue, set, get } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -25,6 +25,29 @@ export default function DiscoverPage() {
 
   const currentUserRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc(currentUserRef)
+
+  // One-time Sync Balance if RTDB is empty but Firestore has coins
+  useEffect(() => {
+    if (!database || !currentUser || isProfileLoading || !currentUserProfile) return;
+
+    const syncBalance = async () => {
+      const rtdbRef = ref(database, `users/${currentUser.uid}`);
+      const snap = await get(rtdbRef);
+      const data = snap.val();
+
+      // If coinBalance doesn't exist in RTDB but profile has it in Firestore, bridge it.
+      if (!data || data.coinBalance === undefined) {
+        set(rtdbRef, {
+          ...data,
+          coinBalance: currentUserProfile.coinBalance || 0,
+          diamondBalance: currentUserProfile.diamondBalance || 0,
+          presence: { online: true, lastSeen: Date.now() },
+          inCall: false
+        });
+      }
+    }
+    syncBalance();
+  }, [database, currentUser, isProfileLoading, !!currentUserProfile]);
 
   useEffect(() => {
     if (!database) return
