@@ -10,6 +10,8 @@ import {
   UserCredential,
 } from 'firebase/auth';
 
+const MAX_ACCOUNTS_PER_DEVICE = 2;
+
 /** 
  * Persistent Guest Logic:
  * Instead of standard signInAnonymously (which is lost on sign out),
@@ -18,26 +20,45 @@ import {
 export async function initiateAnonymousSignIn(authInstance: Auth): Promise<UserCredential> {
   if (typeof window === 'undefined') return signInAnonymously(authInstance);
 
+  // 1. Check if we have a saved recovery key for this device
   const saved = localStorage.getItem('mf_guest_recovery');
   if (saved) {
     try {
       const { email, password } = JSON.parse(saved);
       return await signInWithEmailAndPassword(authInstance, email, password);
     } catch (e) {
-      console.warn("Guest recovery failed, creating new account", e);
+      console.warn("Guest recovery failed, account might be deleted. Removing stale recovery key.", e);
       localStorage.removeItem('mf_guest_recovery');
     }
   }
 
-  // Create a new "Persistent Guest"
+  // 2. Check Device Creation Limit
+  // We track how many accounts have been created on this device to prevent spam.
+  const creationCount = parseInt(localStorage.getItem('mf_account_limit_count') || '0', 10);
+  
+  if (creationCount >= MAX_ACCOUNTS_PER_DEVICE) {
+    throw new Error("Device limit reached. You have already created the maximum number of accounts allowed for this device. Please sign in to an existing account.");
+  }
+
+  // 3. Create a new "Persistent Guest"
   const randomId = Math.random().toString(36).substring(2, 10);
   const email = `guest_${randomId}@matchflow.app`;
   const password = `pass_${randomId}_${Date.now()}`;
   
-  const cred = await createUserWithEmailAndPassword(authInstance, email, password);
-  localStorage.setItem('mf_guest_recovery', JSON.stringify({ email, password }));
-  
-  return cred;
+  try {
+    const cred = await createUserWithEmailAndPassword(authInstance, email, password);
+    
+    // Save recovery info
+    localStorage.setItem('mf_guest_recovery', JSON.stringify({ email, password }));
+    
+    // Increment the device counter
+    localStorage.setItem('mf_account_limit_count', (creationCount + 1).toString());
+    
+    return cred;
+  } catch (error: any) {
+    console.error("Account creation failed:", error);
+    throw error;
+  }
 }
 
 /** Initiate email/password sign-up (non-blocking). */
