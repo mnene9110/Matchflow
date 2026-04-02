@@ -82,8 +82,8 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
       <div className="w-24 h-24 bg-primary rounded-[2rem] flex items-center justify-center animate-pulse mb-8">
         <Loader2 className="w-12 h-12 text-white animate-spin" />
       </div>
-      <h2 className="text-2xl font-black font-headline text-gray-900 mb-2">Securing Transaction</h2>
-      <p className="text-sm font-medium text-gray-400 uppercase tracking-widest">Verifying with PesaPal...</p>
+      <h2 className="text-2xl font-black font-headline text-gray-900 mb-2">Verifying Transaction</h2>
+      <p className="text-sm font-medium text-gray-400 uppercase tracking-widest">Returning to wallet soon...</p>
     </div>
   )
 }

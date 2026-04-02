@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useRef, use, Suspense } from "react"
@@ -92,9 +93,9 @@ function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> 
         </div>
         <div className="absolute -inset-4 bg-primary/10 rounded-full blur-3xl -z-10" />
       </div>
-      <h2 className="text-2xl font-black font-headline text-gray-900 mb-2">Verifying Payment</h2>
+      <h2 className="text-2xl font-black font-headline text-gray-900 mb-2">Finalizing Payment</h2>
       <p className="text-sm font-medium text-gray-400 uppercase tracking-widest max-w-[200px]">
-        Please don't close this window...
+        Returning to wallet...
       </p>
     </div>
   )
