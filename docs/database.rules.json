@@ -10,10 +10,10 @@
           "lastSeen": { ".validate": "newData.isNumber()" }
         },
         "coinBalance": {
-          ".validate": "newData.isNumber() && (data.exists() ? (newData <= data.val() || auth.token.is_coinseller === true || auth.token.is_admin === true) : true)"
+          ".validate": "newData.isNumber() && (auth.token.is_admin === true || auth.token.is_coinseller === true || !data.exists() || newData.val() <= data.val())"
         },
         "diamondBalance": {
-          ".validate": "newData.isNumber()"
+          ".validate": "newData.isNumber() && (auth.token.is_admin === true || !data.exists() || newData.val() <= data.val())"
         },
         "inCall": {
           ".validate": "newData.isBoolean()"
