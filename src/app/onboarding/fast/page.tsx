@@ -46,7 +46,9 @@ export default function FastOnboardingPage() {
       coinBalance: 500,
       isAdmin: false,
       isCoinseller: false,
-      isSupport: false
+      isSupport: false,
+      // Default to 18 for fast onboarding, though full profile is recommended for genuine connections
+      dateOfBirth: "2000-01-01" 
     }
 
     setDocumentNonBlocking(userRef, profileData, { merge: true })
@@ -61,7 +63,7 @@ export default function FastOnboardingPage() {
       <div className="mt-12 space-y-10 flex-1 flex flex-col max-w-sm mx-auto w-full pb-20">
         <header className="space-y-3">
           <h1 className={cn("text-4xl font-black font-headline leading-tight drop-shadow-sm", darkMaroonText)}>Fast Setup</h1>
-          <p className="text-[#5A1010]/70 font-bold uppercase text-[10px] tracking-widest">Quickly set your basic info</p>
+          <p className="text-[#5A1010] font-bold uppercase text-[10px] tracking-widest">Quickly set your basic info</p>
         </header>
 
         <div className="space-y-8 flex-1">
@@ -69,18 +71,18 @@ export default function FastOnboardingPage() {
             <Label className={cn("text-[10px] font-black uppercase tracking-[0.2em] ml-1", darkMaroonText)}>I am a</Label>
             <RadioGroup onValueChange={setGender} className="flex gap-4">
               <div className={cn(
-                "flex items-center space-x-3 bg-white/60 backdrop-blur-xl border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "male" ? "bg-white border-[#5A1010]" : "border-primary/10"
+                "flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
+                gender === "male" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
               )}>
                 <RadioGroupItem value="male" id="male" className="border-primary" />
-                <Label htmlFor="male" className={cn("cursor-pointer font-black text-sm tracking-wide", gender === "male" ? darkMaroonText : "text-[#5A1010]/40")}>Man</Label>
+                <Label htmlFor="male" className={cn("cursor-pointer font-black text-xs tracking-widest uppercase", gender === "male" ? darkMaroonText : "text-gray-400")}>Man</Label>
               </div>
               <div className={cn(
-                "flex items-center space-x-3 bg-white/60 backdrop-blur-xl border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
-                gender === "female" ? "bg-white border-[#5A1010]" : "border-primary/10"
+                "flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
+                gender === "female" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
               )}>
                 <RadioGroupItem value="female" id="female" className="border-primary" />
-                <Label htmlFor="female" className={cn("cursor-pointer font-black text-sm tracking-wide", gender === "female" ? darkMaroonText : "text-[#5A1010]/40")}>Woman</Label>
+                <Label htmlFor="female" className={cn("cursor-pointer font-black text-xs tracking-widest uppercase", gender === "female" ? darkMaroonText : "text-gray-400")}>Woman</Label>
               </div>
             </RadioGroup>
           </div>
@@ -88,10 +90,10 @@ export default function FastOnboardingPage() {
           <div className="space-y-4">
             <Label className={cn("text-[10px] font-black uppercase tracking-[0.2em] ml-1", darkMaroonText)}>My Country</Label>
             <Select onValueChange={setCountry}>
-              <SelectTrigger className="h-16 rounded-[2.25rem] bg-white/80 backdrop-blur-xl border-primary/20 text-gray-900 text-lg font-black px-8 shadow-sm">
+              <SelectTrigger className="h-16 rounded-[2.25rem] bg-white border-[#5A1010]/20 text-gray-900 text-lg font-black px-8 shadow-sm">
                 <SelectValue placeholder="Select country" />
               </SelectTrigger>
-              <SelectContent className="bg-white/95 backdrop-blur-2xl border-zinc-100 text-gray-900 rounded-[2rem] p-2">
+              <SelectContent className="bg-white border-zinc-100 text-gray-900 rounded-[2rem] p-2">
                 {TARGET_COUNTRIES.map(c => (
                   <SelectItem key={c} value={c} className="hover:bg-zinc-50 focus:bg-zinc-50 rounded-xl font-bold py-3 px-4">{c}</SelectItem>
                 ))}
