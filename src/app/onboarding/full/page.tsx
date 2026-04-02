@@ -27,7 +27,7 @@ export default function FullOnboardingPage() {
   const [lookingFor, setLookingFor] = useState("")
   
   const router = useRouter()
-  const { user } = userUser()
+  const { user } = useUser()
   const firestore = useFirestore()
   const { toast } = useToast()
 
