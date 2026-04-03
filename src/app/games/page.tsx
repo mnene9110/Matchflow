@@ -1,11 +1,11 @@
 
 "use client"
 
-import { useState, useEffect, useMemo } from "react"
+import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Gamepad2, Coins, Trophy, Loader2, Star, Sparkles, Dice5, ChevronRight } from "lucide-react"
+import { ChevronLeft, Gamepad2, Coins, Trophy, Loader2, Sparkles, Dice5 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
+import { useFirebase, useUser } from "@/firebase"
 import { doc, writeBatch, increment as firestoreIncrement, collection } from "firebase/firestore"
 import { ref, onValue, runTransaction as runRtdbTransaction } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
@@ -13,10 +13,15 @@ import { cn } from "@/lib/utils"
 
 const GAME_BETS = [20, 50, 100, 200, 500]
 
+const SEGMENT_COLORS = [
+  '#eae56f', '#89f26e', '#7de6ef', '#e7706f', 
+  '#f2a65a', '#f2c65a', '#a65af2', '#5af2a6'
+]
+
 const WHEEL_CONFIGS = {
   low: [5, 50, 10, 25, 2, 40, 15, 30],        // For bet < 50
   mid: [20, 300, 50, 150, 10, 250, 100, 200], // For bet 50-100
-  high: [50, 1000, 150, 500, 25, 750, 250, 400] // For bet 200-500
+  high: [25, 1000, 50, 500, 100, 750, 150, 350] // For bet 200-500
 }
 
 export default function GamesCenterPage() {
@@ -25,6 +30,7 @@ export default function GamesCenterPage() {
   const { firestore, database } = useFirebase()
   const { toast } = useToast()
 
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const [userCoins, setUserCoins] = useState(0)
   const [isSpinning, setIsSpinning] = useState(false)
   const [selectedBet, setSelectedBet] = useState<number | null>(null)
@@ -38,6 +44,50 @@ export default function GamesCenterPage() {
     if (selectedBet <= 100) return WHEEL_CONFIGS.mid;
     return WHEEL_CONFIGS.high;
   }, [selectedBet]);
+
+  // Draw the wheel whenever values or colors are ready
+  useEffect(() => {
+    const canvas = canvasRef.current
+    if (!canvas) return
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+
+    const size = canvas.width
+    const center = size / 2
+    const radius = center - 10
+    const segmentAngle = (2 * Math.PI) / 8
+
+    ctx.clearRect(0, 0, size, size)
+
+    currentWheelValues.forEach((val, i) => {
+      // Draw Segment
+      ctx.beginPath()
+      ctx.moveTo(center, center)
+      ctx.arc(center, center, radius, i * segmentAngle, (i + 1) * segmentAngle)
+      ctx.fillStyle = SEGMENT_COLORS[i]
+      ctx.fill()
+      ctx.strokeStyle = '#ffffff'
+      ctx.lineWidth = 2
+      ctx.stroke()
+
+      // Draw Text
+      ctx.save()
+      ctx.translate(center, center)
+      ctx.rotate(i * segmentAngle + segmentAngle / 2)
+      ctx.textAlign = "right"
+      ctx.fillStyle = "#333333"
+      ctx.font = "bold 16px Space Grotesk"
+      ctx.fillText(val.toString(), radius - 20, 5)
+      ctx.restore()
+    })
+
+    // Outer Border
+    ctx.beginPath()
+    ctx.arc(center, center, radius, 0, 2 * Math.PI)
+    ctx.strokeStyle = '#333333'
+    ctx.lineWidth = 8
+    ctx.stroke()
+  }, [currentWheelValues])
 
   useEffect(() => {
     if (!database || !currentUser) return
@@ -67,42 +117,43 @@ export default function GamesCenterPage() {
 
       if (!result.committed) throw new Error("INSUFFICIENT_COINS")
 
-      // ECONOMY: Batch Firestore balance update + transaction log
+      // 2. Determine Winner Index
+      const winnerIndex = Math.floor(Math.random() * 8)
+      const winAmount = currentWheelValues[winnerIndex]
+
+      // 3. Batch Firestore balance update + transaction log (Reduction)
       const batch = writeBatch(firestore);
       const pRef = doc(firestore, "userProfiles", currentUser.uid);
       const txRef = doc(collection(pRef, "transactions"));
-      
       batch.update(pRef, { coinBalance: firestoreIncrement(-selectedBet), updatedAt: new Date().toISOString() });
       batch.set(txRef, {
         id: txRef.id,
         type: "game_bet",
         amount: -selectedBet,
         transactionDate: new Date().toISOString(),
-        description: `Bet ${selectedBet} coins in Solo Spin`
+        description: `Bet ${selectedBet} coins in Lucky Spin`
       });
-      batch.commit();
+      await batch.commit();
 
-      // 2. Determine Winner Index (Visual)
-      const winnerIndex = Math.floor(Math.random() * 8)
-      const winAmount = currentWheelValues[winnerIndex]
-      
-      // 3. Start Animation (10 rotations)
+      // 4. Calculate Rotation (10 spins + offset to pointer)
+      // Canvas draws segment 0 at 0 radians (3 o'clock). 
+      // Pointer is at the top (270 degrees or -90 degrees).
+      // To get segment i to the top, we rotate by (270 - (i * 45 + 22.5))
       const extraSpins = 10
-      const segmentAngle = 45
+      const segmentSize = 45
       const currentRotationBase = Math.floor(rotation / 360) * 360
-      const targetAngle = (360 - (winnerIndex * segmentAngle)) % 360
-      const newRotation = currentRotationBase + (extraSpins * 360) + targetAngle
+      const targetAngle = (270 - (winnerIndex * segmentSize + segmentSize / 2))
+      const newRotation = currentRotationBase + (extraSpins * 360) + (targetAngle % 360)
       
       setRotation(newRotation)
 
       const winData = { winner: winAmount > 0, pot: winAmount }
       setPendingResult(winData)
 
-      // Process win in background so it's ready when wheel stops
+      // 5. Process win in background so it's ready when wheel stops
       if (winAmount > 0) {
         runRtdbTransaction(userRef, (curr) => (curr || 0) + winAmount)
         
-        // ECONOMY: Batch Win logic
         const winBatch = writeBatch(firestore);
         const winTxRef = doc(collection(pRef, "transactions"));
         winBatch.update(pRef, { coinBalance: firestoreIncrement(winAmount), updatedAt: new Date().toISOString() });
@@ -111,7 +162,7 @@ export default function GamesCenterPage() {
           type: "game_win",
           amount: winAmount,
           transactionDate: new Date().toISOString(),
-          description: `Won ${winAmount} coins in Solo Spin!`
+          description: `Won ${winAmount} coins in Lucky Spin!`
         });
         winBatch.commit();
       }
@@ -158,7 +209,7 @@ export default function GamesCenterPage() {
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
               <Dice5 className="w-4 h-4 text-purple-500" />
-              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Solo Lucky Spin</h2>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Lucky Spin Wheel</h2>
             </div>
             <div className="px-3 py-1 bg-purple-50 rounded-full border border-purple-100">
               <span className="text-[8px] font-black text-purple-600 uppercase tracking-widest">
@@ -167,28 +218,29 @@ export default function GamesCenterPage() {
             </div>
           </div>
 
-          <div className="relative w-full aspect-square max-w-[280px] mx-auto group">
+          <div className="relative w-full aspect-square max-w-[320px] mx-auto">
+            {/* The Pointer */}
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-8 h-12 bg-zinc-900 rounded-b-full z-20 shadow-xl border-4 border-white flex items-center justify-center">
+               <div className="w-2 h-6 bg-amber-500 rounded-full" />
+            </div>
+
+            {/* The Canvas Wheel */}
             <div 
               onTransitionEnd={handleAnimationEnd}
               style={{ transform: `rotate(${rotation}deg)`, transitionTimingFunction: 'cubic-bezier(0.1, 0, 0.1, 1)' }}
-              className="w-full h-full rounded-full border-[10px] border-zinc-900 relative flex items-center justify-center shadow-2xl transition-transform duration-[5000ms] overflow-hidden"
+              className="w-full h-full transition-transform duration-[5000ms] shadow-2xl rounded-full overflow-hidden"
             >
-              <div className="absolute inset-0 bg-zinc-800" />
-              {currentWheelValues.map((val, i) => (
-                <div key={i} className="absolute inset-0 flex justify-center pt-6 origin-center" style={{ transform: `rotate(${i * 45}deg)` }}>
-                  <div className="flex flex-col items-center gap-1">
-                    <span className="text-white font-black text-xs drop-shadow-md">{val}</span>
-                    <Coins className="w-2.5 h-2.5 text-amber-500/40" />
-                  </div>
-                  <div className="absolute top-0 bottom-1/2 left-1/2 w-px bg-zinc-900/30 -translate-x-1/2" />
-                </div>
-              ))}
-              <div className="w-14 h-14 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-amber-500/30 z-10 shadow-xl">
-                <Trophy className={cn("w-5 h-5 text-amber-500 transition-transform", isSpinning && "scale-110 animate-pulse")} />
-              </div>
+              <canvas 
+                ref={canvasRef} 
+                width={400} 
+                height={400} 
+                className="w-full h-full"
+              />
             </div>
-            <div className="absolute -top-3 left-1/2 -translate-x-1/2 w-6 h-10 bg-zinc-900 rounded-b-full z-20 shadow-xl border-2 border-white flex items-center justify-center">
-               <div className="w-1.5 h-4 bg-amber-500 rounded-full" />
+
+            {/* Stable Center Hub */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-16 h-16 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-amber-500/30 z-10 shadow-xl">
+              <Trophy className={cn("w-6 h-6 text-amber-500 transition-transform", isSpinning && "scale-110 animate-pulse")} />
             </div>
           </div>
 
@@ -207,7 +259,7 @@ export default function GamesCenterPage() {
 
         <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 space-y-2 opacity-60">
           <div className="flex items-center gap-2"><Sparkles className="w-3 h-3 text-blue-500" /><p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Lucky Spin Rules</p></div>
-          <p className="text-[10px] font-medium text-blue-400 leading-relaxed">The wheel values change based on your bet amount. Higher bets unlock the potential for 1,000 coin jackpots!</p>
+          <p className="text-[10px] font-medium text-blue-400 leading-relaxed">Wheel values are pre-set based on your bet tier. Land on high-value segments to multiply your coins instantly!</p>
         </div>
       </main>
 
