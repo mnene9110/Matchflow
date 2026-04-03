@@ -17,8 +17,9 @@ let AgoraRTC: any = null;
  * Implements:
  * - 10s free grace period.
  * - Deduction at 11th second (Start of Min 1).
- * - Deduction at 60s intervals (Start of Min 2, 3, etc.).
+ * - Pre-call coin check.
  * - Deferred hardware engagement until call is accepted.
+ * - Robust cleanup to prevent zombie ringing.
  */
 
 export function GlobalCallOverlay() {
@@ -70,12 +71,16 @@ export function GlobalCallOverlay() {
     const unsubscribeIncomingId = onValue(incomingCallRef, (snap) => {
       const chatId = snap.val();
       
-      if (callDetailsUnsubscribe) {
-        callDetailsUnsubscribe();
-        callDetailsUnsubscribe = null;
+      if (!chatId) {
+        handleCleanup();
+        return;
       }
 
-      if (chatId) {
+      if (chatId !== activeChatIdRef.current) {
+        if (callDetailsUnsubscribe) {
+          callDetailsUnsubscribe();
+        }
+        
         activeChatIdRef.current = chatId;
         const callDetailsRef = ref(database, `calls/${chatId}`);
         
@@ -90,8 +95,6 @@ export function GlobalCallOverlay() {
         });
         
         callDetailsUnsubscribe = () => off(callDetailsRef, "value", unsubscribeDetails);
-      } else {
-        handleCleanup();
       }
     });
 
@@ -131,7 +134,6 @@ export function GlobalCallOverlay() {
       if (callStatus !== 'ongoing') {
         setCallStatus('ongoing');
         setIsConnecting(true);
-        // Hardware engagement deferred until this phase
         initiateAgoraConnection(activeChatIdRef.current!, data.callType);
       }
     }
@@ -173,7 +175,6 @@ export function GlobalCallOverlay() {
         return;
       }
 
-      // Firestore Backup & Log
       const profileRef = doc(firestore, "userProfiles", currentUser.uid);
       updateFirestoreDoc(profileRef, {
         coinBalance: firestoreIncrement(-amount),
@@ -190,7 +191,7 @@ export function GlobalCallOverlay() {
       });
     } catch (error) {
       console.error("Call billing failed:", error);
-      handleEndCall(); // Safety exit
+      handleEndCall();
     }
   };
 
@@ -205,22 +206,17 @@ export function GlobalCallOverlay() {
 
       client.on("user-published", async (user: any, mediaType: string) => {
         await client.subscribe(user, mediaType);
-
         if (mediaType === "video" && remoteContainerRef.current) {
           user.videoTrack.play(remoteContainerRef.current);
         }
-
         if (mediaType === "audio") {
           user.audioTrack.play();
         }
-        setIsConnecting(false);
       });
 
       client.on("user-left", () => handleEndCall());
 
       await client.join(appId, channelName, token, currentUser.uid);
-
-      // Now create hardware tracks
       await engageHardware(type);
 
       const tracksToPublish = [];
@@ -230,6 +226,8 @@ export function GlobalCallOverlay() {
       if (tracksToPublish.length > 0) {
         await client.publish(tracksToPublish);
       }
+      
+      setIsConnecting(false); // Connected and streaming local
       
     } catch (error) {
       console.error("Agora join failed:", error);
@@ -305,6 +303,7 @@ export function GlobalCallOverlay() {
     await remove(ref(database, `calls/${cid}`));
     if (receiverId) await remove(ref(database, `users/${receiverId}/incomingCallId`));
     if (callerId) await remove(ref(database, `users/${callerId}/incomingCallId`));
+    handleCleanup();
   }
 
   const logCallInChat = async (chatId: string, duration: number, isTimeout: boolean = false) => {
@@ -342,11 +341,9 @@ export function GlobalCallOverlay() {
           const isCaller = callData?.callerId === currentUser?.uid;
           if (isCaller && !callData?.isFree) {
             const cost = callData?.costPerMin || 0;
-            // 10s free, deduct at 11th second
             if (next === 11) {
               deductCoins(cost);
             } 
-            // Deduct at the start of every minute from minute 2 onwards
             else if (next > 11 && next % 60 === 0) {
               deductCoins(cost);
             }
@@ -402,8 +399,8 @@ export function GlobalCallOverlay() {
                 {isCaller ? 'Ringing...' : (callData?.callerName || 'Incoming...')}
               </h2>
               {isConnecting && (
-                <div className="flex items-center justify-center gap-2">
-                  <Loader2 className="w-4 h-4 text-primary animate-spin" />
+                <div className="flex items-center justify-center gap-2 mt-4">
+                  <Loader2 className="w-5 h-5 text-primary animate-spin" />
                   <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Securing Link</span>
                 </div>
               )}
