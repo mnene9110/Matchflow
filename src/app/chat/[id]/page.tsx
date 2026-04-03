@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, Gift, Ban, CheckCircle, UserX } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, Gift, Ban, CheckCircle, UserX, Gamepad2, Trophy, Dice5 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, collection, setDoc, updateDoc as updateFirestoreDoc, increment as firestoreIncrement } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction } from "firebase/database"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, remove } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
@@ -29,6 +29,8 @@ export const GIFTS = [
   { id: 'soulmate', name: 'Soul mate 💖', emoji: '💖', price: 30 },
   { id: 'ufo', name: 'UFO 🛸', emoji: '🛸', price: 1990 },
 ]
+
+export const GAME_BETS = [20, 50, 100, 200, 500]
 
 function ChatDetailContent() {
   const params = useParams()
@@ -53,6 +55,13 @@ function ChatDetailContent() {
   const [isGiftSheetOpen, setIsGiftSheetOpen] = useState(false)
   const [selectedGift, setSelectedGift] = useState<typeof GIFTS[0] | null>(null)
   const [isSendingGift, setIsSendingGift] = useState(false)
+
+  // Game States
+  const [isGameSheetOpen, setIsGameSheetOpen] = useState(false)
+  const [isStartingGame, setIsStartingGame] = useState(false)
+  const [activeGame, setActiveGame] = useState<any>(null)
+  const [isSpinning, setIsGameSpinning] = useState(false)
+  const [gameResult, setGameResult] = useState<any>(null)
 
   const chatId = currentUser && otherUserId ? [currentUser.uid, otherUserId].sort().join("_") : ""
   
@@ -79,6 +88,29 @@ function ChatDetailContent() {
     return onValue(coinRef, (snap) => setUserCoins(snap.val() || 0))
   }, [database, currentUser])
 
+  // Game Duel Listener
+  useEffect(() => {
+    if (!database || !chatId) return
+    const gameRef = ref(database, `chats/${chatId}/activeDuel`)
+    return onValue(gameRef, (snap) => {
+      const data = snap.val()
+      setActiveGame(data)
+      if (data?.status === 'spinning') {
+        setIsGameSpinning(true)
+        setGameResult(null)
+      } else if (data?.status === 'finished') {
+        setIsGameSpinning(false)
+        setGameResult(data)
+        // Auto-close overlay after 5 seconds
+        setTimeout(() => {
+          if (data.status === 'finished') setGameResult(null)
+        }, 5000)
+      } else {
+        setIsGameSpinning(false)
+      }
+    })
+  }, [database, chatId])
+
   useEffect(() => {
     if (initialMsg && currentUser && otherUserId && database && otherUser && !isSending) {
       const timer = setTimeout(() => {
@@ -96,7 +128,6 @@ function ChatDetailContent() {
     set(unreadRef, 0)
   }, [database, currentUser, otherUserId])
 
-  // Logic to mark messages as seen
   useEffect(() => {
     if (!database || !chatId || !currentUser || !messages.length) return
     
@@ -260,6 +291,140 @@ function ChatDetailContent() {
     } finally { setIsSending(false) }
   }
 
+  const handleStartGameDuel = async (betAmount: number) => {
+    if (!currentUser || !otherUserId || !database || isStartingGame) return;
+    if (userCoins < betAmount) {
+      toast({ variant: "destructive", title: "Insufficient Coins", description: `You need ${betAmount} coins to start this duel.` });
+      return;
+    }
+
+    setIsStartingGame(true);
+    try {
+      const duelId = push(ref(database, `chats/${chatId}/duels`)).key;
+      const gameMessage = `🎮 Game Challenge: Duel Spin (${betAmount} coins)`;
+      
+      const updates: any = {}
+      const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
+      const msgData = { 
+        messageText: gameMessage, 
+        senderId: currentUser.uid, 
+        sentAt: rtdbTimestamp(), 
+        isGameChallenge: true,
+        betAmount: betAmount,
+        duelId: duelId,
+        status: 'sent'
+      }
+      updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}/lastMessage`] = gameMessage
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}/timestamp`] = rtdbTimestamp()
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
+      await update(ref(database), updates)
+
+      setIsGameSheetOpen(false);
+      toast({ title: "Challenge Sent!", description: "Waiting for player to join..." });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "Could not start game." });
+    } finally {
+      setIsStartingGame(false);
+    }
+  }
+
+  const handleAcceptDuel = async (betAmount: number, duelId: string) => {
+    if (!currentUser || !otherUserId || !database || isSending) return;
+    if (userCoins < betAmount) {
+      toast({ variant: "destructive", title: "Insufficient Coins", description: "Recharge to play!" });
+      return;
+    }
+
+    setIsSending(true);
+    try {
+      // 1. Atomic deduction from both players
+      const userRef = ref(database, `users/${currentUser.uid}/coinBalance`);
+      const otherUserBalanceRef = ref(database, `users/${otherUserId}/coinBalance`);
+
+      // Deduction for current user
+      const myDeduction = await runRtdbTransaction(userRef, (curr) => {
+        if (curr === null) return curr;
+        if (curr < betAmount) return undefined;
+        return curr - betAmount;
+      });
+
+      if (!myDeduction.committed) throw new Error("INSUFFICIENT_COINS");
+
+      // Deduction for other user (the challenger)
+      const otherDeduction = await runRtdbTransaction(otherUserBalanceRef, (curr) => {
+        if (curr === null) return curr;
+        if (curr < betAmount) return undefined;
+        return curr - betAmount;
+      });
+
+      if (!otherDeduction.committed) {
+        // Refund current user if challenger somehow ran out of coins in between
+        await runRtdbTransaction(userRef, (curr) => (curr || 0) + betAmount);
+        throw new Error("CHALLENGER_INSUFFICIENT_COINS");
+      }
+
+      // 2. Sync Firestore
+      [currentUser.uid, otherUserId].forEach(uid => {
+        const pRef = doc(firestore, "userProfiles", uid);
+        updateFirestoreDoc(pRef, { coinBalance: firestoreIncrement(-betAmount), updatedAt: new Date().toISOString() });
+        const txRef = doc(collection(pRef, "transactions"));
+        setDoc(txRef, {
+          id: txRef.id,
+          type: "game_bet",
+          amount: -betAmount,
+          transactionDate: new Date().toISOString(),
+          description: `Bet ${betAmount} coins in Duel Spin`
+        });
+      });
+
+      // 3. Trigger Game Animation
+      const duelRef = ref(database, `chats/${chatId}/activeDuel`);
+      await set(duelRef, {
+        status: 'spinning',
+        bet: betAmount,
+        players: [currentUser.uid, otherUserId],
+        startTime: Date.now()
+      });
+
+      // 4. Determine winner after "spinning" delay (client-side simulation but server-side source of truth)
+      setTimeout(async () => {
+        const winnerId = Math.random() > 0.5 ? currentUser.uid : otherUserId;
+        const totalPot = betAmount * 2;
+
+        // Reward winner
+        const winnerCoinRef = ref(database, `users/${winnerId}/coinBalance`);
+        await runRtdbTransaction(winnerCoinRef, (curr) => (curr || 0) + totalPot);
+
+        const winnerProfileRef = doc(firestore, "userProfiles", winnerId);
+        updateFirestoreDoc(winnerProfileRef, { coinBalance: firestoreIncrement(totalPot), updatedAt: new Date().toISOString() });
+        
+        const winnerTxRef = doc(collection(winnerProfileRef, "transactions"));
+        setDoc(winnerTxRef, {
+          id: winnerTxRef.id,
+          type: "game_win",
+          amount: totalPot,
+          transactionDate: new Date().toISOString(),
+          description: `Won ${totalPot} coins in Duel Spin!`
+        });
+
+        await update(duelRef, {
+          status: 'finished',
+          winner: winnerId,
+          pot: totalPot
+        });
+
+        // Clean up duel entry after short delay
+        setTimeout(() => remove(duelRef), 6000);
+      }, 3000);
+
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Duel Failed", description: error.message || "An error occurred." });
+    } finally {
+      setIsSending(false);
+    }
+  }
+
   const handleSendGift = async (giftOverride?: typeof GIFTS[0]) => {
     const gift = giftOverride || selectedGift;
     if (!gift || !currentUser || !otherUserId || isSendingGift || !currentUserProfile || !database) return;
@@ -290,7 +455,6 @@ function ChatDetailContent() {
         updatedAt: new Date().toISOString()
       });
 
-      // Log for receiver (diamond history)
       const targetTxRef = doc(collection(firestore, "userProfiles", otherUserId, "transactions"));
       setDoc(targetTxRef, {
         id: targetTxRef.id,
@@ -314,11 +478,7 @@ function ChatDetailContent() {
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
       updates[`/users/${currentUser.uid}/chats/${otherUserId}/lastMessage`] = giftMessage
       updates[`/users/${currentUser.uid}/chats/${otherUserId}/timestamp`] = rtdbTimestamp()
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}/hidden`] = false
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = giftMessage
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
       await update(ref(database), updates)
 
       toast({ title: "Gift Sent!", description: `You sent a ${gift.name}.` });
@@ -397,6 +557,7 @@ function ChatDetailContent() {
             const isMe = msg.senderId === currentUser?.uid
             const isCallLog = msg.isCallLog === true
             const isGift = msg.isGift === true
+            const isGameChallenge = msg.isGameChallenge === true
             const statusText = msg.status === 'seen' ? 'Seen' : 'Sent'
             
             return (
@@ -405,7 +566,7 @@ function ChatDetailContent() {
                   <div className={cn(
                     "max-w-[80%] px-4 py-3 text-[13px] font-medium leading-relaxed shadow-sm transition-all", 
                     isMe ? "bg-primary text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none",
-                    isGift && "bg-white border border-gray-100 p-0 overflow-hidden rounded-2xl shadow-md min-w-[180px] text-gray-900",
+                    (isGift || isGameChallenge) && "bg-white border border-gray-100 p-0 overflow-hidden rounded-2xl shadow-md min-w-[180px] text-gray-900",
                     isCallLog && "bg-transparent shadow-none border-none py-1 px-2 font-black text-[10px] tracking-widest text-gray-300 uppercase"
                   )}>
                     {isGift ? (
@@ -427,6 +588,28 @@ function ChatDetailContent() {
                           </button>
                         )}
                       </div>
+                    ) : isGameChallenge ? (
+                      <div className="flex flex-col">
+                        <div className="p-6 flex flex-col items-center justify-center bg-zinc-900 text-white relative">
+                          <Dice5 className="w-12 h-12 text-primary mb-2 animate-bounce" />
+                          <span className="text-[10px] font-black uppercase tracking-widest text-primary">Spin Duel</span>
+                          <span className="text-lg font-black font-headline mt-1">{msg.betAmount} COINS</span>
+                        </div>
+                        {!isMe && (
+                          <button 
+                            onClick={() => handleAcceptDuel(msg.betAmount, msg.duelId)}
+                            disabled={isSending}
+                            className="w-full h-12 bg-zinc-900 text-white font-black text-sm uppercase tracking-widest border-t border-zinc-800 hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+                          >
+                            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Accept Duel"}
+                          </button>
+                        )}
+                        {isMe && (
+                          <div className="w-full h-10 bg-zinc-800 flex items-center justify-center">
+                             <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Waiting for Player</span>
+                          </div>
+                        )}
+                      </div>
                     ) : (
                       <p className="whitespace-pre-wrap">{msg.messageText}</p>
                     )}
@@ -444,6 +627,46 @@ function ChatDetailContent() {
         </div>
       </ScrollArea>
 
+      {/* Game Spinning Overlay */}
+      {(isSpinning || gameResult) && (
+        <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
+          <div className="relative w-64 h-64 flex items-center justify-center">
+            <div className={cn(
+              "w-full h-full rounded-full border-8 border-primary/20 bg-zinc-900 relative flex items-center justify-center overflow-hidden",
+              isSpinning && "animate-[spin_1s_linear_infinite]"
+            )}>
+              <div className="absolute inset-0 bg-[conic-gradient(from_0deg,#B36666,#18181b,#B36666,#18181b)] opacity-50" />
+              <Trophy className="w-20 h-20 text-primary relative z-10 drop-shadow-[0_0_20px_rgba(179,102,102,0.5)]" />
+            </div>
+            <div className="absolute -top-4 left-1/2 -translate-x-1/2 w-4 h-8 bg-white rounded-full z-20 shadow-xl" />
+          </div>
+
+          <div className="mt-12 text-center space-y-4">
+            {isSpinning ? (
+              <>
+                <h2 className="text-3xl font-black font-headline text-white uppercase tracking-widest">Spinning Pot</h2>
+                <p className="text-primary font-black text-xl italic">{activeGame?.bet * 2} COINS</p>
+              </>
+            ) : gameResult && (
+              <div className="animate-in zoom-in-95 duration-500">
+                {gameResult.winner === currentUser?.uid ? (
+                  <div className="space-y-2">
+                    <h2 className="text-5xl font-black font-headline text-green-500 uppercase tracking-tighter">YOU WIN!</h2>
+                    <p className="text-white font-bold text-lg">+{gameResult.pot} Coins added to wallet</p>
+                  </div>
+                ) : (
+                  <div className="space-y-2 opacity-70">
+                    <h2 className="text-4xl font-black font-headline text-red-500 uppercase tracking-widest">YOU LOST</h2>
+                    <p className="text-white/60 font-bold">Better luck next time!</p>
+                  </div>
+                )}
+                <Button onClick={() => setGameResult(null)} className="mt-8 rounded-full bg-white/10 text-white border border-white/20 px-10 h-14 uppercase font-black text-xs tracking-widest">Close</Button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
       <footer className="px-5 py-5 pb-8 space-y-4 bg-white border-t border-gray-50">
         {isBlocked ? (
           <div className="flex flex-col items-center justify-center py-4 gap-2">
@@ -459,10 +682,52 @@ function ChatDetailContent() {
               </Button>
             </div>
             {!isOtherUserSupport && (
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-4 gap-2">
                 <button onClick={() => handleInitiateCall('audio')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Phone className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span></button>
                 <button onClick={() => handleInitiateCall('video')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Video className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span></button>
                 
+                <Sheet open={isGameSheetOpen} onOpenChange={setIsGameSheetOpen}>
+                  <SheetTrigger asChild>
+                    <button className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
+                      <Gamepad2 className="w-4 h-4 text-purple-500" />
+                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Game</span>
+                    </button>
+                  </SheetTrigger>
+                  <SheetContent side="bottom" className="rounded-t-[3rem] h-[60svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
+                    <SheetHeader className="px-6 pt-8 pb-4 shrink-0">
+                      <SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Spin Duel Challenge</SheetTitle>
+                    </SheetHeader>
+                    <div className="flex-1 overflow-y-auto px-6 py-4">
+                      <p className="text-sm font-medium text-zinc-500 mb-6">Select your bet amount. The winner takes the entire pot!</p>
+                      <div className="grid grid-cols-1 gap-3">
+                        {GAME_BETS.map((bet) => (
+                          <button 
+                            key={bet}
+                            onClick={() => handleStartGameDuel(bet)}
+                            disabled={isStartingGame || userCoins < bet}
+                            className={cn(
+                              "w-full h-16 rounded-[1.5rem] flex items-center justify-between px-6 transition-all active:scale-[0.98]",
+                              userCoins >= bet ? "bg-white/5 hover:bg-white/10 border border-white/10" : "bg-zinc-800/50 opacity-40 grayscale cursor-not-allowed"
+                            )}
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary italic font-black text-sm">S</div>
+                              <span className="text-lg font-black">{bet} Coins</span>
+                            </div>
+                            <Trophy className="w-5 h-5 text-zinc-700" />
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <footer className="p-6 border-t border-white/5 bg-zinc-950/50">
+                       <div className="flex items-center gap-2">
+                          <span className="text-[9px] font-black uppercase text-zinc-500">Your Wallet:</span>
+                          <span className="text-[10px] font-black text-primary">{userCoins.toLocaleString()} Coins</span>
+                       </div>
+                    </footer>
+                  </SheetContent>
+                </Sheet>
+
                 <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
                   <SheetTrigger asChild>
                     <button className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
