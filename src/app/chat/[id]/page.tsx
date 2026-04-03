@@ -57,8 +57,6 @@ function ChatDetailContent() {
   const [isSendingGift, setIsSendingGift] = useState(false)
 
   // Game States
-  const [isGameSheetOpen, setIsGameSheetOpen] = useState(false)
-  const [isStartingGame, setIsStartingGame] = useState(false)
   const [activeGame, setActiveGame] = useState<any>(null)
   const [isSpinning, setIsGameSpinning] = useState(false)
   const [gameResult, setGameResult] = useState<any>(null)
@@ -88,7 +86,7 @@ function ChatDetailContent() {
     return onValue(coinRef, (snap) => setUserCoins(snap.val() || 0))
   }, [database, currentUser])
 
-  // Game Duel Listener
+  // Game Duel Listener (Message-based duels)
   useEffect(() => {
     if (!database || !chatId) return
     const gameRef = ref(database, `chats/${chatId}/activeDuel`)
@@ -290,44 +288,6 @@ function ChatDetailContent() {
     } finally { setIsSending(false) }
   }
 
-  const handleStartGameDuel = async (betAmount: number) => {
-    if (!currentUser || !otherUserId || !database || isStartingGame) return;
-    if (userCoins < betAmount) {
-      toast({ variant: "destructive", title: "Insufficient Coins", description: `You need ${betAmount} coins to start this duel.` });
-      return;
-    }
-
-    setIsStartingGame(true);
-    try {
-      const duelId = push(ref(database, `chats/${chatId}/duels`)).key;
-      const gameMessage = `🎮 Spin Duel Challenge: Both players bet ${betAmount} coins.`;
-      
-      const updates: any = {}
-      const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-      const msgData = { 
-        messageText: gameMessage, 
-        senderId: currentUser.uid, 
-        sentAt: rtdbTimestamp(), 
-        isGameChallenge: true,
-        betAmount: betAmount,
-        duelId: duelId,
-        status: 'sent'
-      }
-      updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}/lastMessage`] = gameMessage
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}/timestamp`] = rtdbTimestamp()
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
-      await update(ref(database), updates)
-
-      setIsGameSheetOpen(false);
-      toast({ title: "Challenge Sent!", description: `Waiting for ${otherUser?.username || 'player'} to bet ${betAmount} coins.` });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "Could not start game." });
-    } finally {
-      setIsStartingGame(false);
-    }
-  }
-
   const handleAcceptDuel = async (betAmount: number, duelId: string) => {
     if (!currentUser || !otherUserId || !database || isSending) return;
     if (userCoins < betAmount) {
@@ -337,11 +297,9 @@ function ChatDetailContent() {
 
     setIsSending(true);
     try {
-      // 1. Atomic deduction from both players
       const userRef = ref(database, `users/${currentUser.uid}/coinBalance`);
       const otherUserBalanceRef = ref(database, `users/${otherUserId}/coinBalance`);
 
-      // Deduction for current user (the acceptor)
       const myDeduction = await runRtdbTransaction(userRef, (curr) => {
         if (curr === null) return curr;
         if (curr < betAmount) return undefined;
@@ -350,7 +308,6 @@ function ChatDetailContent() {
 
       if (!myDeduction.committed) throw new Error("INSUFFICIENT_COINS");
 
-      // Deduction for other user (the challenger)
       const otherDeduction = await runRtdbTransaction(otherUserBalanceRef, (curr) => {
         if (curr === null) return curr;
         if (curr < betAmount) return undefined;
@@ -358,12 +315,10 @@ function ChatDetailContent() {
       });
 
       if (!otherDeduction.committed) {
-        // Refund current user if challenger somehow ran out of coins in between
         await runRtdbTransaction(userRef, (curr) => (curr || 0) + betAmount);
         throw new Error("CHALLENGER_FUNDS_EXPIRED");
       }
 
-      // 2. Sync Firestore
       [currentUser.uid, otherUserId].forEach(uid => {
         const pRef = doc(firestore, "userProfiles", uid);
         updateFirestoreDoc(pRef, { coinBalance: firestoreIncrement(-betAmount), updatedAt: new Date().toISOString() });
@@ -377,7 +332,6 @@ function ChatDetailContent() {
         });
       });
 
-      // 3. Trigger Game Animation for both
       const duelRef = ref(database, `chats/${chatId}/activeDuel`);
       await set(duelRef, {
         status: 'spinning',
@@ -386,7 +340,6 @@ function ChatDetailContent() {
         startTime: Date.now()
       });
 
-      // 4. Winner determination
       setTimeout(async () => {
         const winnerId = Math.random() > 0.5 ? currentUser.uid : otherUserId;
         const totalPot = betAmount * 2;
@@ -677,52 +630,10 @@ function ChatDetailContent() {
               </Button>
             </div>
             {!isOtherUserSupport && (
-              <div className="grid grid-cols-4 gap-2">
+              <div className="grid grid-cols-3 gap-2">
                 <button onClick={() => handleInitiateCall('audio')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Phone className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span></button>
                 <button onClick={() => handleInitiateCall('video')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Video className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span></button>
                 
-                <Sheet open={isGameSheetOpen} onOpenChange={setIsGameSheetOpen}>
-                  <SheetTrigger asChild>
-                    <button className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
-                      <Gamepad2 className="w-4 h-4 text-purple-500" />
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Game</span>
-                    </button>
-                  </SheetTrigger>
-                  <SheetContent side="bottom" className="rounded-t-[3rem] h-[60svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
-                    <SheetHeader className="px-6 pt-8 pb-4 shrink-0">
-                      <SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Spin Duel Challenge</SheetTitle>
-                    </SheetHeader>
-                    <div className="flex-1 overflow-y-auto px-6 py-4">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6">Select bet amount. Both players must bet the same.</p>
-                      <div className="grid grid-cols-1 gap-3">
-                        {GAME_BETS.map((bet) => (
-                          <button 
-                            key={bet}
-                            onClick={() => handleStartGameDuel(bet)}
-                            disabled={isStartingGame || userCoins < bet}
-                            className={cn(
-                              "w-full h-16 rounded-[1.5rem] flex items-center justify-between px-6 transition-all active:scale-[0.98]",
-                              userCoins >= bet ? "bg-white/5 hover:bg-white/10 border border-white/10" : "bg-zinc-800/50 opacity-40 grayscale cursor-not-allowed"
-                            )}
-                          >
-                            <div className="flex items-center gap-3">
-                              <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary italic font-black text-sm">S</div>
-                              <span className="text-lg font-black">{bet} Coins</span>
-                            </div>
-                            <Trophy className="w-5 h-5 text-zinc-700" />
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <footer className="p-6 border-t border-white/5 bg-zinc-950/50">
-                       <div className="flex items-center gap-2">
-                          <span className="text-[9px] font-black uppercase text-zinc-500">Your Wallet:</span>
-                          <span className="text-[10px] font-black text-primary">{userCoins.toLocaleString()} Coins</span>
-                       </div>
-                    </footer>
-                  </SheetContent>
-                </Sheet>
-
                 <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
                   <SheetTrigger asChild>
                     <button className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">

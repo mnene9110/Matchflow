@@ -41,6 +41,13 @@ export function GlobalCallOverlay() {
   const activeChatIdRef = useRef<string | null>(null)
   const logRecordedRef = useRef(false)
 
+  // Status Ref to help logic inside listeners without triggering re-effects
+  const statusRef = useRef<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
+
+  useEffect(() => {
+    statusRef.current = callStatus
+  }, [callStatus])
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       import('agora-rtc-sdk-ng').then((module) => {
@@ -71,7 +78,8 @@ export function GlobalCallOverlay() {
       const chatId = snap.val();
       
       if (!chatId) {
-        if (!joiningRef.current) {
+        // If the ID is cleared and we are not in the process of joining, clean up
+        if (!joiningRef.current && statusRef.current !== 'idle') {
           handleCleanup();
         }
         return;
@@ -88,8 +96,8 @@ export function GlobalCallOverlay() {
         const unsubscribeDetails = onValue(callDetailsRef, (detailsSnap) => {
           const data = detailsSnap.val();
           if (!data) {
-            // If data is gone and we haven't accepted, it means other side cancelled or rejected
-            if (!joiningRef.current && callStatus !== 'idle') {
+            // Call document deleted while active and not accepted?
+            if (!joiningRef.current && statusRef.current !== 'idle') {
               handleCleanup();
             }
             return;
@@ -105,20 +113,8 @@ export function GlobalCallOverlay() {
     return () => {
       unsubscribeIncomingId();
       if (callDetailsUnsubscribe) callDetailsUnsubscribe();
-      handleCleanup(); 
     };
-  }, [database, currentUser, callStatus]);
-
-  // Pre-fetch token when call is detected
-  useEffect(() => {
-    if (activeChatIdRef.current && currentUser && (callStatus === 'ringing' || callStatus === 'incoming')) {
-      if (!agoraTokenData) {
-        getAgoraToken(activeChatIdRef.current, currentUser.uid)
-          .then(setAgoraTokenData)
-          .catch(err => console.error("Token pre-fetch failed", err));
-      }
-    }
-  }, [activeChatIdRef.current, currentUser, callStatus, !!agoraTokenData]);
+  }, [database, currentUser]);
 
   const updateCallState = (data: any) => {
     if (!data || !currentUser) return;
@@ -128,9 +124,16 @@ export function GlobalCallOverlay() {
       if (ringtoneRef.current && ringtoneRef.current.paused) {
         ringtoneRef.current.play().catch(() => {});
       }
-      if (callStatus !== 'ringing' && callStatus !== 'incoming') {
-        setCallStatus(isCaller ? 'ringing' : 'incoming');
+      
+      if (statusRef.current === 'idle') {
+        const nextStatus = isCaller ? 'ringing' : 'incoming';
+        setCallStatus(nextStatus);
         engageHardware(data.callType);
+        
+        // Fetch token immediately
+        getAgoraToken(activeChatIdRef.current!, currentUser.uid)
+          .then(setAgoraTokenData)
+          .catch(err => console.error("Token pre-fetch failed", err));
       }
 
       if (isCaller && !ringingTimerRef.current) {
@@ -149,7 +152,7 @@ export function GlobalCallOverlay() {
       }
       
       wasCallAcceptedRef.current = true;
-      if (callStatus !== 'ongoing' && !joiningRef.current) {
+      if (statusRef.current !== 'ongoing' && !joiningRef.current) {
         setCallStatus('ongoing');
         setIsConnecting(true);
         initiateAgoraConnection(activeChatIdRef.current!, data.callType);
@@ -162,7 +165,6 @@ export function GlobalCallOverlay() {
     try {
       if (!localTracksRef.current.audioTrack) {
         localTracksRef.current.audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
-          // Audio optimization for voice calls (earpiece hint)
           ANS: true,
           AEC: true,
           AGC: true
@@ -248,6 +250,7 @@ export function GlobalCallOverlay() {
 
       await client.join(tokenData!.appId, channelName, tokenData!.token, currentUser.uid);
       
+      // Ensure hardware is hot
       await engageHardware(type);
 
       const tracksToPublish = [];
@@ -306,7 +309,6 @@ export function GlobalCallOverlay() {
       agoraClientRef.current = null;
     }
     
-    // Log ongoing call duration if ended normally and we were in it
     if (wasCallAcceptedRef.current && activeChatIdRef.current && !logRecordedRef.current) {
       const mins = Math.floor(callDurationRef.current / 60);
       const secs = callDurationRef.current % 60;
@@ -341,13 +343,12 @@ export function GlobalCallOverlay() {
     }
 
     const cid = activeChatIdRef.current;
-    const isCaller = callData?.callerId === currentUser.uid;
+    const currentCallStatus = statusRef.current;
 
-    // Determine specific logging reason based on context
     if (!wasCallAcceptedRef.current) {
-      if (callStatus === 'incoming') {
+      if (currentCallStatus === 'incoming') {
         logCallInChat(cid, 0, "[Rejected]");
-      } else if (callStatus === 'ringing') {
+      } else if (currentCallStatus === 'ringing') {
         logCallInChat(cid, 0, "[Cancelled]");
       }
     }
@@ -411,7 +412,6 @@ export function GlobalCallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col overflow-hidden text-white font-body">
-      {/* Remote Video Container (Loudspeaker default for video) */}
       <div 
         ref={remoteContainerRef} 
         className={cn(
@@ -420,7 +420,6 @@ export function GlobalCallOverlay() {
         )} 
       />
 
-      {/* Local Video Preview (Mirror Mode) */}
       <div className={cn(
         "absolute bg-zinc-900 overflow-hidden border-2 border-white/10 z-50 shadow-2xl transition-all duration-500",
         callStatus === 'ongoing' 
@@ -436,7 +435,6 @@ export function GlobalCallOverlay() {
         />
       </div>
 
-      {/* Ringing/Loading UI Overlay */}
       {(callStatus !== 'ongoing' || isConnecting) && (
         <div className="absolute inset-0 z-[60] flex flex-col items-center justify-between py-24 px-8 bg-black/40 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-8 mt-12 w-full">
@@ -463,7 +461,6 @@ export function GlobalCallOverlay() {
         </div>
       )}
 
-      {/* Active Call Timer */}
       {callStatus === 'ongoing' && !isConnecting && (
         <div className="absolute top-12 left-6 z-50">
           <div className="px-4 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
@@ -475,7 +472,6 @@ export function GlobalCallOverlay() {
         </div>
       )}
 
-      {/* Action Buttons */}
       <div className="absolute bottom-16 left-0 right-0 z-[70] flex items-center justify-center gap-12 px-8">
         {callStatus === 'incoming' ? (
           <>
