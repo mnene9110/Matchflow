@@ -44,8 +44,8 @@ service cloud.firestore {
       allow delete: if isOwner(userId) || isAdmin();
 
       match /transactions/{transactionId} {
-        // Robust permission check for transactions subcollection
-        allow get, list: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || isSupport());
+        // Simplified and robust permission check
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || isSupport());
         allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || isCoinseller());
       }
 
