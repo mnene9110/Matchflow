@@ -14,11 +14,7 @@ let AgoraRTC: any = null;
 
 /**
  * @fileOverview Global Call Overlay for Agora-powered calls.
- * Optimized for speed:
- * - Pre-warms hardware (cam/mic) during ringing phase.
- * - Pre-fetches Agora tokens.
- * - Mirror mode implemented for local preview.
- * - 10s free grace period, billing starts at 11s.
+ * Fixed: Premature UI closure bug fixed by hardening state transitions and join logic.
  */
 
 export function GlobalCallOverlay() {
@@ -37,6 +33,7 @@ export function GlobalCallOverlay() {
   const previewVideoRef = useRef<HTMLDivElement>(null)
   const ringtoneRef = useRef<HTMLAudioElement | null>(null)
   const ringingTimerRef = useRef<NodeJS.Timeout | null>(null)
+  const joiningRef = useRef(false)
   
   const callDurationRef = useRef(0)
   const wasCallAcceptedRef = useRef(false)
@@ -72,7 +69,10 @@ export function GlobalCallOverlay() {
       const chatId = snap.val();
       
       if (!chatId) {
-        handleCleanup();
+        // Only cleanup if we aren't currently in an active transition
+        if (!joiningRef.current) {
+          handleCleanup();
+        }
         return;
       }
 
@@ -87,7 +87,7 @@ export function GlobalCallOverlay() {
         const unsubscribeDetails = onValue(callDetailsRef, (detailsSnap) => {
           const data = detailsSnap.val();
           if (!data) {
-            handleCleanup();
+            if (!joiningRef.current) handleCleanup();
             return;
           }
           setCallData(data);
@@ -114,7 +114,7 @@ export function GlobalCallOverlay() {
           .catch(err => console.error("Token pre-fetch failed", err));
       }
     }
-  }, [activeChatIdRef.current, currentUser, callStatus]);
+  }, [activeChatIdRef.current, currentUser, callStatus, !!agoraTokenData]);
 
   const updateCallState = (data: any) => {
     if (!data || !currentUser) return;
@@ -124,10 +124,10 @@ export function GlobalCallOverlay() {
       if (ringtoneRef.current && ringtoneRef.current.paused) {
         ringtoneRef.current.play().catch(() => {});
       }
-      setCallStatus(isCaller ? 'ringing' : 'incoming');
-      
-      // OPTIMIZATION: Engage hardware early during ringing
-      engageHardware(data.callType);
+      if (callStatus !== 'ringing' && callStatus !== 'incoming') {
+        setCallStatus(isCaller ? 'ringing' : 'incoming');
+        engageHardware(data.callType);
+      }
 
       if (isCaller && !ringingTimerRef.current) {
         ringingTimerRef.current = setTimeout(() => {
@@ -145,7 +145,7 @@ export function GlobalCallOverlay() {
       }
       
       wasCallAcceptedRef.current = true;
-      if (callStatus !== 'ongoing') {
+      if (callStatus !== 'ongoing' && !joiningRef.current) {
         setCallStatus('ongoing');
         setIsConnecting(true);
         initiateAgoraConnection(activeChatIdRef.current!, data.callType);
@@ -154,7 +154,7 @@ export function GlobalCallOverlay() {
   };
 
   const engageHardware = async (type: 'video' | 'audio') => {
-    if (!AgoraRTC || callStatus === 'idle') return;
+    if (!AgoraRTC) return;
     try {
       if (!localTracksRef.current.audioTrack) {
         localTracksRef.current.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
@@ -163,7 +163,6 @@ export function GlobalCallOverlay() {
       if (type === 'video' && !localTracksRef.current.videoTrack) {
         const videoTrack = await AgoraRTC.createCameraVideoTrack();
         localTracksRef.current.videoTrack = videoTrack;
-        // Play local preview immediately even while ringing
         if (previewVideoRef.current) {
           videoTrack.play(previewVideoRef.current);
         }
@@ -211,10 +210,10 @@ export function GlobalCallOverlay() {
   };
 
   const initiateAgoraConnection = async (channelName: string, type: 'video' | 'audio') => {
-    if (!AgoraRTC || !currentUser || agoraClientRef.current) return;
-
+    if (!AgoraRTC || !currentUser || joiningRef.current) return;
+    
+    joiningRef.current = true;
     try {
-      // Use pre-fetched token or fetch now if not ready
       let tokenData = agoraTokenData;
       if (!tokenData) {
         tokenData = await getAgoraToken(channelName, currentUser.uid);
@@ -235,9 +234,9 @@ export function GlobalCallOverlay() {
 
       client.on("user-left", () => handleEndCall());
 
-      await client.join(tokenData.appId, channelName, tokenData.token, currentUser.uid);
+      await client.join(tokenData!.appId, channelName, tokenData!.token, currentUser.uid);
       
-      // Ensure hardware is engaged (it usually is by now)
+      // Hardware is usually engaged during ringing, but safety check here
       await engageHardware(type);
 
       const tracksToPublish = [];
@@ -249,9 +248,11 @@ export function GlobalCallOverlay() {
       }
       
       setIsConnecting(false); 
+      joiningRef.current = false;
       
     } catch (error) {
       console.error("Agora join failed:", error);
+      joiningRef.current = false;
       handleEndCall();
     }
   };
@@ -274,12 +275,16 @@ export function GlobalCallOverlay() {
     }
 
     if (localTracksRef.current.audioTrack) {
-      localTracksRef.current.audioTrack.stop();
-      localTracksRef.current.audioTrack.close();
+      try {
+        localTracksRef.current.audioTrack.stop();
+        localTracksRef.current.audioTrack.close();
+      } catch (e) {}
     }
     if (localTracksRef.current.videoTrack) {
-      localTracksRef.current.videoTrack.stop();
-      localTracksRef.current.videoTrack.close();
+      try {
+        localTracksRef.current.videoTrack.stop();
+        localTracksRef.current.videoTrack.close();
+      } catch (e) {}
     }
     localTracksRef.current = {};
 
@@ -302,6 +307,7 @@ export function GlobalCallOverlay() {
     activeChatIdRef.current = null;
     wasCallAcceptedRef.current = false;
     setIsConnecting(false);
+    joiningRef.current = false;
   };
 
   const handleAcceptCall = async () => {
@@ -363,6 +369,7 @@ export function GlobalCallOverlay() {
           const isCaller = callData?.callerId === currentUser?.uid;
           if (isCaller && !callData?.isFree) {
             const cost = callData?.costPerMin || 0;
+            // 10s free, deduct at 11s, then at start of every following minute
             if (next === 11) {
               deductCoins(cost);
             } 
@@ -399,13 +406,13 @@ export function GlobalCallOverlay() {
         "absolute bg-zinc-900 overflow-hidden border-2 border-white/10 z-50 shadow-2xl transition-all duration-500",
         callStatus === 'ongoing' 
           ? "top-12 right-6 w-32 aspect-[3/4] rounded-2xl" 
-          : "inset-0 rounded-none border-none" // Full screen preview during ringing
+          : "inset-0 rounded-none border-none" 
       )}>
         <div 
           ref={previewVideoRef as any} 
           className={cn(
             "w-full h-full object-cover scale-x-[-1] [&_video]:scale-x-[-1]",
-            callStatus !== 'ongoing' && "opacity-40 blur-sm" // Slightly dim preview while ringing
+            callStatus !== 'ongoing' && "opacity-40 blur-sm" 
           )} 
         />
       </div>
@@ -441,7 +448,7 @@ export function GlobalCallOverlay() {
       {callStatus === 'ongoing' && !isConnecting && (
         <div className="absolute top-12 left-6 z-50">
           <div className="px-4 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+            <div className="w-2 h-2 rounded-full bg-green-50 animate-pulse" />
             <span className="text-[10px] font-black tracking-widest uppercase tabular-nums">
               {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')}
             </span>
