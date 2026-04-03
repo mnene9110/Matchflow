@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Gamepad2, Coins, Trophy, Loader2, Star, Sparkles, Dice5, Users, MessageCircle, ChevronRight } from "lucide-react"
+import { ChevronLeft, Gamepad2, Coins, Trophy, Loader2, Star, Sparkles, Dice5, ChevronRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
 import { doc, updateDoc, increment as firestoreIncrement, setDoc, collection } from "firebase/firestore"
@@ -13,7 +13,7 @@ import { cn } from "@/lib/utils"
 
 const GAME_BETS = [20, 50, 100, 200, 500]
 
-// Define wheel values based on bet amounts as per user request
+// Define wheel values based on bet amounts
 const WHEEL_CONFIGS = {
   low: [5, 50, 10, 25, 2, 40, 15, 30],        // For bet < 50 (Max 50)
   mid: [20, 300, 50, 150, 10, 250, 100, 200], // For bet 50-100 (Max 300)
@@ -31,7 +31,6 @@ export default function GamesCenterPage() {
   const [selectedBet, setSelectedBet] = useState<number | null>(null)
   const [rotation, setRotation] = useState(0)
   const [gameResult, setGameResult] = useState<{ winner: boolean; pot: number } | null>(null)
-  const [chats, setChats] = useState<any[]>([])
 
   // Determine current wheel values based on selected bet
   const currentWheelValues = useMemo(() => {
@@ -44,19 +43,7 @@ export default function GamesCenterPage() {
   useEffect(() => {
     if (!database || !currentUser) return
     const coinRef = ref(database, `users/${currentUser.uid}/coinBalance`)
-    onValue(coinRef, (snap) => setUserCoins(snap.val() || 0))
-
-    const userChatsRef = ref(database, `users/${currentUser.uid}/chats`)
-    return onValue(userChatsRef, (snapshot) => {
-      const data = snapshot.val()
-      if (data) {
-        const list = Object.entries(data).map(([key, val]: [string, any]) => ({
-          otherUserId: key,
-          ...val
-        })).slice(0, 10)
-        setChats(list)
-      }
-    })
+    return onValue(coinRef, (snap) => setUserCoins(snap.val() || 0))
   }, [database, currentUser])
 
   const handleLuckySpin = async () => {
@@ -119,7 +106,7 @@ export default function GamesCenterPage() {
 
         setGameResult({ winner: winAmount > 0, pot: winAmount })
         setIsSpinning(false)
-      }, 4200) // Slightly longer than CSS transition to ensure visual stop
+      }, 4200)
 
     } catch (e: any) {
       toast({ variant: "destructive", title: "Game Error", description: e.message })
@@ -243,45 +230,6 @@ export default function GamesCenterPage() {
               </div>
             ) : "PLACE BET"}
           </Button>
-        </section>
-
-        {/* 1v1 DUEL SECTION */}
-        <section className="space-y-4">
-          <div className="flex items-center gap-2 px-2">
-            <Users className="w-4 h-4 text-primary" />
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Play Duels with Matches</h2>
-          </div>
-
-          <div className="bg-zinc-900/5 p-6 rounded-[2.5rem] border border-zinc-100 mb-4">
-             <p className="text-[10px] font-black text-zinc-400 uppercase tracking-widest leading-relaxed">
-               Challenge a user to a <span className="text-primary">Spin Duel</span>. To play, both players must place the <span className="text-zinc-900">same bet amount</span>. The winner takes the entire pot!
-             </p>
-          </div>
-
-          <div className="space-y-3">
-            {chats.length > 0 ? chats.map((chat) => (
-              <button
-                key={chat.otherUserId}
-                onClick={() => router.push(`/chat/${chat.otherUserId}`)}
-                className="w-full p-4 bg-white/40 backdrop-blur-md border border-white/40 rounded-[2rem] flex items-center justify-between active:scale-[0.98] transition-all shadow-sm"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
-                    <MessageCircle className="w-5 h-5 text-gray-400" />
-                  </div>
-                  <div className="flex flex-col items-start">
-                    <span className="text-xs font-black uppercase tracking-tight">Challenge Match</span>
-                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Tap to start 1v1 duel</span>
-                  </div>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-300" />
-              </button>
-            )) : (
-              <div className="p-10 text-center bg-white/20 rounded-[2rem] border border-white/30 border-dashed opacity-50">
-                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">No recent matches found</p>
-              </div>
-            )}
-          </div>
         </section>
 
         {/* Rules Footer */}
