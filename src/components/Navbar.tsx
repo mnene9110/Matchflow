@@ -44,7 +44,8 @@ export function Navbar() {
     "/settings",
     "/admin",
     "/support",
-    "/task-center"
+    "/task-center",
+    "/games"
   ]
   
   const shouldHide = 
