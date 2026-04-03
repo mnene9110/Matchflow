@@ -15,7 +15,7 @@ let AgoraRTC: any = null;
 /**
  * @fileOverview Global Call Overlay for Agora-powered calls.
  * Implements [Timeout], [Cancelled], [Rejected], and duration logging.
- * Handles speaker vs earpiece hints for video/audio calls.
+ * Added: Stale Call Protection to prevent "ghost" calls on app start.
  */
 
 export function GlobalCallOverlay() {
@@ -41,7 +41,6 @@ export function GlobalCallOverlay() {
   const activeChatIdRef = useRef<string | null>(null)
   const logRecordedRef = useRef(false)
 
-  // Status Ref to help logic inside listeners without triggering re-effects
   const statusRef = useRef<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
 
   useEffect(() => {
@@ -78,7 +77,6 @@ export function GlobalCallOverlay() {
       const chatId = snap.val();
       
       if (!chatId) {
-        // If the ID is cleared and we are not in the process of joining, clean up
         if (!joiningRef.current && statusRef.current !== 'idle') {
           handleCleanup();
         }
@@ -96,12 +94,24 @@ export function GlobalCallOverlay() {
         const unsubscribeDetails = onValue(callDetailsRef, (detailsSnap) => {
           const data = detailsSnap.val();
           if (!data) {
-            // Call document deleted while active and not accepted?
             if (!joiningRef.current && statusRef.current !== 'idle') {
               handleCleanup();
             }
             return;
           }
+
+          // STALE CALL PROTECTION
+          // If the call record exists but is older than 60 seconds and still ringing, ignore it
+          const now = Date.now();
+          const callAge = now - (data.timestamp || 0);
+          if (data.status === 'ringing' && callAge > 60000) {
+            console.log("Stale call detected, cleaning up...");
+            // Silently remove the stale ID from current user record to stop the loop
+            remove(ref(database, `users/${currentUser.uid}/incomingCallId`));
+            handleCleanup();
+            return;
+          }
+
           setCallData(data);
           updateCallState(data);
         });
@@ -130,7 +140,6 @@ export function GlobalCallOverlay() {
         setCallStatus(nextStatus);
         engageHardware(data.callType);
         
-        // Fetch token immediately
         getAgoraToken(activeChatIdRef.current!, currentUser.uid)
           .then(setAgoraTokenData)
           .catch(err => console.error("Token pre-fetch failed", err));
@@ -250,7 +259,6 @@ export function GlobalCallOverlay() {
 
       await client.join(tokenData!.appId, channelName, tokenData!.token, currentUser.uid);
       
-      // Ensure hardware is hot
       await engageHardware(type);
 
       const tracksToPublish = [];
