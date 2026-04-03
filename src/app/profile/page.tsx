@@ -17,7 +17,8 @@ import {
   Award,
   Zap,
   Gem,
-  ArrowDownToLine
+  ArrowDownToLine,
+  Gamepad2
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
@@ -153,6 +154,15 @@ export default function ProfilePage() {
         </div>
 
         <div className="flex flex-col gap-3">
+          <button onClick={() => router.push('/games')} className="w-full h-16 rounded-[2rem] bg-purple-500/10 border border-purple-500/20 flex items-center px-6 gap-4 active:scale-[0.98] transition-all shadow-sm">
+            <div className="w-10 h-10 rounded-xl bg-purple-500 flex items-center justify-center"><Gamepad2 className="w-5 h-5 text-white" /></div>
+            <div className="flex-1 text-left">
+              <span className="text-purple-600 font-black uppercase tracking-[0.1em] text-[10px] block">Games Center</span>
+              <span className="text-purple-500/60 text-[11px] font-bold">Lucky Spin & Bets</span>
+            </div>
+            <ChevronRight className="w-5 h-5 text-purple-500/40" />
+          </button>
+
           <button onClick={() => router.push('/profile/income')} className="w-full h-16 rounded-[2rem] bg-white/40 backdrop-blur-md border border-white/30 flex items-center px-6 gap-4 active:bg-white/60 transition-all shadow-sm">
             <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-blue-500/10"><ArrowDownToLine className="w-5 h-5 text-blue-500" /></div>
             <div className="flex-1 text-left">
