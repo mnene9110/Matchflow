@@ -31,6 +31,7 @@ export default function GamesCenterPage() {
   const [selectedBet, setSelectedBet] = useState<number | null>(null)
   const [rotation, setRotation] = useState(0)
   const [gameResult, setGameResult] = useState<{ winner: boolean; pot: number } | null>(null)
+  const [pendingResult, setPendingResult] = useState<{ winner: boolean; pot: number } | null>(null)
 
   // Determine current wheel values based on selected bet
   const currentWheelValues = useMemo(() => {
@@ -55,9 +56,10 @@ export default function GamesCenterPage() {
 
     setIsSpinning(true)
     setGameResult(null)
+    setPendingResult(null)
 
     try {
-      // 1. Deduct Bet
+      // 1. Deduct Bet (Immediate)
       const userRef = ref(database, `users/${currentUser.uid}/coinBalance`)
       const result = await runRtdbTransaction(userRef, (curr) => {
         if (curr === null) return curr
@@ -79,12 +81,11 @@ export default function GamesCenterPage() {
         description: `Bet ${selectedBet} coins in Solo Spin`
       })
 
-      // 2. Calculate Winner Index (0 to 7)
+      // 2. Determine Winner Index (Visual)
       const winnerIndex = Math.floor(Math.random() * 8)
       const winAmount = currentWheelValues[winnerIndex]
       
-      // Calculate Rotation: 6 full spins (2160 deg) + the specific angle to bring winnerIndex to top (0 deg)
-      // Since segments are drawn at i * 45, we need to rotate wheel by -i * 45 to align segment i with the top pointer
+      // 3. Start Animation (6 full spins + target)
       const extraSpins = 6
       const segmentAngle = 45
       const currentRotationBase = Math.floor(rotation / 360) * 360
@@ -93,28 +94,35 @@ export default function GamesCenterPage() {
       
       setRotation(newRotation)
 
-      // 3. Wait for Animation (4000ms) and then reveal result
-      setTimeout(async () => {
-        if (winAmount > 0) {
-          await runRtdbTransaction(userRef, (curr) => (curr || 0) + winAmount)
-          updateDoc(pRef, { coinBalance: firestoreIncrement(winAmount), updatedAt: new Date().toISOString() })
-          
-          const winTxRef = doc(collection(pRef, "transactions"))
-          setDoc(winTxRef, {
-            id: winTxRef.id,
-            type: "game_win",
-            amount: winAmount,
-            transactionDate: new Date().toISOString(),
-            description: `Won ${winAmount} coins in Solo Spin!`
-          })
-        }
+      // 4. Pre-prepare the win result while spinning
+      const winData = { winner: winAmount > 0, pot: winAmount }
+      setPendingResult(winData)
 
-        setGameResult({ winner: winAmount > 0, pot: winAmount })
-        setIsSpinning(false)
-      }, 4200)
+      // Process win in background so it's ready when wheel stops
+      if (winAmount > 0) {
+        runRtdbTransaction(userRef, (curr) => (curr || 0) + winAmount)
+        updateDoc(pRef, { coinBalance: firestoreIncrement(winAmount), updatedAt: new Date().toISOString() })
+        
+        const winTxRef = doc(collection(pRef, "transactions"))
+        setDoc(winTxRef, {
+          id: winTxRef.id,
+          type: "game_win",
+          amount: winAmount,
+          transactionDate: new Date().toISOString(),
+          description: `Won ${winAmount} coins in Solo Spin!`
+        })
+      }
 
     } catch (e: any) {
       toast({ variant: "destructive", title: "Game Error", description: e.message })
+      setIsSpinning(false)
+    }
+  }
+
+  const handleAnimationEnd = () => {
+    if (isSpinning && pendingResult) {
+      setGameResult(pendingResult)
+      setPendingResult(null)
       setIsSpinning(false)
     }
   }
@@ -135,7 +143,6 @@ export default function GamesCenterPage() {
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Games Center</h1>
       </header>
 
-      {/* Main Scrollable Area */}
       <main className="flex-1 overflow-y-auto px-6 pt-2 pb-40 space-y-10 scroll-smooth">
         {/* Balance Card */}
         <section className="bg-zinc-900 rounded-[3rem] p-8 text-white shadow-2xl relative overflow-hidden shrink-0">
@@ -168,9 +175,10 @@ export default function GamesCenterPage() {
 
           <div className="relative w-full aspect-square max-w-[280px] mx-auto group">
             <div 
+              onTransitionEnd={handleAnimationEnd}
               style={{ 
                 transform: `rotate(${rotation}deg)`,
-                transitionTimingFunction: 'cubic-bezier(0.15, 0, 0.15, 1)' 
+                transitionTimingFunction: 'cubic-bezier(0.1, 0, 0.1, 1)' 
               }}
               className={cn(
                 "w-full h-full rounded-full border-[10px] border-zinc-900 relative flex items-center justify-center shadow-2xl transition-transform duration-[4000ms] overflow-hidden"
@@ -228,12 +236,7 @@ export default function GamesCenterPage() {
               selectedBet && userCoins >= selectedBet ? darkMaroon : "bg-gray-200 text-gray-400"
             )}
           >
-            {isSpinning ? (
-              <div className="flex items-center gap-2">
-                <Loader2 className="w-5 h-5 animate-spin" />
-                <span>SPINNING...</span>
-              </div>
-            ) : "PLACE BET"}
+            {isSpinning ? "SPINNING..." : "PLACE BET"}
           </Button>
         </section>
 
