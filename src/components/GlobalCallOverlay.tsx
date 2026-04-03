@@ -14,12 +14,11 @@ let AgoraRTC: any = null;
 
 /**
  * @fileOverview Global Call Overlay for Agora-powered calls.
- * Implements:
- * - 10s free grace period.
- * - Deduction at 11th second (Start of Min 1).
- * - Pre-call coin check.
- * - Deferred hardware engagement until call is accepted.
- * - Robust cleanup to prevent zombie ringing.
+ * Optimized for speed:
+ * - Pre-warms hardware (cam/mic) during ringing phase.
+ * - Pre-fetches Agora tokens.
+ * - Mirror mode implemented for local preview.
+ * - 10s free grace period, billing starts at 11s.
  */
 
 export function GlobalCallOverlay() {
@@ -30,6 +29,7 @@ export function GlobalCallOverlay() {
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
   const [callDuration, setCallDuration] = useState(0)
   const [isConnecting, setIsConnecting] = useState(false)
+  const [agoraTokenData, setAgoraTokenData] = useState<{token: string, appId: string} | null>(null)
   
   const agoraClientRef = useRef<any>(null)
   const localTracksRef = useRef<{ videoTrack?: any; audioTrack?: any }>({})
@@ -105,6 +105,17 @@ export function GlobalCallOverlay() {
     };
   }, [database, currentUser]);
 
+  // Pre-fetch token when call is detected
+  useEffect(() => {
+    if (activeChatIdRef.current && currentUser && (callStatus === 'ringing' || callStatus === 'incoming')) {
+      if (!agoraTokenData) {
+        getAgoraToken(activeChatIdRef.current, currentUser.uid)
+          .then(setAgoraTokenData)
+          .catch(err => console.error("Token pre-fetch failed", err));
+      }
+    }
+  }, [activeChatIdRef.current, currentUser, callStatus]);
+
   const updateCallState = (data: any) => {
     if (!data || !currentUser) return;
     const isCaller = data.callerId === currentUser.uid;
@@ -115,6 +126,9 @@ export function GlobalCallOverlay() {
       }
       setCallStatus(isCaller ? 'ringing' : 'incoming');
       
+      // OPTIMIZATION: Engage hardware early during ringing
+      engageHardware(data.callType);
+
       if (isCaller && !ringingTimerRef.current) {
         ringingTimerRef.current = setTimeout(() => {
           handleTimeout();
@@ -149,6 +163,7 @@ export function GlobalCallOverlay() {
       if (type === 'video' && !localTracksRef.current.videoTrack) {
         const videoTrack = await AgoraRTC.createCameraVideoTrack();
         localTracksRef.current.videoTrack = videoTrack;
+        // Play local preview immediately even while ringing
         if (previewVideoRef.current) {
           videoTrack.play(previewVideoRef.current);
         }
@@ -199,7 +214,11 @@ export function GlobalCallOverlay() {
     if (!AgoraRTC || !currentUser || agoraClientRef.current) return;
 
     try {
-      const { token, appId } = await getAgoraToken(channelName, currentUser.uid);
+      // Use pre-fetched token or fetch now if not ready
+      let tokenData = agoraTokenData;
+      if (!tokenData) {
+        tokenData = await getAgoraToken(channelName, currentUser.uid);
+      }
       
       const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
       agoraClientRef.current = client;
@@ -216,7 +235,9 @@ export function GlobalCallOverlay() {
 
       client.on("user-left", () => handleEndCall());
 
-      await client.join(appId, channelName, token, currentUser.uid);
+      await client.join(tokenData.appId, channelName, tokenData.token, currentUser.uid);
+      
+      // Ensure hardware is engaged (it usually is by now)
       await engageHardware(type);
 
       const tracksToPublish = [];
@@ -227,7 +248,7 @@ export function GlobalCallOverlay() {
         await client.publish(tracksToPublish);
       }
       
-      setIsConnecting(false); // Connected and streaming local
+      setIsConnecting(false); 
       
     } catch (error) {
       console.error("Agora join failed:", error);
@@ -276,6 +297,7 @@ export function GlobalCallOverlay() {
     setCallStatus('idle');
     setCallData(null);
     setCallDuration(0);
+    setAgoraTokenData(null);
     callDurationRef.current = 0;
     activeChatIdRef.current = null;
     wasCallAcceptedRef.current = false;
@@ -363,6 +385,7 @@ export function GlobalCallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col overflow-hidden text-white font-body">
+      {/* Remote Video Container */}
       <div 
         ref={remoteContainerRef} 
         className={cn(
@@ -371,37 +394,42 @@ export function GlobalCallOverlay() {
         )} 
       />
 
+      {/* Local Video Preview (Mirror Mode) */}
       <div className={cn(
-        "absolute top-12 right-6 w-32 aspect-[3/4] bg-zinc-900 rounded-2xl overflow-hidden border-2 border-white/10 z-50 shadow-2xl transition-all duration-500",
-        callStatus === 'ongoing' ? "opacity-100 scale-100" : "opacity-0 scale-90 pointer-events-none"
+        "absolute bg-zinc-900 overflow-hidden border-2 border-white/10 z-50 shadow-2xl transition-all duration-500",
+        callStatus === 'ongoing' 
+          ? "top-12 right-6 w-32 aspect-[3/4] rounded-2xl" 
+          : "inset-0 rounded-none border-none" // Full screen preview during ringing
       )}>
-        <div ref={previewVideoRef as any} className="w-full h-full object-cover scale-x-[-1] [&_video]:scale-x-[-1]" />
+        <div 
+          ref={previewVideoRef as any} 
+          className={cn(
+            "w-full h-full object-cover scale-x-[-1] [&_video]:scale-x-[-1]",
+            callStatus !== 'ongoing' && "opacity-40 blur-sm" // Slightly dim preview while ringing
+          )} 
+        />
       </div>
 
+      {/* Ringing/Loading UI Overlay */}
       {(callStatus !== 'ongoing' || isConnecting) && (
-        <div className="absolute inset-0 z-10 flex flex-col items-center justify-between py-24 px-8">
-          <div className="absolute inset-0 z-[-1]">
-             <img src={otherUserImage} className="w-full h-full object-cover opacity-30 blur-3xl scale-110" alt="" />
-             <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-transparent to-zinc-950/80" />
-          </div>
-          
+        <div className="absolute inset-0 z-[60] flex flex-col items-center justify-between py-24 px-8 bg-black/40 backdrop-blur-sm">
           <div className="flex flex-col items-center gap-8 mt-12 w-full">
             <div className="relative">
               <div className="absolute -inset-8 bg-white/5 rounded-full animate-pulse" />
-              <Avatar className="w-40 h-44 rounded-[3rem] border-4 border-white/5 shadow-2xl">
+              <Avatar className="w-40 h-44 rounded-[3rem] border-4 border-white/10 shadow-2xl">
                 <AvatarImage src={otherUserImage} className="object-cover" />
                 <AvatarFallback className="text-5xl bg-zinc-800">?</AvatarFallback>
               </Avatar>
             </div>
             
             <div className="text-center space-y-2">
-              <h2 className="text-4xl font-black font-headline tracking-tight text-white">
-                {isCaller ? 'Ringing...' : (callData?.callerName || 'Incoming...')}
+              <h2 className="text-4xl font-black font-headline tracking-tight text-white drop-shadow-lg">
+                {isConnecting ? 'Securing Link' : isCaller ? 'Ringing...' : (callData?.callerName || 'Incoming...')}
               </h2>
               {isConnecting && (
                 <div className="flex items-center justify-center gap-2 mt-4">
                   <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Securing Link</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Finalizing Connection</span>
                 </div>
               )}
             </div>
@@ -409,6 +437,7 @@ export function GlobalCallOverlay() {
         </div>
       )}
 
+      {/* Active Call Timer */}
       {callStatus === 'ongoing' && !isConnecting && (
         <div className="absolute top-12 left-6 z-50">
           <div className="px-4 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
@@ -420,18 +449,19 @@ export function GlobalCallOverlay() {
         </div>
       )}
 
-      <div className="absolute bottom-16 left-0 right-0 z-[60] flex items-center justify-center gap-12 px-8">
+      {/* Action Buttons */}
+      <div className="absolute bottom-16 left-0 right-0 z-[70] flex items-center justify-center gap-12 px-8">
         {callStatus === 'incoming' ? (
           <>
             <button 
               onClick={handleEndCall} 
-              className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all"
+              className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all border-4 border-white/10"
             >
               <PhoneOff className="w-8 h-8 text-white" />
             </button>
             <button 
               onClick={handleAcceptCall} 
-              className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all animate-bounce"
+              className="w-20 h-20 rounded-full bg-green-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all animate-bounce border-4 border-white/10"
             >
               <Phone className="w-8 h-8 text-white" />
             </button>
@@ -439,7 +469,7 @@ export function GlobalCallOverlay() {
         ) : (
           <button 
             onClick={handleEndCall} 
-            className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all"
+            className="w-20 h-20 rounded-full bg-red-500 flex items-center justify-center shadow-2xl active:scale-90 transition-all border-4 border-white/10"
           >
             <PhoneOff className="w-8 h-8 text-white" />
           </button>
