@@ -14,7 +14,8 @@ let AgoraRTC: any = null;
 
 /**
  * @fileOverview Global Call Overlay for Agora-powered calls.
- * Fixed: Premature UI closure bug fixed by hardening state transitions and join logic.
+ * Implements [Timeout], [Cancelled], [Rejected], and duration logging.
+ * Handles speaker vs earpiece hints for video/audio calls.
  */
 
 export function GlobalCallOverlay() {
@@ -38,6 +39,7 @@ export function GlobalCallOverlay() {
   const callDurationRef = useRef(0)
   const wasCallAcceptedRef = useRef(false)
   const activeChatIdRef = useRef<string | null>(null)
+  const logRecordedRef = useRef(false)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -69,7 +71,6 @@ export function GlobalCallOverlay() {
       const chatId = snap.val();
       
       if (!chatId) {
-        // Only cleanup if we aren't currently in an active transition
         if (!joiningRef.current) {
           handleCleanup();
         }
@@ -87,7 +88,10 @@ export function GlobalCallOverlay() {
         const unsubscribeDetails = onValue(callDetailsRef, (detailsSnap) => {
           const data = detailsSnap.val();
           if (!data) {
-            if (!joiningRef.current) handleCleanup();
+            // If data is gone and we haven't accepted, it means other side cancelled or rejected
+            if (!joiningRef.current && callStatus !== 'idle') {
+              handleCleanup();
+            }
             return;
           }
           setCallData(data);
@@ -103,7 +107,7 @@ export function GlobalCallOverlay() {
       if (callDetailsUnsubscribe) callDetailsUnsubscribe();
       handleCleanup(); 
     };
-  }, [database, currentUser]);
+  }, [database, currentUser, callStatus]);
 
   // Pre-fetch token when call is detected
   useEffect(() => {
@@ -157,11 +161,19 @@ export function GlobalCallOverlay() {
     if (!AgoraRTC) return;
     try {
       if (!localTracksRef.current.audioTrack) {
-        localTracksRef.current.audioTrack = await AgoraRTC.createMicrophoneAudioTrack();
+        localTracksRef.current.audioTrack = await AgoraRTC.createMicrophoneAudioTrack({
+          // Audio optimization for voice calls (earpiece hint)
+          ANS: true,
+          AEC: true,
+          AGC: true
+        });
       }
       
       if (type === 'video' && !localTracksRef.current.videoTrack) {
-        const videoTrack = await AgoraRTC.createCameraVideoTrack();
+        const videoTrack = await AgoraRTC.createCameraVideoTrack({
+          optimizationMode: "detail",
+          encoderConfig: "720p_1"
+        });
         localTracksRef.current.videoTrack = videoTrack;
         if (previewVideoRef.current) {
           videoTrack.play(previewVideoRef.current);
@@ -236,7 +248,6 @@ export function GlobalCallOverlay() {
 
       await client.join(tokenData!.appId, channelName, tokenData!.token, currentUser.uid);
       
-      // Hardware is usually engaged during ringing, but safety check here
       await engageHardware(type);
 
       const tracksToPublish = [];
@@ -259,7 +270,7 @@ export function GlobalCallOverlay() {
 
   const handleTimeout = () => {
     if (activeChatIdRef.current) {
-      logCallInChat(activeChatIdRef.current, 0, true);
+      logCallInChat(activeChatIdRef.current, 0, "[Timeout]");
       handleEndCall();
     }
   };
@@ -295,8 +306,11 @@ export function GlobalCallOverlay() {
       agoraClientRef.current = null;
     }
     
-    if (wasCallAcceptedRef.current && activeChatIdRef.current && currentUser?.uid === callData?.callerId) {
-      logCallInChat(activeChatIdRef.current, callDurationRef.current);
+    // Log ongoing call duration if ended normally and we were in it
+    if (wasCallAcceptedRef.current && activeChatIdRef.current && !logRecordedRef.current) {
+      const mins = Math.floor(callDurationRef.current / 60);
+      const secs = callDurationRef.current % 60;
+      logCallInChat(activeChatIdRef.current, callDurationRef.current, `[${mins}:${secs.toString().padStart(2, '0')}]`);
     }
 
     setCallStatus('idle');
@@ -308,6 +322,7 @@ export function GlobalCallOverlay() {
     wasCallAcceptedRef.current = false;
     setIsConnecting(false);
     joiningRef.current = false;
+    logRecordedRef.current = false;
   };
 
   const handleAcceptCall = async () => {
@@ -320,11 +335,23 @@ export function GlobalCallOverlay() {
   }
 
   const handleEndCall = async () => {
-    if (!database || !activeChatIdRef.current) {
+    if (!database || !activeChatIdRef.current || !currentUser) {
       handleCleanup(); 
       return;
     }
+
     const cid = activeChatIdRef.current;
+    const isCaller = callData?.callerId === currentUser.uid;
+
+    // Determine specific logging reason based on context
+    if (!wasCallAcceptedRef.current) {
+      if (callStatus === 'incoming') {
+        logCallInChat(cid, 0, "[Rejected]");
+      } else if (callStatus === 'ringing') {
+        logCallInChat(cid, 0, "[Cancelled]");
+      }
+    }
+
     const receiverId = callData?.receiverId;
     const callerId = callData?.callerId;
 
@@ -334,26 +361,19 @@ export function GlobalCallOverlay() {
     handleCleanup();
   }
 
-  const logCallInChat = async (chatId: string, duration: number, isTimeout: boolean = false) => {
-    if (!database || !currentUser) return;
+  const logCallInChat = async (chatId: string, duration: number, label: string) => {
+    if (!database || !currentUser || logRecordedRef.current) return;
+    
+    logRecordedRef.current = true;
     const otherId = callData?.receiverId === currentUser.uid ? callData?.callerId : callData?.receiverId;
     if (!otherId) return;
     
-    let logMsg = "";
-    if (isTimeout) {
-      logMsg = "[Timeout]";
-    } else {
-      const mins = Math.floor(duration / 60);
-      const secs = duration % 60;
-      logMsg = `[${mins}:${secs.toString().padStart(2, '0')}]`;
-    }
-
     const updates: any = {}
     const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-    updates[`/chats/${chatId}/messages/${msgKey}`] = { messageText: logMsg, senderId: currentUser.uid, sentAt: rtdbTimestamp(), isCallLog: true }
-    updates[`/users/${currentUser.uid}/chats/${otherId}/lastMessage`] = logMsg
+    updates[`/chats/${chatId}/messages/${msgKey}`] = { messageText: label, senderId: currentUser.uid, sentAt: rtdbTimestamp(), isCallLog: true }
+    updates[`/users/${currentUser.uid}/chats/${otherId}/lastMessage`] = label
     updates[`/users/${currentUser.uid}/chats/${otherId}/timestamp`] = rtdbTimestamp()
-    updates[`/users/${otherId}/chats/${currentUser.uid}/lastMessage`] = logMsg
+    updates[`/users/${otherId}/chats/${currentUser.uid}/lastMessage`] = label
     updates[`/users/${otherId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
     await update(ref(database), updates);
   };
@@ -369,7 +389,6 @@ export function GlobalCallOverlay() {
           const isCaller = callData?.callerId === currentUser?.uid;
           if (isCaller && !callData?.isFree) {
             const cost = callData?.costPerMin || 0;
-            // 10s free, deduct at 11s, then at start of every following minute
             if (next === 11) {
               deductCoins(cost);
             } 
@@ -392,7 +411,7 @@ export function GlobalCallOverlay() {
 
   return (
     <div className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col overflow-hidden text-white font-body">
-      {/* Remote Video Container */}
+      {/* Remote Video Container (Loudspeaker default for video) */}
       <div 
         ref={remoteContainerRef} 
         className={cn(
