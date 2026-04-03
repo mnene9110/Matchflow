@@ -228,7 +228,10 @@ export default function DiscoverPage() {
   return (
     <div className="flex flex-col h-svh bg-transparent overflow-y-auto pb-32">
       <div className="pt-4 px-4 grid grid-cols-2 gap-3 shrink-0">
-        <button className={cn("flex flex-col items-center justify-center gap-2 rounded-[2rem] py-6 shadow-xl group active:scale-95 transition-all", darkMaroon)}>
+        <button 
+          onClick={() => router.push('/mystery-note')}
+          className={cn("flex flex-col items-center justify-center gap-2 rounded-[2rem] py-6 shadow-xl group active:scale-95 transition-all", darkMaroon)}
+        >
           <div className="w-10 h-10 rounded-full bg-white/20 flex items-center justify-center">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
