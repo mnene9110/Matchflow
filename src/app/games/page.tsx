@@ -3,9 +3,9 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Gamepad2, Coins, Trophy, Loader2, Star, Sparkles, Dice5 } from "lucide-react"
+import { ChevronLeft, Gamepad2, Coins, Trophy, Loader2, Star, Sparkles, Dice5, Users, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
 import { doc, updateDoc, increment as firestoreIncrement, setDoc, collection } from "firebase/firestore"
 import { ref, onValue, runTransaction as runRtdbTransaction } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
@@ -24,10 +24,30 @@ export default function GamesCenterPage() {
   const [selectedBet, setSelectedBet] = useState<number | null>(null)
   const [gameResult, setGameResult] = useState<{ winner: boolean; pot: number; multiplier: number } | null>(null)
 
+  // Fetch recent matches to challenge
+  const matchesQuery = useMemoFirebase(() => {
+    if (!database || !currentUser) return null
+    return ref(database, `users/${currentUser.uid}/chats`)
+  }, [database, currentUser])
+
+  const [chats, setChats] = useState<any[]>([])
+
   useEffect(() => {
     if (!database || !currentUser) return
     const coinRef = ref(database, `users/${currentUser.uid}/coinBalance`)
-    return onValue(coinRef, (snap) => setUserCoins(snap.val() || 0))
+    onValue(coinRef, (snap) => setUserCoins(snap.val() || 0))
+
+    const userChatsRef = ref(database, `users/${currentUser.uid}/chats`)
+    return onValue(userChatsRef, (snapshot) => {
+      const data = snapshot.val()
+      if (data) {
+        const list = Object.entries(data).map(([key, val]: [string, any]) => ({
+          otherUserId: key,
+          ...val
+        })).slice(0, 5)
+        setChats(list)
+      }
+    })
   }, [database, currentUser])
 
   const handleLuckySpin = async () => {
@@ -41,7 +61,6 @@ export default function GamesCenterPage() {
     setGameResult(null)
 
     try {
-      // 1. Atomic deduction
       const userRef = ref(database, `users/${currentUser.uid}/coinBalance`)
       const result = await runRtdbTransaction(userRef, (curr) => {
         if (curr === null) return curr
@@ -51,7 +70,6 @@ export default function GamesCenterPage() {
 
       if (!result.committed) throw new Error("INSUFFICIENT_COINS")
 
-      // 2. Sync Firestore deduction
       const pRef = doc(firestore, "userProfiles", currentUser.uid)
       updateDoc(pRef, { coinBalance: firestoreIncrement(-selectedBet), updatedAt: new Date().toISOString() })
       
@@ -61,24 +79,22 @@ export default function GamesCenterPage() {
         type: "game_bet",
         amount: -selectedBet,
         transactionDate: new Date().toISOString(),
-        description: `Bet ${selectedBet} coins in Lucky Spin`
+        description: `Bet ${selectedBet} coins in Solo Spin`
       })
 
-      // 3. Simulation Delay
       setTimeout(async () => {
         const rand = Math.random()
         let multiplier = 0
         let won = false
 
-        if (rand > 0.55) { // 45% chance to win
+        if (rand > 0.6) { 
           won = true
-          multiplier = rand > 0.95 ? 5 : 2 // 5% chance for 5x, otherwise 2x
+          multiplier = rand > 0.95 ? 5 : 2
         }
 
         const pot = Math.floor(selectedBet * multiplier)
 
         if (won) {
-          // Reward user
           await runRtdbTransaction(userRef, (curr) => (curr || 0) + pot)
           updateDoc(pRef, { coinBalance: firestoreIncrement(pot), updatedAt: new Date().toISOString() })
           
@@ -88,7 +104,7 @@ export default function GamesCenterPage() {
             type: "game_win",
             amount: pot,
             transactionDate: new Date().toISOString(),
-            description: `Won ${pot} coins in Lucky Spin (${multiplier}x)!`
+            description: `Won ${pot} coins in Solo Spin!`
           })
         }
 
@@ -105,8 +121,8 @@ export default function GamesCenterPage() {
   const darkMaroon = "bg-[#5A1010]";
 
   return (
-    <div className="flex flex-col min-h-svh bg-transparent text-gray-900 overflow-hidden">
-      <header className="px-4 py-6 flex items-center sticky top-0 bg-transparent z-50">
+    <div className="flex flex-col h-svh bg-transparent text-gray-900">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-transparent z-50 shrink-0">
         <Button 
           variant="ghost" 
           size="icon" 
@@ -118,7 +134,7 @@ export default function GamesCenterPage() {
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Games Center</h1>
       </header>
 
-      <main className="flex-1 px-6 pb-20 space-y-10 overflow-y-auto scroll-smooth">
+      <main className="flex-1 overflow-y-auto px-6 pb-32 space-y-10 scroll-smooth">
         <section className="bg-zinc-900 rounded-[3rem] p-8 text-white shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6 opacity-10"><Gamepad2 className="w-32 h-32" /></div>
           <div className="relative z-10 space-y-4">
@@ -128,7 +144,7 @@ export default function GamesCenterPage() {
             </div>
             <div className="flex flex-col">
               <span className="text-5xl font-black font-headline tracking-tighter">{userCoins.toLocaleString()}</span>
-              <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Available for betting</p>
+              <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest mt-1">Ready for bets</p>
             </div>
           </div>
         </section>
@@ -137,24 +153,22 @@ export default function GamesCenterPage() {
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
               <Dice5 className="w-4 h-4 text-purple-500" />
-              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Lucky Spin</h2>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Solo Practice Spin</h2>
             </div>
-            <div className="px-3 py-1 bg-green-50 rounded-full border border-green-100">
-              <span className="text-[8px] font-black text-green-600 uppercase tracking-widest">Up to 5x Wins</span>
+            <div className="px-3 py-1 bg-purple-50 rounded-full border border-purple-100">
+              <span className="text-[8px] font-black text-purple-600 uppercase tracking-widest">Multipliers active</span>
             </div>
           </div>
 
-          <div className="relative w-full aspect-square max-w-[300px] mx-auto group">
+          <div className="relative w-full aspect-square max-w-[280px] mx-auto group">
             <div className={cn(
-              "w-full h-full rounded-full border-[12px] border-zinc-900 relative flex items-center justify-center shadow-[0_0_50px_rgba(0,0,0,0.1)] transition-transform duration-[3000ms] ease-[cubic-bezier(0.15,0,0.15,1)]",
+              "w-full h-full rounded-full border-[12px] border-zinc-900 relative flex items-center justify-center shadow-xl transition-transform duration-[3000ms] ease-[cubic-bezier(0.15,0,0.15,1)]",
               isSpinning && "rotate-[1800deg]"
             )}>
-              <div className="absolute inset-0 bg-[conic-gradient(from_0deg,#5A1010,#18181b,#5A1010,#18181b,#5A1010,#18181b)] rounded-full opacity-20" />
+              <div className="absolute inset-0 bg-[conic-gradient(from_0deg,#5A1010,#18181b,#5A1010,#18181b)] rounded-full opacity-20" />
               <div className="w-20 h-20 bg-zinc-900 rounded-full flex items-center justify-center border-4 border-amber-500/30 z-10">
                 {isSpinning ? <Loader2 className="w-8 h-8 text-amber-500 animate-spin" /> : <Trophy className="w-8 h-8 text-amber-500" />}
               </div>
-              
-              {/* Markers */}
               {[0, 45, 90, 135, 180, 225, 270, 315].map((deg) => (
                 <div key={deg} className="absolute inset-0 flex justify-center py-4" style={{ transform: `rotate(${deg}deg)` }}>
                   <Star className={cn("w-4 h-4", deg % 90 === 0 ? "text-amber-500" : "text-zinc-800")} fill="currentColor" />
@@ -164,51 +178,79 @@ export default function GamesCenterPage() {
             <div className="absolute -top-2 left-1/2 -translate-x-1/2 w-4 h-8 bg-zinc-900 rounded-full z-20 shadow-xl border-2 border-white" />
           </div>
 
-          <div className="space-y-4">
-            <p className="text-[9px] font-black text-center text-gray-400 uppercase tracking-widest">Select Bet Amount</p>
-            <div className="grid grid-cols-5 gap-2">
-              {GAME_BETS.map((bet) => (
-                <button
-                  key={bet}
-                  onClick={() => !isSpinning && setSelectedBet(bet)}
-                  disabled={isSpinning}
-                  className={cn(
-                    "h-12 rounded-2xl flex flex-col items-center justify-center transition-all border-2",
-                    selectedBet === bet 
-                      ? "bg-purple-600 border-purple-400 text-white shadow-lg scale-105" 
-                      : "bg-white border-gray-100 text-gray-400"
-                  )}
-                >
-                  <span className="text-[10px] font-black">{bet}</span>
-                </button>
-              ))}
-            </div>
+          <div className="grid grid-cols-5 gap-2">
+            {GAME_BETS.map((bet) => (
+              <button
+                key={bet}
+                onClick={() => !isSpinning && setSelectedBet(bet)}
+                disabled={isSpinning}
+                className={cn(
+                  "h-12 rounded-2xl flex items-center justify-center transition-all border-2 font-black text-[10px]",
+                  selectedBet === bet 
+                    ? "bg-purple-600 border-purple-400 text-white scale-105" 
+                    : "bg-white border-gray-100 text-gray-400"
+                )}
+              >
+                {bet}
+              </button>
+            ))}
           </div>
 
           <Button 
             onClick={handleLuckySpin}
             disabled={!selectedBet || isSpinning || userCoins < (selectedBet || 0)}
             className={cn(
-              "w-full h-18 rounded-full text-white font-black text-lg shadow-2xl active:scale-95 transition-all gap-3",
+              "w-full h-18 rounded-full text-white font-black text-lg shadow-2xl active:scale-95 transition-all",
               selectedBet && userCoins >= selectedBet ? darkMaroon : "bg-gray-200 text-gray-400"
             )}
           >
-            {isSpinning ? "SPINNING..." : "PLACE BET & SPIN"}
+            {isSpinning ? "SPINNING..." : "PLACE BET"}
           </Button>
         </section>
 
-        <section className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 space-y-2 opacity-60">
+        <section className="space-y-4">
+          <div className="flex items-center gap-2 px-2">
+            <Users className="w-4 h-4 text-primary" />
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Play Duels with Matches</h2>
+          </div>
+
+          <div className="space-y-3">
+            {chats.length > 0 ? chats.map((chat) => (
+              <button
+                key={chat.otherUserId}
+                onClick={() => router.push(`/chat/${chat.otherUserId}`)}
+                className="w-full p-4 bg-white/40 backdrop-blur-md border border-white/40 rounded-[2rem] flex items-center justify-between active:scale-[0.98] transition-all shadow-sm"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center">
+                    <MessageCircle className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <div className="flex flex-col items-start">
+                    <span className="text-xs font-black uppercase tracking-tight">Challenge Match</span>
+                    <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Open chat to start duel</span>
+                  </div>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-300" />
+              </button>
+            )) : (
+              <div className="p-8 text-center bg-white/20 rounded-[2rem] border border-white/30 border-dashed opacity-50">
+                <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">No recent matches to duel</p>
+              </div>
+            )}
+          </div>
+        </section>
+
+        <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 space-y-2 opacity-60">
           <div className="flex items-center gap-2">
             <Sparkles className="w-3 h-3 text-blue-500" />
-            <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">How it works</p>
+            <p className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Duel Rules</p>
           </div>
           <p className="text-[10px] font-medium text-blue-400 leading-relaxed">
-            Place a bet using your coins. If the wheel lands on a multiplier, your bet is multiplied! landing on a blank star results in a loss. 
+            Duels require two players. Both must bet the same amount of coins. The winner takes the entire combined pot!
           </p>
-        </section>
+        </div>
       </main>
 
-      {/* Result Overlay */}
       {gameResult && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
           <div className="text-center space-y-6">
@@ -218,11 +260,8 @@ export default function GamesCenterPage() {
                   <Trophy className="w-16 h-16 text-amber-500" />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-5xl font-black font-headline text-green-500 uppercase tracking-tighter">YOU WON!</h2>
+                  <h2 className="text-5xl font-black font-headline text-green-500 uppercase tracking-tighter">WON!</h2>
                   <p className="text-white font-bold text-xl">{gameResult.pot} COINS</p>
-                  <div className="px-4 py-1 bg-white/10 rounded-full inline-block">
-                    <span className="text-amber-500 font-black text-xs uppercase tracking-[0.2em]">{gameResult.multiplier}X MULTIPLIER</span>
-                  </div>
                 </div>
               </>
             ) : (
@@ -231,18 +270,11 @@ export default function GamesCenterPage() {
                   <Dice5 className="w-16 h-16 text-red-500/40" />
                 </div>
                 <div className="space-y-2">
-                  <h2 className="text-4xl font-black font-headline text-white/40 uppercase tracking-widest">BET LOST</h2>
-                  <p className="text-white/20 font-bold uppercase tracking-widest">Better luck next time</p>
+                  <h2 className="text-4xl font-black font-headline text-white/40 uppercase tracking-widest">LOST</h2>
                 </div>
               </>
             )}
-            
-            <Button 
-              onClick={() => setGameResult(null)}
-              className="mt-10 rounded-full bg-white text-zinc-900 px-12 h-14 font-black uppercase text-xs tracking-widest shadow-xl active:scale-95"
-            >
-              CLOSE
-            </Button>
+            <Button onClick={() => setGameResult(null)} className="mt-10 rounded-full bg-white text-zinc-900 px-12 h-14 font-black uppercase text-xs tracking-widest">CLOSE</Button>
           </div>
         </div>
       )}

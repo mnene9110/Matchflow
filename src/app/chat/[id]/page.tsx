@@ -101,7 +101,6 @@ function ChatDetailContent() {
       } else if (data?.status === 'finished') {
         setIsGameSpinning(false)
         setGameResult(data)
-        // Auto-close overlay after 5 seconds
         setTimeout(() => {
           if (data.status === 'finished') setGameResult(null)
         }, 5000)
@@ -301,7 +300,7 @@ function ChatDetailContent() {
     setIsStartingGame(true);
     try {
       const duelId = push(ref(database, `chats/${chatId}/duels`)).key;
-      const gameMessage = `🎮 Game Challenge: Duel Spin (${betAmount} coins)`;
+      const gameMessage = `🎮 Spin Duel Challenge: Both players bet ${betAmount} coins.`;
       
       const updates: any = {}
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
@@ -321,7 +320,7 @@ function ChatDetailContent() {
       await update(ref(database), updates)
 
       setIsGameSheetOpen(false);
-      toast({ title: "Challenge Sent!", description: "Waiting for player to join..." });
+      toast({ title: "Challenge Sent!", description: `Waiting for ${otherUser?.username || 'player'} to bet ${betAmount} coins.` });
     } catch (e) {
       toast({ variant: "destructive", title: "Error", description: "Could not start game." });
     } finally {
@@ -332,7 +331,7 @@ function ChatDetailContent() {
   const handleAcceptDuel = async (betAmount: number, duelId: string) => {
     if (!currentUser || !otherUserId || !database || isSending) return;
     if (userCoins < betAmount) {
-      toast({ variant: "destructive", title: "Insufficient Coins", description: "Recharge to play!" });
+      toast({ variant: "destructive", title: "Insufficient Coins", description: `You need ${betAmount} coins to join this duel.` });
       return;
     }
 
@@ -342,7 +341,7 @@ function ChatDetailContent() {
       const userRef = ref(database, `users/${currentUser.uid}/coinBalance`);
       const otherUserBalanceRef = ref(database, `users/${otherUserId}/coinBalance`);
 
-      // Deduction for current user
+      // Deduction for current user (the acceptor)
       const myDeduction = await runRtdbTransaction(userRef, (curr) => {
         if (curr === null) return curr;
         if (curr < betAmount) return undefined;
@@ -361,7 +360,7 @@ function ChatDetailContent() {
       if (!otherDeduction.committed) {
         // Refund current user if challenger somehow ran out of coins in between
         await runRtdbTransaction(userRef, (curr) => (curr || 0) + betAmount);
-        throw new Error("CHALLENGER_INSUFFICIENT_COINS");
+        throw new Error("CHALLENGER_FUNDS_EXPIRED");
       }
 
       // 2. Sync Firestore
@@ -374,11 +373,11 @@ function ChatDetailContent() {
           type: "game_bet",
           amount: -betAmount,
           transactionDate: new Date().toISOString(),
-          description: `Bet ${betAmount} coins in Duel Spin`
+          description: `Bet ${betAmount} coins in 1v1 Spin Duel`
         });
       });
 
-      // 3. Trigger Game Animation
+      // 3. Trigger Game Animation for both
       const duelRef = ref(database, `chats/${chatId}/activeDuel`);
       await set(duelRef, {
         status: 'spinning',
@@ -387,12 +386,11 @@ function ChatDetailContent() {
         startTime: Date.now()
       });
 
-      // 4. Determine winner after "spinning" delay (client-side simulation but server-side source of truth)
+      // 4. Winner determination
       setTimeout(async () => {
         const winnerId = Math.random() > 0.5 ? currentUser.uid : otherUserId;
         const totalPot = betAmount * 2;
 
-        // Reward winner
         const winnerCoinRef = ref(database, `users/${winnerId}/coinBalance`);
         await runRtdbTransaction(winnerCoinRef, (curr) => (curr || 0) + totalPot);
 
@@ -405,7 +403,7 @@ function ChatDetailContent() {
           type: "game_win",
           amount: totalPot,
           transactionDate: new Date().toISOString(),
-          description: `Won ${totalPot} coins in Duel Spin!`
+          description: `Won ${totalPot} coins in 1v1 Duel Spin!`
         });
 
         await update(duelRef, {
@@ -414,12 +412,11 @@ function ChatDetailContent() {
           pot: totalPot
         });
 
-        // Clean up duel entry after short delay
         setTimeout(() => remove(duelRef), 6000);
       }, 3000);
 
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Duel Failed", description: error.message || "An error occurred." });
+      toast({ variant: "destructive", title: "Duel Failed", description: error.message === "CHALLENGER_FUNDS_EXPIRED" ? "Challenger no longer has sufficient coins." : "An error occurred." });
     } finally {
       setIsSending(false);
     }
@@ -490,9 +487,7 @@ function ChatDetailContent() {
       } else {
         toast({ variant: "destructive", title: "Error", description: "Could not send gift." });
       }
-    } finally {
-      setIsSendingGift(false);
-    }
+    } finally { setIsSendingGift(false) }
   }
 
   if (isOtherUserLoading) {
@@ -594,19 +589,20 @@ function ChatDetailContent() {
                           <Dice5 className="w-12 h-12 text-primary mb-2 animate-bounce" />
                           <span className="text-[10px] font-black uppercase tracking-widest text-primary">Spin Duel</span>
                           <span className="text-lg font-black font-headline mt-1">{msg.betAmount} COINS</span>
+                          <p className="text-[8px] font-bold text-zinc-500 mt-2 uppercase tracking-tighter">Winner takes {msg.betAmount * 2} pot</p>
                         </div>
                         {!isMe && (
                           <button 
                             onClick={() => handleAcceptDuel(msg.betAmount, msg.duelId)}
                             disabled={isSending}
-                            className="w-full h-12 bg-zinc-900 text-white font-black text-sm uppercase tracking-widest border-t border-zinc-800 hover:bg-black transition-all active:scale-95 disabled:opacity-50"
+                            className="w-full h-12 bg-zinc-900 text-white font-black text-[10px] uppercase tracking-widest border-t border-zinc-800 hover:bg-black transition-all active:scale-95 disabled:opacity-50"
                           >
-                            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : "Accept Duel"}
+                            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : `Bet ${msg.betAmount} & Accept`}
                           </button>
                         )}
                         {isMe && (
                           <div className="w-full h-10 bg-zinc-800 flex items-center justify-center">
-                             <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Waiting for Player</span>
+                             <span className="text-[8px] font-black uppercase tracking-widest text-zinc-500">Waiting for {otherUser.username}</span>
                           </div>
                         )}
                       </div>
@@ -627,7 +623,6 @@ function ChatDetailContent() {
         </div>
       </ScrollArea>
 
-      {/* Game Spinning Overlay */}
       {(isSpinning || gameResult) && (
         <div className="fixed inset-0 z-[100] bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-8 animate-in fade-in duration-500">
           <div className="relative w-64 h-64 flex items-center justify-center">
@@ -652,12 +647,12 @@ function ChatDetailContent() {
                 {gameResult.winner === currentUser?.uid ? (
                   <div className="space-y-2">
                     <h2 className="text-5xl font-black font-headline text-green-500 uppercase tracking-tighter">YOU WIN!</h2>
-                    <p className="text-white font-bold text-lg">+{gameResult.pot} Coins added to wallet</p>
+                    <p className="text-white font-bold text-lg">+{gameResult.pot} Coins added</p>
                   </div>
                 ) : (
                   <div className="space-y-2 opacity-70">
                     <h2 className="text-4xl font-black font-headline text-red-500 uppercase tracking-widest">YOU LOST</h2>
-                    <p className="text-white/60 font-bold">Better luck next time!</p>
+                    <p className="text-white/60 font-bold uppercase tracking-widest text-[10px]">Better luck next time</p>
                   </div>
                 )}
                 <Button onClick={() => setGameResult(null)} className="mt-8 rounded-full bg-white/10 text-white border border-white/20 px-10 h-14 uppercase font-black text-xs tracking-widest">Close</Button>
@@ -698,7 +693,7 @@ function ChatDetailContent() {
                       <SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Spin Duel Challenge</SheetTitle>
                     </SheetHeader>
                     <div className="flex-1 overflow-y-auto px-6 py-4">
-                      <p className="text-sm font-medium text-zinc-500 mb-6">Select your bet amount. The winner takes the entire pot!</p>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-6">Select bet amount. Both players must bet the same.</p>
                       <div className="grid grid-cols-1 gap-3">
                         {GAME_BETS.map((bet) => (
                           <button 
