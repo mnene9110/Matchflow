@@ -3,13 +3,14 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Gem, Coins, ArrowRightLeft, Loader2, Info, ArrowUpRight } from "lucide-react"
+import { ChevronLeft, Gem, Coins, ArrowRightLeft, Loader2, Info, ArrowUpRight, History, ArrowDownLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useUser, useDoc, useFirestore, useMemoFirebase, useFirebase } from "@/firebase"
-import { doc, updateDoc, increment as firestoreIncrement, setDoc, collection } from "firebase/firestore"
+import { useUser, useDoc, useFirestore, useMemoFirebase, useFirebase, useCollection } from "@/firebase"
+import { doc, updateDoc, increment as firestoreIncrement, setDoc, collection, query, where, orderBy, limit } from "firebase/firestore"
 import { ref, onValue, runTransaction as runRtdbTransaction } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { format } from "date-fns"
 
 export default function IncomePage() {
   const router = useRouter()
@@ -25,6 +26,19 @@ export default function IncomePage() {
     const diamondRef = ref(database, `users/${currentUser.uid}/diamondBalance`)
     return onValue(diamondRef, (snap) => setDiamondBalance(snap.val() || 0))
   }, [database, currentUser])
+
+  // Fetch Diamond Transactions
+  const historyQuery = useMemoFirebase(() => {
+    if (!firestore || !currentUser) return null
+    return query(
+      collection(firestore, "userProfiles", currentUser.uid, "transactions"),
+      where("type", "in", ["diamond_exchange", "diamond_received"]),
+      orderBy("transactionDate", "desc"),
+      limit(20)
+    )
+  }, [firestore, currentUser])
+
+  const { data: transactions, isLoading: isHistoryLoading } = useCollection(historyQuery)
 
   const canExchange = diamondBalance >= 500
 
@@ -62,7 +76,7 @@ export default function IncomePage() {
         id: txRef.id,
         type: "diamond_exchange",
         amount: coinsToGain,
-        diamondsUsed: diamondsToDeduct,
+        diamondAmount: -diamondsToDeduct,
         transactionDate: new Date().toISOString(),
         description: `Exchanged ${diamondsToDeduct} diamonds for ${coinsToGain} coins`
       });
@@ -85,7 +99,7 @@ export default function IncomePage() {
       </header>
 
       <main className="flex-1 px-6 pb-20 space-y-8 overflow-y-auto scroll-smooth">
-        <section className="bg-zinc-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden">
+        <section className="bg-zinc-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden shrink-0">
           <div className="absolute top-0 right-0 p-8 opacity-10"><Gem className="w-32 h-32" /></div>
           <div className="relative z-10 space-y-6">
             <div className="flex items-center gap-3">
@@ -99,7 +113,7 @@ export default function IncomePage() {
           </div>
         </section>
 
-        <section className="bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2.5rem] p-8 space-y-8 shadow-sm">
+        <section className="bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2.5rem] p-8 space-y-8 shadow-sm shrink-0">
           <div className="flex items-center justify-between">
             <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-primary">Conversion Rate</h2>
             <div className="flex items-center gap-2 px-3 py-1 bg-white/50 rounded-full border border-white/50"><Info className="w-3 h-3 text-gray-400" /><span className="text-[9px] font-bold text-gray-500">Fixed Rate</span></div>
@@ -124,6 +138,58 @@ export default function IncomePage() {
               {isExchanging ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span className="text-sm font-black uppercase tracking-widest">Exchange Now</span><ArrowUpRight className="w-5 h-5" /></>}
             </Button>
             {!canExchange && <p className="text-[9px] text-center text-gray-400 mt-4 font-bold uppercase tracking-widest">Minimum 500 diamonds required to exchange</p>}
+          </div>
+        </section>
+
+        <section className="space-y-4 pb-10">
+          <div className="flex items-center gap-2 px-2">
+            <History className="w-4 h-4 text-primary/40" />
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Activity History</h2>
+          </div>
+
+          <div className="space-y-3">
+            {isHistoryLoading ? (
+              <div className="flex justify-center py-10">
+                <Loader2 className="w-6 h-6 animate-spin text-primary/20" />
+              </div>
+            ) : transactions && transactions.length > 0 ? (
+              transactions.map((tx: any) => {
+                const isGain = tx.type === "diamond_received"
+                const amount = tx.diamondAmount || (isGain ? Math.floor((tx.amount || 0) / 0.6) : 0)
+                
+                return (
+                  <div key={tx.id} className="bg-white/40 backdrop-blur-md border border-white/40 p-5 rounded-[2rem] flex items-center gap-4 shadow-sm">
+                    <div className={cn(
+                      "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0",
+                      isGain ? "bg-blue-500/10 text-blue-500" : "bg-red-500/10 text-red-500"
+                    )}>
+                      {isGain ? <ArrowUpRight className="w-6 h-6" /> : <ArrowDownLeft className="w-6 h-6" />}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h3 className="text-xs font-black text-gray-900 truncate uppercase tracking-tight">{tx.description || "Diamond Activity"}</h3>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">
+                        {tx.transactionDate ? format(new Date(tx.transactionDate), "MMM d, HH:mm") : "Recently"}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <div className={cn(
+                        "flex items-center justify-end gap-1 text-sm font-black font-headline",
+                        isGain ? "text-blue-500" : "text-red-500"
+                      )}>
+                        {isGain ? "+" : ""}{amount.toLocaleString()}
+                        <Gem className="w-3 h-3 opacity-40" />
+                      </div>
+                      <span className="text-[8px] font-black text-gray-300 uppercase tracking-widest">Diamonds</span>
+                    </div>
+                  </div>
+                )
+              })
+            ) : (
+              <div className="flex flex-col items-center justify-center py-10 opacity-30 text-center space-y-2">
+                <History className="w-8 h-8" />
+                <p className="text-[10px] font-black uppercase tracking-widest">No transactions yet</p>
+              </div>
+            )}
           </div>
         </section>
       </main>

@@ -96,6 +96,20 @@ function ChatDetailContent() {
     set(unreadRef, 0)
   }, [database, currentUser, otherUserId])
 
+  // Logic to mark messages as seen
+  useEffect(() => {
+    if (!database || !chatId || !currentUser || !messages.length) return
+    
+    const unreadMsgs = messages.filter(m => m.senderId !== currentUser.uid && m.status === 'sent')
+    if (unreadMsgs.length > 0) {
+      const updates: any = {}
+      unreadMsgs.forEach(m => {
+        updates[`/chats/${chatId}/messages/${m.id}/status`] = 'seen'
+      })
+      update(ref(database), updates)
+    }
+  }, [database, chatId, currentUser, messages])
+
   const presenceText = useMemo(() => {
     if (presence.online) return "Online";
     if (!presence.lastSeen) return "Offline";
@@ -215,7 +229,12 @@ function ChatDetailContent() {
 
       const updates: any = {}
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-      const msgData = { messageText: textToUse, senderId: currentUser.uid, sentAt: rtdbTimestamp() }
+      const msgData = { 
+        messageText: textToUse, 
+        senderId: currentUser.uid, 
+        sentAt: rtdbTimestamp(),
+        status: 'sent'
+      }
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
       updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: textToUse, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0, hidden: false }
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = textToUse
@@ -271,6 +290,16 @@ function ChatDetailContent() {
         updatedAt: new Date().toISOString()
       });
 
+      // Log for receiver (diamond history)
+      const targetTxRef = doc(collection(firestore, "userProfiles", otherUserId, "transactions"));
+      setDoc(targetTxRef, {
+        id: targetTxRef.id,
+        type: "diamond_received",
+        diamondAmount: diamondGain,
+        transactionDate: new Date().toISOString(),
+        description: `Received a ${gift.name} from ${currentUserProfile.username || 'user'}`
+      });
+
       const giftMessage = `🎁 Sent a gift: ${gift.name}`;
       const updates: any = {}
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
@@ -279,7 +308,8 @@ function ChatDetailContent() {
         senderId: currentUser.uid, 
         sentAt: rtdbTimestamp(), 
         isGift: true,
-        giftId: gift.id 
+        giftId: gift.id,
+        status: 'sent'
       }
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
       updates[`/users/${currentUser.uid}/chats/${otherUserId}/lastMessage`] = giftMessage
@@ -367,6 +397,7 @@ function ChatDetailContent() {
             const isMe = msg.senderId === currentUser?.uid
             const isCallLog = msg.isCallLog === true
             const isGift = msg.isGift === true
+            const statusText = msg.status === 'seen' ? 'Seen' : 'Sent'
             
             return (
               <div key={msg.id} className="flex w-full flex-col">
@@ -401,6 +432,11 @@ function ChatDetailContent() {
                     )}
                   </div>
                 </div>
+                {isMe && !isCallLog && (
+                  <div className="flex justify-end pr-2 mt-1">
+                    <span className="text-[8px] font-black uppercase text-gray-300 tracking-widest">{statusText}</span>
+                  </div>
+                )}
               </div>
             )
           })}
