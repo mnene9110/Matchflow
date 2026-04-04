@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
-import { ref, onValue } from "firebase/database"
+import { ref, onValue, off } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -30,6 +30,11 @@ export default function PartyListPage() {
     if (!database || !currentUser) return
 
     const partiesRef = ref(database, 'partyRooms')
+    
+    // Use a variable to track if we've ever successfully loaded data to prevent 
+    // showing connection errors during transient disconnects
+    let hasSuccessfullyLoaded = false;
+
     const unsubscribe = onValue(partiesRef, (snapshot) => {
       const data = snapshot.val()
       if (data) {
@@ -39,21 +44,25 @@ export default function PartyListPage() {
         })).filter(p => p.status === 'active')
         list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
         setParties(list)
+        hasSuccessfullyLoaded = true;
       } else {
         setParties([])
       }
       setIsPartiesLoading(false)
     }, (error) => {
-      console.error("Party Rooms listener failed:", error)
-      setIsPartiesLoading(false)
-      toast({
-        variant: "destructive",
-        title: "Connection Error",
-        description: "Failed to load party rooms. Please try again."
-      })
+      // Only show error if we haven't managed to load anything yet or if it's a hard permission error
+      if (!hasSuccessfullyLoaded) {
+        console.error("Party Rooms listener failed:", error)
+        setIsPartiesLoading(false)
+        toast({
+          variant: "destructive",
+          title: "Connection Error",
+          description: "Could not sync with the party server. Please check your internet."
+        })
+      }
     })
 
-    return () => unsubscribe()
+    return () => off(partiesRef, "value", unsubscribe)
   }, [database, currentUser, toast])
 
   const handleHostClick = () => {
@@ -193,7 +202,6 @@ export default function PartyListPage() {
 
             <div className="space-y-4">
               <div className="flex items-center gap-2 text-gray-400">
-                <Info className="w-3.5 h-3.5" />
                 <span className="text-[10px] font-black uppercase tracking-widest">Party Announcement</span>
               </div>
               <div className="bg-gray-50/80 p-6 rounded-[2rem] border border-gray-100">
@@ -214,9 +222,6 @@ export default function PartyListPage() {
                   <ShieldCheck className="w-3.5 h-3.5 text-blue-500" />
                 </div>
                 <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Party Host</span>
-              </div>
-              <div className="px-4 py-2 bg-zinc-900 rounded-full">
-                <span className="text-[9px] font-black text-white uppercase tracking-widest">Level 12</span>
               </div>
             </div>
           </div>
