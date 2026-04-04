@@ -23,12 +23,15 @@ import {
   Gamepad2, 
   MessageSquare, 
   LayoutGrid,
-  Trash2
+  Trash2,
+  CheckCircle,
+  X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useFirebase, useUser } from "@/firebase"
-import { ref, onValue, update, runTransaction as runRtdbTransaction, off, remove } from "firebase/database"
+import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { ref, onValue, update, runTransaction as runRtdbTransaction, off, remove, set, onDisconnect } from "firebase/database"
+import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { getZegoConfig } from "@/app/actions/zego"
@@ -44,6 +47,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 let ZegoExpressEngine: any = null;
 
@@ -52,17 +56,21 @@ export default function PartyRoomPage() {
   const roomId = params?.id as string
   const router = useRouter()
   const { user: currentUser, isUserLoading } = useUser()
-  const { database } = useFirebase()
+  const { database, firestore } = useFirebase()
   const { toast } = useToast()
 
   const [room, setRoom] = useState<any>(null)
   const [isJoined, setIsJoined] = useState(false)
   const [isConnecting, setIsConnecting] = useState(true)
-  const [isMicOn, setIsMicOn] = useState(true)
+  const [isMicOn, setIsMicOn] = useState(false)
   const [engineLoaded, setEngineLoaded] = useState(false)
   const [remoteUsers, setRemoteUsers] = useState<any[]>([])
+  const [participants, setParticipants] = useState<any[]>([])
+  const [seats, setSeats] = useState<Record<string, any>>({})
+  const [mySeatIndex, setMySeatIndex] = useState<number | null>(null)
+  
   const [messages, setMessages] = useState<any[]>([
-    { id: 'system-1', sender: 'System', text: 'Welcome to MatchFlow! Please respect others and chat politely. Let\'s have fun together!', type: 'system' }
+    { id: 'system-1', sender: 'System', text: 'Welcome to MatchFlow! Please respect others and chat politely.', type: 'system' }
   ])
 
   const zegoEngineRef = useRef<any>(null)
@@ -71,6 +79,10 @@ export default function PartyRoomPage() {
   const roomLoadedRef = useRef(false)
   const initStartedRef = useRef(false)
 
+  const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const { data: profile } = useDoc(userProfileRef)
+
+  // Listen to room data
   useEffect(() => {
     if (!database || !roomId) return
     const roomRef = ref(database, `partyRooms/${roomId}`)
@@ -79,6 +91,7 @@ export default function PartyRoomPage() {
       const data = snap.val()
       if (data) {
         setRoom(data)
+        setSeats(data.seats || {})
         roomLoadedRef.current = true
       } else if (roomLoadedRef.current) {
         toast({ title: "Room Closed", description: "The host has closed this room." })
@@ -91,6 +104,27 @@ export default function PartyRoomPage() {
     }
   }, [database, roomId, router, toast])
 
+  // Listen to participants
+  useEffect(() => {
+    if (!database || !roomId) return
+    const participantsRef = ref(database, `partyRooms/${roomId}/participants`)
+    return onValue(participantsRef, (snap) => {
+      const data = snap.val()
+      if (data) {
+        setParticipants(Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })))
+      } else {
+        setParticipants([])
+      }
+    })
+  }, [database, roomId])
+
+  // Track my seat index locally for UI speed
+  useEffect(() => {
+    if (!currentUser) return
+    const index = Object.entries(seats).find(([_, seat]) => seat.userId === currentUser.uid)?.[0]
+    setMySeatIndex(index ? parseInt(index) : null)
+  }, [seats, currentUser])
+
   useEffect(() => {
     if (typeof window !== "undefined" && !engineLoaded) {
       import('zego-express-engine-webrtc').then((module) => {
@@ -101,13 +135,13 @@ export default function PartyRoomPage() {
   }, []);
 
   useEffect(() => {
-    if (engineLoaded && currentUser && roomId && !isJoined && !initStartedRef.current) {
+    if (engineLoaded && currentUser && roomId && profile && !isJoined && !initStartedRef.current) {
       initZego();
     }
-  }, [engineLoaded, !!currentUser, roomId, isJoined]);
+  }, [engineLoaded, !!currentUser, roomId, isJoined, !!profile]);
 
   const initZego = async () => {
-    if (!currentUser || !roomId || !ZegoExpressEngine || initStartedRef.current) return;
+    if (!currentUser || !roomId || !ZegoExpressEngine || !profile || initStartedRef.current) return;
     initStartedRef.current = true;
 
     try {
@@ -136,31 +170,86 @@ export default function PartyRoomPage() {
         }
       });
 
-      await zg.loginRoom(roomId, currentUser.uid, { userName: currentUser.displayName || 'User' }, { userUpdate: true });
+      await zg.loginRoom(roomId, currentUser.uid, { userName: profile.username || 'User' }, { userUpdate: true });
       
-      const localStream = await zg.createStream({ camera: { audio: true, video: false } });
-      localStreamRef.current = localStream;
-      zg.startPublishingStream(`stream_${currentUser.uid}`, localStream);
-
+      // ENTER AS LISTENER: No local stream created here anymore to avoid "Join Failed" hardware errors on entry.
       setIsJoined(true);
       setIsConnecting(false);
 
-      if (!hasIncrementedRef.current && database) {
-        const countRef = ref(database, `partyRooms/${roomId}/memberCount`)
-        runRtdbTransaction(countRef, (current) => (current || 0) + 1)
-        hasIncrementedRef.current = true
+      if (database) {
+        // Add self to participants list
+        const myPartRef = ref(database, `partyRooms/${roomId}/participants/${currentUser.uid}`);
+        set(myPartRef, {
+          username: profile.username,
+          photo: profile.profilePhotoUrls?.[0] || "",
+          joinedAt: Date.now()
+        });
+        onDisconnect(myPartRef).remove();
+
+        if (!hasIncrementedRef.current) {
+          const countRef = ref(database, `partyRooms/${roomId}/memberCount`)
+          runRtdbTransaction(countRef, (current) => (current || 0) + 1)
+          hasIncrementedRef.current = true
+        }
       }
 
     } catch (error: any) {
       console.error("Zego Join Error:", error);
-      toast({ 
-        variant: "destructive", 
-        title: "Join Failed", 
-        description: error.message || "Could not establish connection. Please check your microphone permissions." 
-      });
+      toast({ variant: "destructive", title: "Connection Error", description: error.message });
       setIsConnecting(false);
       router.back();
     }
+  }
+
+  const handleTakeSeat = async (index: number) => {
+    if (!currentUser || !profile || !isJoined || !zegoEngineRef.current || !database) return
+    if (mySeatIndex !== null) {
+      toast({ title: "Already seated", description: "Please leave your current seat first." })
+      return
+    }
+
+    try {
+      // 1. Get Hardware Access (User Gesture context)
+      const zg = zegoEngineRef.current;
+      const localStream = await zg.createStream({ camera: { audio: true, video: false } });
+      localStreamRef.current = localStream;
+      
+      // 2. Publish to Room
+      zg.startPublishingStream(`stream_${currentUser.uid}`, localStream);
+      setIsMicOn(true);
+
+      // 3. Update RTDB Seat
+      const seatRef = ref(database, `partyRooms/${roomId}/seats/${index}`);
+      await set(seatRef, {
+        userId: currentUser.uid,
+        username: profile.username,
+        photo: profile.profilePhotoUrls?.[0] || ""
+      });
+      onDisconnect(seatRef).remove();
+
+      toast({ title: "Mounted Seat", description: "You are now on the mic!" });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Mic Error", description: "Please allow microphone access to speak." });
+    }
+  }
+
+  const handleLeaveSeat = async () => {
+    if (!currentUser || !database || mySeatIndex === null || !zegoEngineRef.current) return
+
+    try {
+      const zg = zegoEngineRef.current;
+      if (localStreamRef.current) {
+        zg.stopPublishingStream(`stream_${currentUser.uid}`);
+        zg.destroyStream(localStreamRef.current);
+        localStreamRef.current = null;
+      }
+      setIsMicOn(false);
+
+      const seatRef = ref(database, `partyRooms/${roomId}/seats/${mySeatIndex}`);
+      await remove(seatRef);
+      
+      toast({ title: "Unmounted", description: "You are now just listening." });
+    } catch (e) {}
   }
 
   const toggleMic = () => {
@@ -175,58 +264,43 @@ export default function PartyRoomPage() {
   }
 
   const handleLeave = async () => {
+    if (mySeatIndex !== null) await handleLeaveSeat();
+
     if (zegoEngineRef.current) {
-      const zg = zegoEngineRef.current;
-      if (localStreamRef.current) {
-        try {
-          zg.stopPublishingStream(`stream_${currentUser?.uid}`);
-          zg.destroyStream(localStreamRef.current);
-        } catch (e) {}
+      try { zegoEngineRef.current.logoutRoom(roomId); } catch (e) {}
+    }
+    
+    if (database && currentUser) {
+      remove(ref(database, `partyRooms/${roomId}/participants/${currentUser.uid}`));
+      if (hasIncrementedRef.current) {
+        const countRef = ref(database, `partyRooms/${roomId}/memberCount`)
+        runRtdbTransaction(countRef, (current) => Math.max(0, (current || 1) - 1))
+        hasIncrementedRef.current = false
       }
-      try {
-        zg.logoutRoom(roomId);
-      } catch (e) {}
     }
     
-    if (hasIncrementedRef.current && database && roomId) {
-      const countRef = ref(database, `partyRooms/${roomId}/memberCount`)
-      runRtdbTransaction(countRef, (current) => Math.max(0, (current || 1) - 1))
-      hasIncrementedRef.current = false
-    }
-    
-    if (window.location.pathname.includes(`/party/${roomId}`)) {
-      router.push('/party');
-    }
+    router.push('/party');
   }
 
   const handleDeleteRoom = async () => {
     if (!database || !roomId || !currentUser || room.hostId !== currentUser.uid) return
-
     try {
-      // 1. First cleanup Zego local tracks
       if (zegoEngineRef.current) {
-        const zg = zegoEngineRef.current;
         if (localStreamRef.current) {
-          try {
-            zg.stopPublishingStream(`stream_${currentUser?.uid}`);
-            zg.destroyStream(localStreamRef.current);
-          } catch (e) {}
+          zegoEngineRef.current.stopPublishingStream(`stream_${currentUser.uid}`);
+          zegoEngineRef.current.destroyStream(localStreamRef.current);
         }
-        try { zg.logoutRoom(roomId); } catch (e) {}
+        zegoEngineRef.current.logoutRoom(roomId);
       }
-
-      // 2. Remove the room from RTDB
-      // The listener at the top of the file will catch this and redirect all participants
       await remove(ref(database, `partyRooms/${roomId}`))
-      
-      toast({ title: "Room Deleted", description: "The party has been closed permanently." })
+      toast({ title: "Room Deleted", description: "Party closed permanently." })
       router.replace('/party')
     } catch (error) {
       toast({ variant: "destructive", title: "Delete Failed", description: "Could not close the room." })
     }
   }
 
-  if (!room || isConnecting || isUserLoading) {
+  if (!room || isConnecting || isUserLoading || !profile) {
     return (
       <div className="flex flex-col items-center justify-center h-svh bg-zinc-950 text-white space-y-6">
         <div className="relative">
@@ -236,18 +310,15 @@ export default function PartyRoomPage() {
           <Loader2 className="absolute -bottom-2 -right-2 w-8 h-8 text-primary animate-spin" />
         </div>
         <div className="text-center space-y-1">
-          <h2 className="text-xl font-black font-headline uppercase tracking-widest">Entering Room</h2>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">
-            {isUserLoading ? "Verifying Session..." : "Connecting to Audio..."}
-          </p>
+          <h2 className="text-xl font-black font-headline uppercase tracking-widest">Joining Party</h2>
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Securing Connection...</p>
         </div>
       </div>
     )
   }
 
   const isHost = currentUser && room.hostId === currentUser.uid
-  const seats = Array.from({ length: 8 }, (_, i) => i + 1);
-  const occupiedSeats = remoteUsers.slice(0, 8);
+  const seatIndices = Array.from({ length: 8 }, (_, i) => i + 1);
 
   return (
     <div className="flex flex-col h-svh bg-zinc-950 text-white overflow-hidden relative">
@@ -271,16 +342,45 @@ export default function PartyRoomPage() {
             <h1 className="text-xs font-black truncate">{room.title}</h1>
             <span className="text-[8px] font-bold text-white/60 tracking-wider">ID: {room.id.slice(-8)}</span>
           </div>
-          <button className="ml-1 p-1.5 bg-white/10 rounded-full active:scale-90 transition-transform">
-            <Heart className="w-3 h-3 text-white" />
-          </button>
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex items-center gap-1.5 bg-black/20 backdrop-blur-md px-3 py-2 rounded-full border border-white/10">
-            <Users className="w-3.5 h-3.5 text-white/60" />
-            <span className="text-[10px] font-black">{room.memberCount || 1}</span>
-          </div>
+          <Sheet>
+            <SheetTrigger asChild>
+              <button className="flex items-center gap-1.5 bg-black/20 backdrop-blur-md px-3 py-2 rounded-full border border-white/10 active:bg-white/10 transition-colors">
+                <Users className="w-3.5 h-3.5 text-white/60" />
+                <span className="text-[10px] font-black">{participants.length}</span>
+              </button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="rounded-t-[3rem] h-[60svh] bg-zinc-900 border-none p-0 text-white overflow-hidden flex flex-col">
+              <SheetHeader className="p-8 pb-4 shrink-0">
+                <SheetTitle className="text-sm font-black uppercase tracking-widest text-zinc-400">Members in Room ({participants.length})</SheetTitle>
+              </SheetHeader>
+              <ScrollArea className="flex-1 px-6 pb-10">
+                <div className="space-y-4">
+                  {participants.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                      <div className="flex items-center gap-4">
+                        <Avatar className="w-10 h-10 border border-white/10">
+                          <AvatarImage src={p.photo} className="object-cover" />
+                          <AvatarFallback className="bg-zinc-800 text-xs">{p.username?.[0]}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex flex-col">
+                          <span className="text-sm font-bold">{p.username}</span>
+                          {p.id === room.hostId && <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Room Host</span>}
+                        </div>
+                      </div>
+                      {Object.values(seats).find(s => s.userId === p.id) ? (
+                        <Mic className="w-4 h-4 text-green-500" />
+                      ) : (
+                        <div className="w-2 h-2 rounded-full bg-zinc-700" />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            </SheetContent>
+          </Sheet>
           
           {isHost && (
             <AlertDialog>
@@ -308,10 +408,6 @@ export default function PartyRoomPage() {
             </AlertDialog>
           )}
 
-          <button className="w-9 h-9 flex items-center justify-center bg-black/20 backdrop-blur-md rounded-full border border-white/10">
-            <ShoppingBag className="w-4 h-4" />
-          </button>
-          
           <button onClick={handleLeave} className="w-9 h-9 flex items-center justify-center bg-white/10 backdrop-blur-md rounded-full border border-white/10 active:scale-90 transition-all">
             <LogOut className="w-4 h-4" />
           </button>
@@ -339,28 +435,48 @@ export default function PartyRoomPage() {
             </div>
 
             <div className="grid grid-cols-4 gap-x-6 gap-y-8 w-full max-w-sm px-2">
-              {seats.map((num, idx) => {
-                const userOnSeat = occupiedSeats[idx];
+              {seatIndices.map((idx) => {
+                const seatedUser = seats[idx.toString()];
+                const isMeOnThisSeat = seatedUser && seatedUser.userId === currentUser?.uid;
+
                 return (
-                  <div key={num} className="flex flex-col items-center gap-2">
-                    <div className="relative">
-                      <div className="w-14 h-14 rounded-full border border-white/10 bg-black/30 flex items-center justify-center overflow-hidden">
-                        {userOnSeat ? (
+                  <div key={idx} className="flex flex-col items-center gap-2">
+                    <div 
+                      onClick={() => !seatedUser ? handleTakeSeat(idx) : isMeOnThisSeat ? handleLeaveSeat() : null}
+                      className={cn(
+                        "relative cursor-pointer active:scale-95 transition-all group",
+                        isMeOnThisSeat && "ring-2 ring-primary ring-offset-2 ring-offset-zinc-950 rounded-full"
+                      )}
+                    >
+                      <div className={cn(
+                        "w-14 h-14 rounded-full border border-white/10 bg-black/30 flex items-center justify-center overflow-hidden",
+                        seatedUser ? "border-primary/40" : "hover:bg-white/5"
+                      )}>
+                        {seatedUser ? (
                           <Avatar className="w-full h-full">
-                            <AvatarFallback className="bg-zinc-800 text-xs font-black">?</AvatarFallback>
+                            <AvatarImage src={seatedUser.photo} className="object-cover" />
+                            <AvatarFallback className="bg-zinc-800 text-xs font-black">{seatedUser.username?.[0]}</AvatarFallback>
                           </Avatar>
                         ) : (
                           <div className="bg-white/5 w-full h-full flex items-center justify-center">
-                            <img src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2'%3E%3C/path%3E%3Ccircle cx='12' cy='7' r='4'%3E%3C/circle%3E%3C/svg%3E" className="w-6 h-6 opacity-20" alt="empty seat" />
+                            <LayoutGrid className="w-5 h-5 opacity-20 group-hover:opacity-40 transition-opacity" />
                           </div>
                         )}
                       </div>
                       <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white/10 text-[7px] font-black px-2 py-0.5 rounded-full uppercase border border-white/5">
-                        {num}
+                        {idx}
                       </div>
+                      {seatedUser && (
+                        <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-1 border-2 border-zinc-950">
+                          <Mic className="w-2 h-2 text-white" />
+                        </div>
+                      )}
                     </div>
-                    <span className="text-[9px] font-bold text-white/40 truncate w-14 text-center">
-                      {userOnSeat ? (userOnSeat.userName || 'Joined') : 'Mount'}
+                    <span className={cn(
+                      "text-[9px] font-bold truncate w-14 text-center",
+                      seatedUser ? "text-white" : "text-white/40"
+                    )}>
+                      {seatedUser ? seatedUser.username : 'Mount'}
                     </span>
                   </div>
                 );
@@ -392,20 +508,19 @@ export default function PartyRoomPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          <button className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/10 flex items-center justify-center active:scale-90 transition-all">
-            <Gamepad2 className="w-5 h-5 text-purple-400" />
-          </button>
+          {mySeatIndex !== null && (
+            <button 
+              onClick={toggleMic}
+              className={cn(
+                "w-12 h-12 rounded-full border flex items-center justify-center active:scale-90 transition-all shadow-xl",
+                isMicOn ? "bg-primary border-primary/40 text-white" : "bg-red-500 border-red-400 text-white"
+              )}
+            >
+              {isMicOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
+            </button>
+          )}
           <button className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/10 flex items-center justify-center active:scale-90 transition-all">
             <Gift className="w-5 h-5 text-amber-400" />
-          </button>
-          <button 
-            onClick={toggleMic}
-            className={cn(
-              "w-12 h-12 rounded-full border flex items-center justify-center active:scale-90 transition-all shadow-xl",
-              isMicOn ? "bg-white/10 border-white/10 text-white" : "bg-red-500 border-red-400 text-white"
-            )}
-          >
-            {isMicOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
           </button>
           <button className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/10 flex items-center justify-center active:scale-90 transition-all">
             <LayoutGrid className="w-5 h-5 text-white/60" />
