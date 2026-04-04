@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -72,4 +73,15 @@
 
 .animate-float {
   animation: float 3s ease-in-out infinite;
+}
+
+/* Glassmorphism utility for Party Room UI */
+.glass-card {
+  background: rgba(255, 255, 255, 0.05);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.glow-border {
+  box-shadow: 0 0 15px rgba(179, 102, 102, 0.3);
 }
