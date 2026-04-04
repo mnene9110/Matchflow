@@ -65,7 +65,7 @@ export default function PartyRoomPage() {
             zg.startPlayingStream(stream.streamID).then((remoteStream: MediaStream) => {
               const audio = new Audio();
               audio.srcObject = remoteStream;
-              audio.play();
+              audio.play().catch(e => console.warn("Autoplay audio blocked", e));
             });
           });
         } else if (updateType === 'DELETE') {
@@ -88,12 +88,15 @@ export default function PartyRoomPage() {
       setIsConnecting(false);
 
       if (roomRef) {
-        updateDoc(roomRef, { memberCount: firestoreIncrement(1) });
+        updateDoc(roomRef, { 
+          memberCount: firestoreIncrement(1),
+          updatedAt: new Date().toISOString()
+        }).catch(e => console.error("Failed to update member count", e));
       }
 
     } catch (error: any) {
       console.error("Zego Join Error:", error);
-      toast({ variant: "destructive", title: "Join Failed", description: "Check your ZegoCloud configuration." });
+      toast({ variant: "destructive", title: "Join Failed", description: "Check your ZegoCloud configuration or camera permissions." });
       router.back();
     }
   }
@@ -113,15 +116,26 @@ export default function PartyRoomPage() {
     if (zegoEngineRef.current) {
       const zg = zegoEngineRef.current;
       if (localStreamRef.current) {
-        zg.stopPublishingStream(`stream_${currentUser?.uid}`);
-        zg.destroyStream(localStreamRef.current);
+        try {
+          zg.stopPublishingStream(`stream_${currentUser?.uid}`);
+          zg.destroyStream(localStreamRef.current);
+        } catch (e) {}
       }
-      zg.logoutRoom(roomId);
+      try {
+        zg.logoutRoom(roomId);
+      } catch (e) {}
     }
+    
     if (roomRef && isJoined) {
-      updateDoc(roomRef, { memberCount: firestoreIncrement(-1) });
+      updateDoc(roomRef, { 
+        memberCount: firestoreIncrement(-1),
+        updatedAt: new Date().toISOString()
+      }).catch(e => console.warn("Failed to decrement member count", e));
     }
-    router.push('/party');
+    
+    if (window.location.pathname.includes(`/party/${roomId}`)) {
+      router.push('/party');
+    }
   }
 
   if (isRoomLoading || isConnecting) {
@@ -190,7 +204,7 @@ export default function PartyRoomPage() {
 
         {/* Remote Users */}
         {remoteUsers.map(u => (
-          <div key={u.streamID} className="aspect-[3/4] bg-zinc-900 rounded-[2.5rem] border border-white/5 flex flex-col items-center justify-center p-6 text-center space-y-4">
+          <div key={u.streamID} className="aspect-[3/4] bg-zinc-900 rounded-[2.5rem] border border-white/5 flex flex-col items-center justify-center p-6 text-center space-y-4 animate-in fade-in zoom-in-95">
             <Avatar className="w-20 h-20 border-4 border-zinc-800">
               <AvatarFallback className="bg-zinc-800 text-xl font-black">?</AvatarFallback>
             </Avatar>

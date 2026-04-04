@@ -76,7 +76,9 @@ service cloud.firestore {
     match /partyRooms/{roomId} {
       allow read: if isAuthenticated();
       allow create: if isPartyAdmin() || isAdmin();
-      allow update, delete: if isAdmin() || (isAuthenticated() && request.resource.data.hostId == request.auth.uid);
+      // Allow any user to update the room (primarily for memberCount)
+      allow update: if isAuthenticated();
+      allow delete: if isAdmin() || (isAuthenticated() && resource.data.hostId == request.auth.uid);
     }
 
     match /{path=**} {
