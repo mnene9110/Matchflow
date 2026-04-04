@@ -12,20 +12,18 @@ import {
   Send,
   Lock,
   LogOut,
-  Check,
-  Unlock,
-  Key,
   PlusCircle,
   UserX,
   Music as MusicIcon,
   Play,
   Pause,
-  Trash2
+  Trash2,
+  Settings
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { ref, onValue, off, remove, update, set, push, runTransaction } from "firebase/database"
+import { ref, onValue, remove, update, set, push, runTransaction } from "firebase/database"
 import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { getZegoConfig } from "@/app/actions/zego"
@@ -38,13 +36,6 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogFooter,
-} from "@/components/ui/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -77,16 +68,22 @@ export default function PartyRoomPage() {
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const zpRef = useRef<any>(null)
+  const isJoinedRef = useRef(false)
   const containerRef = useRef<HTMLDivElement>(null)
-  const scrollRef = useRef<HTMLDivElement>(null)
+  const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
   const { data: profile } = useDoc(userProfileRef)
 
   const isHost = currentUser?.uid === room?.hostId
-  const isAdmin = useMemo(() => isHost || profile?.isAssistant || profile?.isAdmin, [room, profile, isHost])
+  const isAdmin = useMemo(() => isHost || profile?.isAssistant || profile?.isAdmin, [room?.hostId, profile?.isAssistant, profile?.isAdmin, isHost])
 
-  // 1. Room Data & Presence
+  // Scroll to bottom when messages update
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
+  }, [messages])
+
+  // 1. Room Data & Seating Sync
   useEffect(() => {
     if (!database || !roomId || !currentUser || !profile) return
     
@@ -119,14 +116,14 @@ export default function PartyRoomPage() {
       const data = snap.val()
       if (data) {
         const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val }))
-        list.sort((a, b) => a.timestamp - b.timestamp)
+        list.sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0))
         setMessages(list.slice(-50))
       }
     })
 
     // Presence Logic
-    const presenceRef = ref(database, `partyRooms/${roomId}/participants/${currentUser.uid}`)
-    set(presenceRef, {
+    const participantRef = ref(database, `partyRooms/${roomId}/participants/${currentUser.uid}`)
+    set(participantRef, {
       userId: currentUser.uid,
       username: profile.username,
       photo: profile.profilePhotoUrls?.[0] || "",
@@ -150,7 +147,7 @@ export default function PartyRoomPage() {
 
     return () => {
       if (currentUser) {
-        remove(presenceRef)
+        remove(participantRef)
         // Cleanup seat if user leaves
         runTransaction(seatsRef, (currentSeats) => {
           if (!currentSeats) return currentSeats;
@@ -162,16 +159,20 @@ export default function PartyRoomPage() {
           return currentSeats;
         });
       }
-      if (zpRef.current) zpRef.current.destroy()
+      if (zpRef.current) {
+        zpRef.current.destroy()
+        isJoinedRef.current = false
+      }
     }
-  }, [database, roomId, currentUser, !!profile])
+  }, [database, roomId, currentUser?.uid, !!profile])
 
-  // 2. Audio Engine (Zego)
+  // 2. Audio Engine (Zego) - Optimized to join once
   useEffect(() => {
-    if (!roomId || !currentUser || !profile || zpRef.current || !room) return
+    if (!roomId || !currentUser || !profile || isJoinedRef.current || !room) return
 
     const initZego = async () => {
       try {
+        isJoinedRef.current = true
         const config = await getZegoConfig()
         const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt')
 
@@ -213,14 +214,14 @@ export default function PartyRoomPage() {
 
         setIsInitializing(false)
       } catch (error) {
+        isJoinedRef.current = false
         setIsInitializing(false)
       }
     }
 
     initZego()
-  }, [roomId, currentUser, !!profile, !!room])
+  }, [roomId, currentUser?.uid, !!profile, !!room])
 
-  // Seating & Mic Logic
   const handleMountSeat = async (index: number) => {
     if (!database || !currentUser || !profile) return
     const currentSeat = seats[index]
@@ -230,12 +231,10 @@ export default function PartyRoomPage() {
       return
     }
 
-    // 1. One seat only: Clear previous seat if exists
     if (mySeatIndex !== null) {
       await remove(ref(database, `partyRooms/${roomId}/seats/${mySeatIndex}`))
     }
 
-    // 2. Occupy new seat
     await set(ref(database, `partyRooms/${roomId}/seats/${index}`), {
       userId: currentUser.uid,
       username: profile.username,
@@ -266,7 +265,6 @@ export default function PartyRoomPage() {
     zpRef.current.mutePublishStreamAudio(newState)
     update(ref(database, `partyRooms/${roomId}/seats/${mySeatIndex}`), { isMicOn: !newState })
     
-    // Stop music if muted
     if (newState && isPlaying) {
       setIsPlaying(false)
       if (audioRef.current) audioRef.current.pause()
@@ -296,7 +294,6 @@ export default function PartyRoomPage() {
     const updates: any = {}
     updates[`partyRooms/${roomId}/kickedUsers/${targetId}`] = true
     updates[`partyRooms/${roomId}/participants/${targetId}`] = null
-    // Also remove from any seat they might be on
     Object.entries(seats).forEach(([idx, val]: [string, any]) => {
       if (val.userId === targetId) {
         updates[`partyRooms/${roomId}/seats/${idx}`] = null
@@ -336,15 +333,10 @@ export default function PartyRoomPage() {
       if (b.userId === room?.hostId) return 1
       return 0
     })
-  }, [roomUsers, room])
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [roomUsers, room?.hostId])
 
   return (
     <div className="flex flex-col h-svh bg-[#0a1a1a] text-white overflow-hidden relative font-body">
-      {/* Background */}
       <div className="absolute inset-0 z-0">
         <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80 z-10" />
         <img src="https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80" className="w-full h-full object-cover opacity-40 blur-[2px]" alt="Aurora" />
@@ -359,7 +351,7 @@ export default function PartyRoomPage() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button className="h-10 px-4 rounded-full bg-primary/20 border border-primary/30 flex items-center gap-2 active:scale-95 transition-all">
-                  <PlusCircle className="w-4 h-4 text-primary" />
+                  <Settings className="w-4 h-4 text-primary" />
                   <span className="text-[10px] font-black uppercase tracking-widest">Seats</span>
                 </button>
               </DropdownMenuTrigger>
@@ -413,7 +405,6 @@ export default function PartyRoomPage() {
       </header>
 
       <main className="flex-1 relative z-10 flex flex-col overflow-hidden">
-        {/* Top Half: Seats */}
         <div className="w-full h-1/2 flex flex-col items-center justify-center p-4 space-y-6">
           <div className="flex justify-center relative">
             <div 
@@ -432,7 +423,7 @@ export default function PartyRoomPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-5 gap-y-6 gap-x-2 w-full max-w-lg px-4">
+          <div className="grid grid-cols-5 gap-y-6 gap-x-2 w-full max-w-lg px-4 overflow-y-auto">
             {Array.from({ length: (room?.maxSeats || 8) - 1 }).map((_, i) => {
               const index = i + 1; const occupant = seats[index]; const isSpeaking = speakers[occupant?.userId];
               return (
@@ -463,11 +454,10 @@ export default function PartyRoomPage() {
           </div>
         </div>
 
-        {/* Bottom Half: Chat */}
         <div className="w-full h-1/2 flex flex-col bg-black/10 backdrop-blur-sm border-t border-white/5 p-4 pb-24">
-          <div className="flex-1 overflow-y-auto flex flex-col gap-3">
+          <div className="flex-1 overflow-y-auto flex flex-col gap-3 scroll-smooth">
             {messages.map((m) => (
-              <div key={m.id} className={cn("flex flex-col", m.isSystem ? "items-center" : "items-start")}>
+              <div key={m.id} className={cn("flex flex-col animate-in fade-in slide-in-from-bottom-1", m.isSystem ? "items-center" : "items-start")}>
                 {!m.isSystem && <span className="text-[9px] font-black text-white/30 ml-2 mb-1">{m.username}</span>}
                 <div className={cn(
                   "max-w-[85%] rounded-2xl px-4 py-2.5 shadow-md",
@@ -477,12 +467,11 @@ export default function PartyRoomPage() {
                 </div>
               </div>
             ))}
-            <div ref={scrollRef} className="h-4" />
+            <div ref={messagesEndRef} className="h-4" />
           </div>
         </div>
       </main>
 
-      {/* Footer Interaction */}
       <footer className="absolute bottom-0 inset-x-0 z-30 px-4 py-6 bg-gradient-to-t from-black via-black/80 to-transparent flex items-center gap-3">
         <div className="flex-1 relative flex items-center">
           <Input 

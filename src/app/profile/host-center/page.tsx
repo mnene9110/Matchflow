@@ -40,7 +40,7 @@ export default function HostCenterPage() {
   const { firestore, database } = useFirebase()
   const { toast } = useToast()
 
-  const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
   const { data: profile, isLoading } = useDoc(userProfileRef)
 
   const [activeRooms, setActiveRooms] = useState<any[]>([])
@@ -68,7 +68,7 @@ export default function HostCenterPage() {
       }
       setIsRoomsLoading(false)
     })
-  }, [database, currentUser])
+  }, [database, currentUser?.uid])
 
   const handleSearchAssistant = async () => {
     if (!assistantId.trim() || !firestore) return
@@ -90,12 +90,34 @@ export default function HostCenterPage() {
   }
 
   const handleToggleAssistant = async () => {
-    if (!foundAssistant || !firestore || isAppointing) return
+    if (!foundAssistant || !firestore || isAppointing || !currentUser) return
+    
+    // Enforce 10 assistant limit
+    if (!foundAssistant.isAssistant) {
+      const assistantQuery = query(
+        collection(firestore, "userProfiles"), 
+        where("appointedBy", "==", currentUser.uid),
+        where("isAssistant", "==", true)
+      )
+      const assistantSnap = await getDocs(assistantQuery)
+      if (assistantSnap.size >= 10) {
+        toast({ 
+          variant: "destructive", 
+          title: "Limit Reached", 
+          description: "You can only appoint a maximum of 10 assistants." 
+        })
+        return
+      }
+    }
+
     setIsUpdatingAssistant(true)
     try {
       const userRef = doc(firestore, "userProfiles", foundAssistant.docId)
       const newStatus = !foundAssistant.isAssistant
-      await updateDoc(userRef, { isAssistant: newStatus })
+      await updateDoc(userRef, { 
+        isAssistant: newStatus,
+        appointedBy: newStatus ? currentUser.uid : null 
+      })
       toast({ title: newStatus ? "Assistant Appointed" : "Assistant Removed", description: `${foundAssistant.username} has been updated.` })
       setFoundAssistant(null)
       setAssistantId("")
@@ -139,7 +161,6 @@ export default function HostCenterPage() {
       </header>
 
       <main className="px-6 space-y-8 pt-4">
-        {/* Statistics */}
         <section className="grid grid-cols-2 gap-3">
           <div className="bg-zinc-900 rounded-[2.5rem] p-6 text-white shadow-xl flex flex-col gap-3 relative overflow-hidden">
             <div className="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center border border-blue-500/10">
@@ -162,7 +183,6 @@ export default function HostCenterPage() {
           </div>
         </section>
 
-        {/* Live Rooms */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
@@ -228,11 +248,10 @@ export default function HostCenterPage() {
           )}
         </section>
 
-        {/* Assistant Management */}
         <section className="space-y-4">
           <div className="flex items-center gap-2 px-2">
             <UserPlus className="w-4 h-4 text-primary/40" />
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Appoint Assistants</h2>
+            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Appoint Assistants (Max 10)</h2>
           </div>
           <div className="bg-white/60 backdrop-blur-xl border border-white p-6 rounded-[2.5rem] shadow-xl space-y-6">
             <div className="space-y-2">
@@ -283,7 +302,6 @@ export default function HostCenterPage() {
           </div>
         </section>
 
-        {/* Permissions & Info */}
         <section className="space-y-4 pb-10">
           <div className="flex items-center gap-2 px-2">
             <ShieldCheck className="w-4 h-4 text-primary/40" />
@@ -301,7 +319,6 @@ export default function HostCenterPage() {
         </section>
       </main>
 
-      {/* Settings Dialog */}
       <Dialog open={!!editingRoom} onOpenChange={(open) => !open && setEditingRoom(null)}>
         <DialogContent className="rounded-[2.5rem] bg-white border-none p-8 max-w-[85%] mx-auto shadow-2xl">
           <DialogHeader>
