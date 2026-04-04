@@ -46,7 +46,7 @@ let ZegoExpressEngine: any = null;
 
 /**
  * @fileOverview Party Room implementation.
- * Uses the app's standard Pale Maroon design system.
+ * Updated to only request microphone when "Mounting" a seat.
  */
 
 export default function PartyRoomPage() {
@@ -194,6 +194,7 @@ export default function PartyRoomPage() {
 
     try {
       const zg = zegoEngineRef.current;
+      // Requests microphone only when mounting seat
       const localStream = await zg.createStream({ camera: { audio: true, video: false } });
       localStreamRef.current = localStream;
       
@@ -395,7 +396,7 @@ export default function PartyRoomPage() {
                         )}
                       </div>
                       {seatedUser && (
-                        <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-1 border-2 border-white shadow-sm">
+                        <div className="absolute -bottom-1 -right-1 bg-green-50 rounded-full p-1 border-2 border-white shadow-sm">
                           <Mic className="w-2 h-2 text-white" />
                         </div>
                       )}
@@ -441,7 +442,7 @@ export default function PartyRoomPage() {
               onClick={toggleMic}
               className={cn(
                 "w-12 h-12 rounded-full flex items-center justify-center active:scale-90 transition-all shadow-lg",
-                isMicOn ? "bg-primary text-white" : "bg-red-500 text-white"
+                isMicOn ? "bg-primary text-white" : "bg-red-50 text-white"
               )}
             >
               {isMicOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}

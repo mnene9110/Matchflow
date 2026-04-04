@@ -62,10 +62,11 @@ function ChatDetailContent() {
   const currentUserProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile } = useDoc(currentUserProfileRef)
 
-  const myBlockRef = useMemoFirebase(() => currentUser && otherUserId ? doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", otherUserId) : null, [firestore, currentUser, otherUserId])
+  // Use optional chaining and null safety for blocks
+  const myBlockRef = useMemoFirebase(() => (currentUser && otherUserId) ? doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", otherUserId) : null, [firestore, currentUser, otherUserId])
   const { data: iBlockedThem } = useDoc(myBlockRef)
 
-  const theirBlockRef = useMemoFirebase(() => currentUser && otherUserId ? doc(firestore, "userProfiles", otherUserId, "blockedUsers", currentUser.uid) : null, [firestore, currentUser, otherUserId])
+  const theirBlockRef = useMemoFirebase(() => (currentUser && otherUserId) ? doc(firestore, "userProfiles", otherUserId, "blockedUsers", currentUser.uid) : null, [firestore, currentUser, otherUserId])
   const { data: theyBlockedMe } = useDoc(theirBlockRef)
 
   useEffect(() => {
@@ -292,7 +293,6 @@ function ChatDetailContent() {
       await runRtdbTransaction(receiverDiamondRef, (current) => (current || 0) + diamondGain);
 
       // 3. LOG TRANSACTION (Firestore - Audit Trail)
-      // Note: We only update the sender's collection because rules block writing to other users' profiles.
       const batch = writeBatch(firestore);
       const senderRef = doc(firestore, "userProfiles", currentUser.uid);
       const senderTxRef = doc(collection(senderRef, "transactions"));

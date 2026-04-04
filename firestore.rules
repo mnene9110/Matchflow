@@ -27,26 +27,19 @@ service cloud.firestore {
     }
 
     match /userProfiles/{userId} {
-      // Anyone authenticated can read profiles (needed for discovery/chat)
       allow read: if isAuthenticated();
-      
-      // Only the owner can create their initial profile
       allow create: if isOwner(userId);
-
-      // Owner or Admin can update profile data
       allow update: if isOwner(userId) || isAdmin();
 
-      // Transactions subcollection
       match /transactions/{transactionId} {
-        // Owner, Admin, or Support can view transaction history
         allow read: if isOwner(userId) || isAdmin() || isSupport();
-        // Any authenticated user can create a transaction (e.g. for gifting)
-        // Note: Real balance security is enforced via RTDB transactions
         allow create: if isAuthenticated();
       }
 
       match /blockedUsers/{blockedId} {
-        allow read, write: if isOwner(userId);
+        // Allow a user to read if they are the one who blocked OR the one who was blocked
+        allow read: if isOwner(userId) || isOwner(blockedId);
+        allow write: if isOwner(userId);
       }
     }
 
