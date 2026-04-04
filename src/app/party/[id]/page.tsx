@@ -7,48 +7,24 @@ import {
   ChevronLeft, 
   Loader2, 
   Users, 
-  Heart, 
-  Trophy, 
-  MessageCircle, 
-  Gift, 
-  Gamepad2, 
-  Armchair,
   Mic,
   MicOff,
-  Trash2,
   X,
-  LayoutGrid,
   Send,
-  ShieldCheck,
-  Music as MusicIcon,
   Lock,
-  Unlock,
-  UserPlus,
-  Ban,
-  Play,
-  Pause,
-  Plus
+  Tag,
+  LogOut,
+  Check
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useFirebase, useUser, useDoc, useMemoFirebase, useCollection } from "@/firebase"
-import { ref, onValue, off, remove, update, serverTimestamp as rtdbTimestamp, set, push, get, query, orderByChild, equalTo } from "firebase/database"
+import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { ref, onValue, off, remove, update, set, push } from "firebase/database"
 import { doc, collection, query as fsQuery, where, getDocs } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { getZegoConfig } from "@/app/actions/zego"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
 import {
   Sheet,
   SheetContent,
@@ -56,6 +32,13 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet"
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from "@/components/ui/dialog"
 
 export default function PartyRoomPage() {
   const params = useParams()
@@ -73,18 +56,11 @@ export default function PartyRoomPage() {
   const [isMicMuted, setIsMicMuted] = useState(false)
   const [roomUsers, setRoomUsers] = useState<any[]>([])
   const [chatInput, setChatInput] = useState("")
-  const [isJoinNotified, setIsJoinNotified] = useState(false)
   const [speakers, setSpeakers] = useState<Record<string, boolean>>({})
   
-  // Admin Management
-  const [adminSearchId, setAdminSearchId] = useState("")
-  const [isAdminSearching, setIsAdminSearching] = useState(false)
-
-  // Music State
-  const [playlist, setPlaylist] = useState<any[]>([])
-  const [currentTrack, setCurrentTrack] = useState<any>(null)
-  const [newTrackUrl, setNewTrackUrl] = useState("")
-  const [newTrackTitle, setNewTrackTitle] = useState("")
+  // Seat Labeling State
+  const [labelingSeatIndex, setLabelingSeatIndex] = useState<number | null>(null)
+  const [newSeatLabel, setNewSeatLabel] = useState("")
 
   const zpRef = useRef<any>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -102,22 +78,10 @@ export default function PartyRoomPage() {
     
     const roomRef = ref(database, `partyRooms/${roomId}`)
     
-    // Kick check
-    onValue(ref(database, `partyRooms/${roomId}/kickedUsers/${currentUser.uid}`), (snap) => {
-      if (snap.val()) {
-        toast({ variant: "destructive", title: "Access Denied", description: "You have been kicked from this room." })
-        router.push('/party')
-      }
-    })
-
     onValue(roomRef, (snap) => {
       const data = snap.val()
-      if (data) {
-        setRoom(data)
-      } else {
-        toast({ title: "Room Closed", description: "The host has ended this party." })
-        router.push('/party')
-      }
+      if (data) setRoom(data)
+      else router.push('/party')
     })
 
     // Listen to Seats
@@ -139,12 +103,6 @@ export default function PartyRoomPage() {
       }
     })
 
-    // Listen to Playlist
-    onValue(ref(database, `partyRooms/${roomId}/playlist`), (snap) => {
-      const data = snap.val()
-      setPlaylist(data ? Object.values(data) : [])
-    })
-
     // Participant Presence
     const presenceRef = ref(database, `partyRooms/${roomId}/participants/${currentUser?.uid}`)
     if (profile) {
@@ -155,27 +113,30 @@ export default function PartyRoomPage() {
         joinedAt: Date.now()
       })
 
-      if (!isJoinNotified) {
-        const joinMsgRef = push(ref(database, `partyRooms/${roomId}/messages`))
-        set(joinMsgRef, {
-          text: `${profile.username} joined the party`,
-          username: "System",
-          isSystem: true,
-          timestamp: Date.now()
-        })
-        setIsJoinNotified(true)
-      }
+      // Send Join Message
+      const joinMsgRef = push(ref(database, `partyRooms/${roomId}/messages`))
+      set(joinMsgRef, {
+        text: `${profile.username} joined the party`,
+        username: "System",
+        isSystem: true,
+        timestamp: Date.now()
+      })
     }
 
     onValue(ref(database, `partyRooms/${roomId}/participants`), (snap) => {
       const data = snap.val()
       if (data) setRoomUsers(Object.values(data))
+      else setRoomUsers([])
     })
 
     return () => {
       off(roomRef)
       if (currentUser) {
+        // Complete Trace Removal
         remove(presenceRef)
+        if (mySeatIndex !== null) {
+          remove(ref(database, `partyRooms/${roomId}/seats/${mySeatIndex}`))
+        }
         if (zpRef.current) zpRef.current.destroy()
       }
     }
@@ -185,7 +146,7 @@ export default function PartyRoomPage() {
     if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  // 2. Initialize Zego
+  // 2. Initialize Zego (Audio Only)
   useEffect(() => {
     if (!roomId || !currentUser || !profile || zpRef.current || !room) return
 
@@ -220,10 +181,8 @@ export default function PartyRoomPage() {
           showAudioVideoSettingsButton: false,
           showScreenSharingButton: false,
           showUserList: false,
-          onLeaveRoom: () => router.push('/party')
         })
 
-        // Speaker Detection
         zp.on('soundLevelUpdate', (levels: any[]) => {
           const active: Record<string, boolean> = {}
           levels.forEach(l => {
@@ -242,33 +201,12 @@ export default function PartyRoomPage() {
     initZego()
   }, [roomId, currentUser, !!profile, !!room])
 
-  const handleToggleSeatLock = async (index: number) => {
-    if (!isAdmin || !database) return;
-    const currentSeat = seats[index];
-    
-    // If someone is on the seat, we might want to kick them? 
-    // Usually, you lock empty seats. 
-    // If it's empty, toggle the lock state.
-    if (!currentSeat) {
-      await set(ref(database, `partyRooms/${roomId}/seats/${index}`), {
-        isLocked: true
-      });
-    } else if (currentSeat.isLocked) {
-      await remove(ref(database, `partyRooms/${roomId}/seats/${index}`));
-    }
-  }
-
   const handleMountSeat = async (index: number) => {
     if (!database || !currentUser || !profile) return
     const currentSeat = seats[index];
     
     if (currentSeat?.isLocked) {
-      if (isAdmin) {
-        // Admins can unlock by clicking
-        await handleToggleSeatLock(index);
-      } else {
-        toast({ variant: "destructive", title: "Seat Locked", description: "This seat has been locked by a moderator." })
-      }
+      toast({ variant: "destructive", title: "Seat Locked", description: "This seat is reserved." })
       return
     }
 
@@ -282,7 +220,8 @@ export default function PartyRoomPage() {
       userId: currentUser.uid,
       username: profile.username,
       photo: profile.profilePhotoUrls?.[0] || "",
-      isMicOn: true
+      isMicOn: true,
+      label: currentSeat?.label || ""
     })
 
     setMySeatIndex(index)
@@ -293,7 +232,17 @@ export default function PartyRoomPage() {
   const handleLeaveSeat = async () => {
     if (mySeatIndex === null || !database) return
     if (zpRef.current) zpRef.current.mutePublishStreamAudio(true)
-    await remove(ref(database, `partyRooms/${roomId}/seats/${mySeatIndex}`))
+    
+    // We update the seat to preserve the label but remove the user
+    const currentLabel = seats[mySeatIndex]?.label || ""
+    if (currentLabel) {
+      await set(ref(database, `partyRooms/${roomId}/seats/${mySeatIndex}`), {
+        label: currentLabel
+      })
+    } else {
+      await remove(ref(database, `partyRooms/${roomId}/seats/${mySeatIndex}`))
+    }
+    
     setMySeatIndex(null)
   }
 
@@ -317,55 +266,13 @@ export default function PartyRoomPage() {
     setChatInput("")
   }
 
-  // MODERATION ACTIONS
-  const handleAppointAdmin = async () => {
-    if (!adminSearchId.trim() || !isHost) return
-    setIsAdminSearching(true)
-    try {
-      const q = fsQuery(collection(firestore, "userProfiles"), where("numericId", "==", Number(adminSearchId)))
-      const snap = await getDocs(q)
-      if (snap.empty) {
-        toast({ variant: "destructive", title: "User not found" })
-      } else {
-        const target = snap.docs[0].data()
-        await update(ref(database, `partyRooms/${roomId}/admins`), { [target.id]: true })
-        toast({ title: "Admin Appointed", description: `${target.username} is now a room admin.` })
-        setAdminSearchId("")
-      }
-    } catch (e) {
-      toast({ variant: "destructive", title: "Search Failed" })
-    } finally {
-      setIsAdminSearching(false)
-    }
-  }
-
-  const handleKick = async (targetId: string) => {
-    if (!isAdmin || targetId === room?.hostId) return
-    await update(ref(database, `partyRooms/${roomId}/kickedUsers`), { [targetId]: true })
-    await remove(ref(database, `partyRooms/${roomId}/participants/${targetId}`))
-    const seatToClear = Object.entries(seats).find(([_, s]: any) => s.userId === targetId)
-    if (seatToClear) {
-      await remove(ref(database, `partyRooms/${roomId}/seats/${seatToClear[0]}`))
-    }
-    toast({ title: "User Kicked" })
-  }
-
-  const toggleLock = async () => {
-    if (!isAdmin) return
-    await update(ref(database, `partyRooms/${roomId}`), { isLocked: !room?.isLocked })
-  }
-
-  const handleAddMusic = async () => {
-    if (!isAdmin || !newTrackUrl.trim()) return
-    const musicRef = push(ref(database, `partyRooms/${roomId}/playlist`))
-    await set(musicRef, {
-      id: musicRef.key,
-      title: newTrackTitle || "Unknown Track",
-      url: newTrackUrl,
-      addedBy: profile?.username
-    })
-    setNewTrackUrl("")
-    setNewTrackTitle("")
+  const handleLabelSeat = async () => {
+    if (labelingSeatIndex === null || !database) return
+    const seatRef = ref(database, `partyRooms/${roomId}/seats/${labelingSeatIndex}`)
+    await update(seatRef, { label: newSeatLabel })
+    setLabelingSeatIndex(null)
+    setNewSeatLabel("")
+    toast({ title: "Seat Updated" })
   }
 
   const sortedParticipants = useMemo(() => {
@@ -395,16 +302,15 @@ export default function PartyRoomPage() {
       {/* Header */}
       <header className="relative z-20 px-4 py-6 flex items-center justify-between bg-black/20 backdrop-blur-md border-b border-white/5">
         <div className="flex items-center gap-3">
-          <Avatar className="w-10 h-10 border border-white/20">
-            <AvatarImage src={room?.hostPhoto} className="object-cover" />
-            <AvatarFallback>{room?.hostName?.[0]}</AvatarFallback>
-          </Avatar>
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="w-10 h-10 rounded-full bg-white/5 hover:bg-white/10">
+            <ChevronLeft className="w-6 h-6" />
+          </Button>
           <div className="flex flex-col">
             <div className="flex items-center gap-1.5">
-              <h1 className="text-sm font-black truncate max-w-[100px]">{room?.title}</h1>
+              <h1 className="text-sm font-black truncate max-w-[120px]">{room?.title}</h1>
               {room?.isLocked && <Lock className="w-3 h-3 text-amber-400" />}
             </div>
-            <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">ID: {roomId.slice(0, 8)}</span>
+            <span className="text-[9px] font-bold text-white/40 uppercase tracking-widest">Host: {room?.hostName}</span>
           </div>
         </div>
 
@@ -437,69 +343,19 @@ export default function PartyRoomPage() {
                         ) : null}
                       </div>
                     </div>
-                    {isAdmin && u.userId !== room?.hostId && u.userId !== currentUser?.uid && (
-                      <Button variant="ghost" size="icon" onClick={() => handleKick(u.userId)} className="text-red-400 hover:bg-red-500/20">
-                        <Ban className="w-4 h-4" />
-                      </Button>
-                    )}
                   </div>
                 ))}
               </div>
-              {isHost && (
-                <div className="absolute bottom-0 inset-x-0 p-6 bg-zinc-950 border-t border-white/5 space-y-4">
-                  <p className="text-[10px] font-black text-white/40 uppercase tracking-widest">Manage Roles</p>
-                  <div className="flex gap-2">
-                    <Input 
-                      placeholder="User Numeric ID" 
-                      value={adminSearchId}
-                      onChange={(e) => setAdminSearchId(e.target.value)}
-                      className="bg-white/5 border-white/10 h-10 text-xs"
-                    />
-                    <Button onClick={handleAppointAdmin} disabled={isAdminSearching} className="bg-primary h-10 px-4">
-                      {isAdminSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : <UserPlus className="w-4 h-4" />}
-                    </Button>
-                  </div>
-                </div>
-              )}
             </SheetContent>
           </Sheet>
-          
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="ghost" size="icon" className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20">
-                <X className="w-5 h-5" />
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent className="rounded-[2.5rem] bg-zinc-900 border-none text-white">
-              <AlertDialogHeader>
-                <AlertDialogTitle className="font-headline font-black text-2xl text-center">Leave Room?</AlertDialogTitle>
-                <AlertDialogDescription className="text-zinc-400 text-center">Are you sure you want to disconnect?</AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter className="flex flex-col gap-2 mt-6">
-                <AlertDialogAction onClick={() => router.push('/party')} className="h-14 rounded-full bg-primary font-black uppercase text-xs tracking-widest">Leave Now</AlertDialogAction>
-                <AlertDialogCancel className="h-14 rounded-full bg-zinc-800 border-none font-black text-xs text-zinc-400">Cancel</AlertDialogCancel>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
         </div>
       </header>
 
-      {/* Main Stage */}
-      <main className="flex-1 relative z-10 flex flex-col items-center pt-8 px-4 overflow-y-auto">
-        <div className="flex items-center gap-4 mb-10 px-4 py-2 bg-black/30 backdrop-blur-xl rounded-full border border-white/5">
-           <Trophy className="w-4 h-4 text-amber-400" />
-           <div className="flex -space-x-2">
-             {[1,2,3].map(i => (
-               <div key={i} className="w-6 h-6 rounded-full border border-zinc-900 bg-zinc-800 overflow-hidden">
-                 <img src={`https://picsum.photos/seed/${i+100}/50/50`} className="w-full h-full object-cover" />
-               </div>
-             ))}
-           </div>
-           <span className="text-[9px] font-black uppercase text-white/40 tracking-widest">Top Contributors</span>
-        </div>
-
-        {/* Seat Grid */}
-        <div className="w-full max-w-sm space-y-12">
+      {/* Main Stage (Fixed Top Half) */}
+      <main className="flex-1 relative z-10 flex flex-col items-center overflow-hidden">
+        {/* Seats Container (Top 50%) */}
+        <div className="w-full h-1/2 flex flex-col items-center justify-center p-4 space-y-8 overflow-y-auto">
+          {/* Host Seat */}
           <div className="flex justify-center relative">
             <div className="absolute -top-6 px-3 py-1 bg-gradient-to-r from-amber-500 to-amber-200 rounded-full z-20 shadow-lg">
                <span className="text-[8px] font-black text-zinc-900 uppercase">HOST</span>
@@ -507,7 +363,7 @@ export default function PartyRoomPage() {
             <div 
               onClick={() => handleMountSeat(0)}
               className={cn(
-                "w-24 h-24 rounded-full border-4 flex items-center justify-center relative transition-all duration-500 cursor-pointer shadow-2xl overflow-visible",
+                "w-20 h-20 rounded-full border-4 flex items-center justify-center relative transition-all duration-500 cursor-pointer shadow-2xl overflow-visible",
                 seats[0]?.userId ? "border-amber-400 ring-4 ring-amber-400/20" : "border-white/10 bg-black/40",
                 speakers[seats[0]?.userId] && "after:absolute after:inset-[-8px] after:rounded-full after:border-2 after:border-amber-400/40 after:animate-ping"
               )}
@@ -518,25 +374,35 @@ export default function PartyRoomPage() {
                   <AvatarFallback className="text-xl font-black">{seats[0].username?.[0]}</AvatarFallback>
                 </Avatar>
               ) : (
-                <Armchair className="w-8 h-8 opacity-40" />
+                <div className="flex flex-col items-center">
+                  <span className="text-[10px] font-black text-white/20 uppercase">Stage</span>
+                </div>
               )}
-              {seats[0]?.userId && <div className="absolute -bottom-2 px-3 py-0.5 bg-amber-400 rounded-full text-zinc-900 text-[8px] font-black uppercase shadow-md">{seats[0].username}</div>}
             </div>
           </div>
 
-          <div className="grid grid-cols-5 gap-y-10 gap-x-2">
+          {/* Member Seats (Rows of 5) */}
+          <div className="grid grid-cols-5 gap-y-8 gap-x-3 w-full max-w-lg px-4">
             {Array.from({ length: room?.maxSeats || 8 }).map((_, i) => {
               const index = i + 1;
               const occupant = seats[index];
               const isLocked = occupant?.isLocked === true;
               const isSpeaking = speakers[occupant?.userId];
+              const label = occupant?.label || "";
               
               return (
                 <div key={index} className="flex flex-col items-center gap-2">
                   <div 
-                    onClick={() => handleMountSeat(index)}
+                    onClick={() => {
+                      if (isAdmin && !occupant?.userId) {
+                        setLabelingSeatIndex(index);
+                        setNewSeatLabel(occupant?.label || "");
+                      } else {
+                        handleMountSeat(index);
+                      }
+                    }}
                     className={cn(
-                      "w-14 h-14 rounded-full border-2 flex items-center justify-center relative transition-all cursor-pointer overflow-visible",
+                      "w-12 h-12 rounded-full border-2 flex items-center justify-center relative transition-all cursor-pointer overflow-visible",
                       occupant?.userId ? "border-primary shadow-lg" : isLocked ? "border-amber-500/50 bg-amber-500/10" : "border-white/5 bg-black/30",
                       isSpeaking && "after:absolute after:inset-[-4px] after:rounded-full after:border-2 after:border-primary/60 after:animate-ping"
                     )}
@@ -547,24 +413,26 @@ export default function PartyRoomPage() {
                         <AvatarFallback className="text-xs font-black">{occupant.username?.[0]}</AvatarFallback>
                       </Avatar>
                     ) : isLocked ? (
-                      <div className="flex flex-col items-center gap-0.5 text-amber-500">
-                        <Lock className="w-4 h-4" />
-                      </div>
+                      <Lock className="w-4 h-4 text-amber-500" />
                     ) : (
-                      <div className="flex flex-col items-center gap-0.5 opacity-20">
-                        <Armchair className="w-4 h-4" />
-                        <span className="text-[7px] font-black">{index}</span>
-                      </div>
+                      <span className="text-[10px] font-black text-white/10">{index}</span>
                     )}
                     
                     {occupant?.isMicOn && (
-                      <div className="absolute -top-1 -right-1 w-5 h-5 bg-green-500 rounded-full flex items-center justify-center border-2 border-[#0a1a1a] shadow-sm">
-                        <Mic className="w-2.5 h-2.5 text-white" />
+                      <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-[#0a1a1a] shadow-sm">
+                        <Mic className="w-2 h-2 text-white" />
+                      </div>
+                    )}
+
+                    {/* Seat Label */}
+                    {label && (
+                      <div className="absolute -bottom-1.5 px-2 py-0.5 bg-amber-500 rounded-md text-zinc-900 text-[6px] font-black uppercase shadow-md truncate max-w-full">
+                        {label}
                       </div>
                     )}
                   </div>
-                  <span className={cn("text-[8px] font-black uppercase tracking-tighter truncate w-full text-center px-1", occupant?.userId ? "text-white" : isLocked ? "text-amber-500" : "text-white/20")}>
-                    {occupant?.userId ? occupant.username : isLocked ? "Locked" : "Mount"}
+                  <span className={cn("text-[7px] font-black uppercase tracking-tighter truncate w-full text-center", occupant?.userId ? "text-white" : "text-white/20")}>
+                    {occupant?.userId ? occupant.username : "Mount"}
                   </span>
                 </div>
               )
@@ -572,108 +440,88 @@ export default function PartyRoomPage() {
           </div>
         </div>
 
-        {/* Chat Area */}
-        <div className="w-full mt-12 mb-24 flex flex-col gap-3">
-          {messages.map((m) => (
-            <div key={m.id} className="flex flex-col gap-1.5">
-              {!m.isSystem && (
-                <div className="flex items-center gap-2">
-                  {room?.admins?.[m.userId] && <div className="px-2 py-0.5 bg-blue-500/20 border border-blue-500/40 rounded-md"><span className="text-[8px] font-black text-blue-300 uppercase tracking-widest italic">ADMIN</span></div>}
-                  <span className="text-[10px] font-black text-white/60">{m.username}</span>
+        {/* Chat Area (Bottom 50%) */}
+        <div className="w-full h-1/2 flex flex-col bg-black/10 backdrop-blur-sm border-t border-white/5 p-4 pb-24">
+          <div className="flex-1 overflow-y-auto flex flex-col gap-3">
+            {messages.map((m) => (
+              <div key={m.id} className="flex flex-col gap-1">
+                {!m.isSystem && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[9px] font-black text-white/40">{m.username}</span>
+                  </div>
+                )}
+                <div className={cn("self-start max-w-[85%] rounded-2xl rounded-tl-none px-4 py-2.5 shadow-md", m.isSystem ? "bg-white/5 border border-white/5" : "bg-white/10 backdrop-blur-md")}>
+                  <p className={cn("text-[12px] font-medium leading-relaxed", m.isSystem ? "text-white/30 italic" : "text-white/90")}>{m.text}</p>
                 </div>
-              )}
-              <div className={cn("self-start max-w-[90%] backdrop-blur-xl rounded-2xl rounded-tl-none px-4 py-3 shadow-lg border", m.isSystem ? "bg-white/5 border-white/5" : "bg-black/40 border-white/10")}>
-                <p className={cn("text-[13px] font-medium leading-snug", m.isSystem ? "text-white/40 italic text-xs" : "text-white/90")}>{m.text}</p>
               </div>
-            </div>
-          ))}
-          <div ref={scrollRef} className="h-4" />
+            ))}
+            <div ref={scrollRef} className="h-4" />
+          </div>
         </div>
       </main>
 
       {/* Interaction Footer */}
-      <footer className="relative z-30 px-4 py-6 bg-gradient-to-t from-black via-black/80 to-transparent flex items-center justify-between gap-3">
+      <footer className="absolute bottom-0 inset-x-0 z-30 px-4 py-6 bg-gradient-to-t from-black via-black/80 to-transparent flex items-center justify-between gap-3">
         <div className="flex-1 relative flex items-center">
-          <Input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Type here..." className="h-12 w-full rounded-full bg-white/10 backdrop-blur-xl border border-white/10 text-white pl-6 pr-12 text-sm" />
-          <button onClick={handleSendMessage} className="absolute right-2 w-8 h-8 rounded-full bg-primary flex items-center justify-center active:scale-90"><Send className="w-4 h-4 text-white" /></button>
-        </div>
-
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => router.push('/games')} className="w-12 h-12 rounded-full bg-[#9b4de0] shadow-lg flex items-center justify-center active:scale-90"><Gamepad2 className="w-6 h-6 text-white" /></button>
-          
-          <Sheet>
-            <SheetTrigger asChild>
-              <button className="w-12 h-12 rounded-full bg-[#fcd34d] shadow-lg flex items-center justify-center active:scale-90"><Gift className="w-6 h-6 text-zinc-900" /></button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="bg-zinc-900 border-none text-white rounded-t-[3rem] h-[60svh]">
-              <SheetHeader className="p-6"><SheetTitle className="text-white font-black text-lg uppercase text-center">Send Gift to</SheetTitle></SheetHeader>
-              <div className="grid grid-cols-4 gap-4 p-6 overflow-y-auto">
-                {Object.values(seats).filter((s: any) => s.userId).map((s: any) => (
-                  <div key={s.userId} className="flex flex-col items-center gap-2">
-                    <Avatar className="w-16 h-16 border-2 border-primary shadow-xl"><AvatarImage src={s.photo} className="object-cover" /><AvatarFallback>{s.username?.[0]}</AvatarFallback></Avatar>
-                    <span className="text-[10px] font-black uppercase text-white/60 truncate w-full text-center">{s.username}</span>
-                  </div>
-                ))}
-              </div>
-            </SheetContent>
-          </Sheet>
-
-          {/* Moderator Tools */}
-          {isAdmin && (
-            <Sheet>
-              <SheetTrigger asChild>
-                <button className="w-12 h-12 rounded-full bg-blue-600 shadow-lg flex items-center justify-center active:scale-90"><LayoutGrid className="w-6 h-6 text-white" /></button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="bg-zinc-900 border-none text-white rounded-t-[3rem] p-8 h-[50svh]">
-                <SheetHeader><SheetTitle className="text-white font-black uppercase">Moderator Panel</SheetTitle></SheetHeader>
-                <div className="grid grid-cols-2 gap-4 mt-8">
-                  <Button onClick={toggleLock} className={cn("h-20 rounded-[2rem] flex flex-col gap-2", room?.isLocked ? "bg-amber-500" : "bg-zinc-800")}>
-                    {room?.isLocked ? <Unlock className="w-6 h-6" /> : <Lock className="w-6 h-6" />}
-                    <span className="text-[10px] font-black">{room?.isLocked ? "Unlock Room" : "Lock Room"}</span>
-                  </Button>
-                  <Sheet>
-                    <SheetTrigger asChild>
-                      <Button className="h-20 rounded-[2rem] bg-zinc-800 flex flex-col gap-2">
-                        <MusicIcon className="w-6 h-6" />
-                        <span className="text-[10px] font-black">Music Library</span>
-                      </Button>
-                    </SheetTrigger>
-                    <SheetContent side="bottom" className="bg-zinc-950 border-none text-white rounded-t-[3rem] h-[75svh] p-0 flex flex-col">
-                      <SheetHeader className="p-8"><SheetTitle className="text-white font-black">Playlist</SheetTitle></SheetHeader>
-                      <div className="flex-1 overflow-y-auto px-8 space-y-4">
-                        {playlist.map((track) => (
-                          <div key={track.id} className="p-4 bg-white/5 rounded-2xl flex items-center justify-between">
-                            <div className="flex flex-col">
-                              <span className="font-bold text-sm">{track.title}</span>
-                              <span className="text-[10px] text-white/40 uppercase">Added by {track.addedBy}</span>
-                            </div>
-                            <Button size="icon" className="rounded-full bg-primary"><Play className="w-4 h-4" /></Button>
-                          </div>
-                        ))}
-                      </div>
-                      <div className="p-8 bg-zinc-900 space-y-3">
-                        <Input placeholder="Track Title" value={newTrackTitle} onChange={e => setNewTrackTitle(e.target.value)} className="bg-white/5 border-white/10" />
-                        <Input placeholder="Music URL (mp3/stream)" value={newTrackUrl} onChange={e => setNewTrackUrl(e.target.value)} className="bg-white/5 border-white/10" />
-                        <Button onClick={handleAddMusic} className="w-full bg-primary rounded-full h-12 font-black uppercase text-xs">Add to Playlist</Button>
-                      </div>
-                    </SheetContent>
-                  </Sheet>
-                </div>
-              </SheetContent>
-            </Sheet>
-          )}
-          
-          {mySeatIndex !== null && (
-            <button onClick={toggleMic} className={cn("w-12 h-12 rounded-full shadow-lg flex items-center justify-center active:scale-90", isMicMuted ? "bg-red-500" : "bg-primary")}>
-              {isMicMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
-            </button>
-          )}
-
-          <button onClick={mySeatIndex !== null ? handleLeaveSeat : () => handleMountSeat(1)} className={cn("w-12 h-12 rounded-full shadow-lg flex items-center justify-center active:scale-90", mySeatIndex !== null ? "bg-red-500/20 border border-red-500/40" : "bg-white/10 border border-white/10")}>
-            {mySeatIndex !== null ? <X className="w-6 h-6 text-red-500" /> : <Armchair className="w-6 h-6 text-white/60" />}
+          <Input 
+            value={chatInput} 
+            onChange={(e) => setChatInput(e.target.value)} 
+            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
+            placeholder="Type here..." 
+            className="h-12 w-full rounded-full bg-white/10 backdrop-blur-xl border border-white/10 text-white pl-6 pr-12 text-sm focus-visible:ring-primary/30" 
+          />
+          <button onClick={handleSendMessage} className="absolute right-2 w-8 h-8 rounded-full bg-primary flex items-center justify-center active:scale-90 transition-transform">
+            <Send className="w-4 h-4 text-white" />
           </button>
         </div>
+
+        {mySeatIndex !== null && (
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={toggleMic} 
+              className={cn(
+                "w-12 h-12 rounded-full shadow-lg flex items-center justify-center active:scale-90 transition-all", 
+                isMicMuted ? "bg-red-500" : "bg-primary"
+              )}
+            >
+              {isMicMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+            </button>
+            <button 
+              onClick={handleLeaveSeat} 
+              className="w-12 h-12 rounded-full bg-white/10 border border-white/10 flex items-center justify-center active:scale-90 transition-all"
+            >
+              <LogOut className="w-5 h-5 text-white/60" />
+            </button>
+          </div>
+        )}
       </footer>
+
+      {/* Seat Labeling Dialog */}
+      <Dialog open={labelingSeatIndex !== null} onOpenChange={(open) => !open && setLabelingSeatIndex(null)}>
+        <DialogContent className="rounded-[2.5rem] bg-zinc-900 border-none text-white max-w-[85%] mx-auto shadow-2xl">
+          <DialogHeader>
+            <DialogTitle className="font-headline font-black text-center text-xl uppercase tracking-widest">Label Seat {labelingSeatIndex}</DialogTitle>
+          </DialogHeader>
+          <div className="py-6 space-y-4">
+            <div className="space-y-2">
+              <label className="text-[10px] font-black uppercase text-white/40 tracking-widest ml-1">New Label Name</label>
+              <Input 
+                placeholder="e.g., VIP, Queen, Co-Host" 
+                value={newSeatLabel} 
+                onChange={(e) => setNewSeatLabel(e.target.value.slice(0, 10))}
+                className="bg-white/5 border-white/10 h-14 rounded-2xl text-center font-bold"
+              />
+            </div>
+          </div>
+          <DialogFooter className="flex flex-col gap-2">
+            <Button onClick={handleLabelSeat} className="h-14 rounded-full bg-primary font-black uppercase text-xs tracking-widest w-full gap-2">
+              <Check className="w-4 h-4" />
+              Apply Label
+            </Button>
+            <Button variant="ghost" onClick={() => setLabelingSeatIndex(null)} className="h-12 rounded-full text-white/40 font-black uppercase text-[10px]">Cancel</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div ref={containerRef} className="hidden" />
     </div>
