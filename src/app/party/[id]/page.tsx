@@ -12,7 +12,6 @@ import {
   Send,
   Lock,
   LogOut,
-  PlusCircle,
   UserX,
   Music as MusicIcon,
   Play,
@@ -166,7 +165,7 @@ export default function PartyRoomPage() {
     }
   }, [database, roomId, currentUser?.uid, !!profile])
 
-  // 2. Audio Engine (Zego) - Optimized to join once
+  // 2. Audio Engine (Zego)
   useEffect(() => {
     if (!roomId || !currentUser || !profile || isJoinedRef.current || !room) return
 
@@ -356,7 +355,7 @@ export default function PartyRoomPage() {
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent className="bg-zinc-900 border-white/10 text-white rounded-2xl p-2 min-w-[140px]">
-                {[5, 10, 15, 20].map(n => (
+                {[3, 5, 10].map(n => (
                   <DropdownMenuItem key={n} onClick={() => handleUpdateCapacity(n)} className="rounded-xl font-bold py-2.5">
                     {n} Seats
                   </DropdownMenuItem>
@@ -531,7 +530,7 @@ export default function PartyRoomPage() {
                 </SheetContent>
               </Sheet>
 
-              <button onClick={handleLeaveSeat} className="w-12 h-12 rounded-full bg-white/10 border border-white/10 flex items-center justify-center">
+              <button onClick={handleLeaveSeat} className="w-12 h-12 rounded-full bg-white/10 border border-white/10 flex items-center justify-center" title="Leave Seat">
                 <LogOut className="w-5 h-5 text-white/60" />
               </button>
             </>

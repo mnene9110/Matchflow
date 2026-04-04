@@ -15,7 +15,8 @@ import {
   LayoutGrid,
   UserPlus,
   Search,
-  ShieldCheck
+  ShieldCheck,
+  Trash2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useUser, useDoc, useFirestore, useMemoFirebase, useFirebase } from "@/firebase"
@@ -31,6 +32,17 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 
@@ -92,7 +104,6 @@ export default function HostCenterPage() {
   const handleToggleAssistant = async () => {
     if (!foundAssistant || !firestore || isAppointing || !currentUser) return
     
-    // Enforce 10 assistant limit
     if (!foundAssistant.isAssistant) {
       const assistantQuery = query(
         collection(firestore, "userProfiles"), 
@@ -135,9 +146,14 @@ export default function HostCenterPage() {
     setEditingRoom(null)
   }
 
-  const handleCloseRoom = async (roomId: string) => {
+  const handleDeleteRoom = async (roomId: string) => {
     if (!database) return
-    await remove(ref(database, `partyRooms/${roomId}`))
+    try {
+      await remove(ref(database, `partyRooms/${roomId}`))
+      toast({ title: "Room Deleted", description: "The room has been removed permanently." })
+    } catch (error) {
+      toast({ variant: "destructive", title: "Delete Failed", description: "Could not remove the room." })
+    }
   }
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#B36666]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
@@ -215,7 +231,7 @@ export default function HostCenterPage() {
                     <div className="flex flex-col">
                       <h3 className="text-sm font-black text-gray-900">{room.title}</h3>
                       <span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">
-                        {room.maxSeats} Max Seats • {room.isLocked ? "Locked" : "Public"}
+                        {room.maxSeats} Seats • {room.isLocked ? "Locked" : "Public"}
                       </span>
                     </div>
                   </div>
@@ -228,14 +244,33 @@ export default function HostCenterPage() {
                     >
                       <Settings2 className="w-4 h-4" />
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
-                      onClick={() => handleCloseRoom(room.id)}
-                      className="w-10 h-10 rounded-full bg-red-50 text-red-500"
-                    >
-                      <X className="w-4 h-4" />
-                    </Button>
+                    
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button variant="ghost" size="icon" className="w-10 h-10 rounded-full bg-red-50 text-red-500 hover:bg-red-100">
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent className="rounded-[2rem] border-none shadow-2xl">
+                        <AlertDialogHeader>
+                          <AlertDialogTitle className="font-headline font-black text-xl">Delete Party Room?</AlertDialogTitle>
+                          <AlertDialogDescription className="text-gray-500 font-medium">
+                            This action is permanent. All room data and settings will be deleted forever and cannot be recovered.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter className="flex flex-col gap-2 mt-4">
+                          <AlertDialogAction 
+                            onClick={() => handleDeleteRoom(room.id)}
+                            className="h-14 rounded-full bg-red-500 text-white font-black uppercase text-xs tracking-widest w-full hover:bg-red-600"
+                          >
+                            Yes, Delete Forever
+                          </AlertDialogAction>
+                          <AlertDialogCancel className="h-14 rounded-full border-none bg-gray-50 text-gray-400 font-black uppercase text-xs tracking-widest w-full">
+                            Cancel
+                          </AlertDialogCancel>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
                   </div>
                 </div>
               ))}
@@ -301,22 +336,6 @@ export default function HostCenterPage() {
             )}
           </div>
         </section>
-
-        <section className="space-y-4 pb-10">
-          <div className="flex items-center gap-2 px-2">
-            <ShieldCheck className="w-4 h-4 text-primary/40" />
-            <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Host Privileges</h2>
-          </div>
-          <div className="bg-white/40 backdrop-blur-md border border-white/40 p-6 rounded-[2rem] flex items-center justify-between shadow-sm">
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center"><ShieldCheck className="w-5 h-5 text-blue-500" /></div>
-              <div className="text-left">
-                <p className="text-[11px] font-black text-gray-900 uppercase tracking-tight">Verified Host Status</p>
-                <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Permanent Room Control</p>
-              </div>
-            </div>
-          </div>
-        </section>
       </main>
 
       <Dialog open={!!editingRoom} onOpenChange={(open) => !open && setEditingRoom(null)}>
@@ -332,10 +351,9 @@ export default function HostCenterPage() {
                   <SelectValue placeholder="Select Seats" />
                 </SelectTrigger>
                 <SelectContent className="rounded-2xl border-none shadow-2xl">
+                  <SelectItem value="3" className="font-bold">3 Seats</SelectItem>
                   <SelectItem value="5" className="font-bold">5 Seats</SelectItem>
-                  <SelectItem value="10" className="font-bold">10 Seats</SelectItem>
-                  <SelectItem value="15" className="font-bold">15 Seats</SelectItem>
-                  <SelectItem value="20" className="font-bold">20 Seats (Max)</SelectItem>
+                  <SelectItem value="10" className="font-bold">10 Seats (Max)</SelectItem>
                 </SelectContent>
               </Select>
             </div>
