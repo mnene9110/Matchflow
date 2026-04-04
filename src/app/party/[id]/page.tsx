@@ -3,15 +3,47 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
-import { ChevronLeft, Mic, MicOff, Video, VideoOff, LogOut, Loader2, Users, Crown, Heart, ShoppingBag, Maximize2, MoreHorizontal, Send, Smile, Gift, Gamepad2, MessageSquare, LayoutGrid } from "lucide-react"
+import { 
+  ChevronLeft, 
+  Mic, 
+  MicOff, 
+  Video, 
+  VideoOff, 
+  LogOut, 
+  Loader2, 
+  Users, 
+  Crown, 
+  Heart, 
+  ShoppingBag, 
+  Maximize2, 
+  MoreHorizontal, 
+  Send, 
+  Smile, 
+  Gift, 
+  Gamepad2, 
+  MessageSquare, 
+  LayoutGrid,
+  Trash2
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirebase, useUser } from "@/firebase"
-import { ref, onValue, update, runTransaction as runRtdbTransaction, off } from "firebase/database"
+import { ref, onValue, update, runTransaction as runRtdbTransaction, off, remove } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { getZegoConfig } from "@/app/actions/zego"
 import { ScrollArea } from "@/components/ui/scroll-area"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
 
 let ZegoExpressEngine: any = null;
 
@@ -68,7 +100,6 @@ export default function PartyRoomPage() {
     }
   }, []);
 
-  // Trigger initialization only when user and engine are ready
   useEffect(() => {
     if (engineLoaded && currentUser && roomId && !isJoined && !initStartedRef.current) {
       initZego();
@@ -168,6 +199,33 @@ export default function PartyRoomPage() {
     }
   }
 
+  const handleDeleteRoom = async () => {
+    if (!database || !roomId || !currentUser || room.hostId !== currentUser.uid) return
+
+    try {
+      // 1. First cleanup Zego local tracks
+      if (zegoEngineRef.current) {
+        const zg = zegoEngineRef.current;
+        if (localStreamRef.current) {
+          try {
+            zg.stopPublishingStream(`stream_${currentUser?.uid}`);
+            zg.destroyStream(localStreamRef.current);
+          } catch (e) {}
+        }
+        try { zg.logoutRoom(roomId); } catch (e) {}
+      }
+
+      // 2. Remove the room from RTDB
+      // The listener at the top of the file will catch this and redirect all participants
+      await remove(ref(database, `partyRooms/${roomId}`))
+      
+      toast({ title: "Room Deleted", description: "The party has been closed permanently." })
+      router.replace('/party')
+    } catch (error) {
+      toast({ variant: "destructive", title: "Delete Failed", description: "Could not close the room." })
+    }
+  }
+
   if (!room || isConnecting || isUserLoading) {
     return (
       <div className="flex flex-col items-center justify-center h-svh bg-zinc-950 text-white space-y-6">
@@ -187,6 +245,7 @@ export default function PartyRoomPage() {
     )
   }
 
+  const isHost = currentUser && room.hostId === currentUser.uid
   const seats = Array.from({ length: 8 }, (_, i) => i + 1);
   const occupiedSeats = remoteUsers.slice(0, 8);
 
@@ -222,13 +281,38 @@ export default function PartyRoomPage() {
             <Users className="w-3.5 h-3.5 text-white/60" />
             <span className="text-[10px] font-black">{room.memberCount || 1}</span>
           </div>
+          
+          {isHost && (
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <button className="w-9 h-9 flex items-center justify-center bg-red-500/20 backdrop-blur-md rounded-full border border-red-500/20 text-red-400 active:scale-90 transition-all">
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </AlertDialogTrigger>
+              <AlertDialogContent className="rounded-[2.5rem] bg-zinc-900 border border-white/10 text-white max-w-[85%] mx-auto">
+                <AlertDialogHeader>
+                  <AlertDialogTitle className="text-xl font-black font-headline text-center">Close Room?</AlertDialogTitle>
+                  <AlertDialogDescription className="text-zinc-400 text-center font-medium text-xs leading-relaxed">
+                    This will permanently delete this party room and disconnect all participants.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter className="flex flex-col gap-2 mt-6">
+                  <AlertDialogAction onClick={handleDeleteRoom} className="rounded-full h-14 bg-red-500 hover:bg-red-600 text-white font-black text-xs uppercase tracking-widest w-full">
+                    Confirm & Delete
+                  </AlertDialogAction>
+                  <AlertDialogCancel className="rounded-full h-14 border-white/10 bg-zinc-800 text-zinc-400 font-black text-xs uppercase tracking-widest w-full hover:bg-zinc-700">
+                    Cancel
+                  </AlertDialogCancel>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+
           <button className="w-9 h-9 flex items-center justify-center bg-black/20 backdrop-blur-md rounded-full border border-white/10">
             <ShoppingBag className="w-4 h-4" />
           </button>
-          <button className="w-9 h-9 flex items-center justify-center bg-black/20 backdrop-blur-md rounded-full border border-white/10">
-            <Maximize2 className="w-4 h-4" />
-          </button>
-          <button onClick={handleLeave} className="w-9 h-9 flex items-center justify-center bg-red-500/80 rounded-full active:scale-90 transition-all">
+          
+          <button onClick={handleLeave} className="w-9 h-9 flex items-center justify-center bg-white/10 backdrop-blur-md rounded-full border border-white/10 active:scale-90 transition-all">
             <LogOut className="w-4 h-4" />
           </button>
         </div>
