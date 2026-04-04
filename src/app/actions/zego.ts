@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -11,12 +10,11 @@ const ZEGO_SERVER = process.env.NEXT_PUBLIC_ZEGO_SERVER;
 
 /**
  * Returns ZegoCloud configuration.
- * Note: In a production app, you should generate a temporary token here 
- * using the ServerSecret, rather than passing raw credentials.
+ * Improved error message to guide the user on environment setup.
  */
 export async function getZegoConfig() {
   if (!ZEGO_APP_ID || !ZEGO_SERVER) {
-    throw new Error('ZegoCloud configuration is missing on the server.');
+    throw new Error('ZegoCloud environment variables are missing. Please add NEXT_PUBLIC_ZEGO_APP_ID and NEXT_PUBLIC_ZEGO_SERVER to your project settings (Vercel or .env).');
   }
 
   return {

@@ -1,15 +1,21 @@
-// Standard PWA Service Worker for MatchFlow
 const CACHE_NAME = 'matchflow-v1';
+const ASSETS_TO_CACHE = [
+  '/',
+  '/manifest.json'
+];
 
 self.addEventListener('install', (event) => {
-  console.log('[SW] Installed');
-});
-
-self.addEventListener('activate', (event) => {
-  console.log('[SW] Activated');
+  event.waitUntil(
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(ASSETS_TO_CACHE);
+    })
+  );
 });
 
 self.addEventListener('fetch', (event) => {
-  // Let the browser handle the requests normally
-  // This is required for the "Add to Home Screen" prompt
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
+    })
+  );
 });

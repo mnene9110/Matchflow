@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -54,7 +53,8 @@ export default function ProfileDetailPage() {
   const { user: currentUser } = useUser()
   const { toast } = useToast()
   
-  const docRef = useMemoFirebase(() => doc(firestore, "userProfiles", id as string), [firestore, id])
+  // Guard: Only fetch profile if currentUser is ready to prevent Firestore permission errors
+  const docRef = useMemoFirebase(() => currentUser && id ? doc(firestore, "userProfiles", id as string) : null, [firestore, id, !!currentUser])
   const { data: userProfile, isLoading } = useDoc(docRef)
 
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
@@ -62,7 +62,6 @@ export default function ProfileDetailPage() {
   const [reportDetails, setReportDetails] = useState("")
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
   
-  // Fullscreen Image state
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null)
 
   useEffect(() => {
@@ -74,34 +73,19 @@ export default function ProfileDetailPage() {
     })
   }, [database, id])
 
-  // Handle back button to close fullscreen image
   useEffect(() => {
     const handlePopState = () => {
-      if (fullscreenImage) {
-        setFullscreenImage(null);
-      }
+      if (fullscreenImage) setFullscreenImage(null);
     };
-
     if (fullscreenImage) {
-      // Push a dummy state so back button works to close overlay
       window.history.pushState({ gallery: true }, "");
       window.addEventListener("popstate", handlePopState);
     }
-
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-    };
+    return () => window.removeEventListener("popstate", handlePopState);
   }, [fullscreenImage]);
 
-  const openFullscreen = (url: string) => {
-    setFullscreenImage(url);
-  }
-
-  const closeFullscreen = () => {
-    if (fullscreenImage) {
-      window.history.back(); // This triggers the popstate listener which sets state to null
-    }
-  }
+  const openFullscreen = (url: string) => setFullscreenImage(url);
+  const closeFullscreen = () => { if (fullscreenImage) window.history.back(); }
 
   const age = useMemo(() => {
     if (!userProfile?.dateOfBirth) return null;
@@ -109,9 +93,7 @@ export default function ProfileDetailPage() {
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
     return age;
   }, [userProfile?.dateOfBirth]);
 
@@ -119,15 +101,11 @@ export default function ProfileDetailPage() {
     if (presence.online) return "Online";
     if (!presence.lastSeen) return "Offline";
     const date = new Date(presence.lastSeen);
-    const now = new Date();
-    const diffInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
-    if (diffInDays > 2) return "Offline";
     return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }, [presence]);
 
   const handleBlock = async () => {
     if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin) return
-    
     try {
       const blockRef = doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", id as string)
       await setDocumentNonBlocking(blockRef, {
@@ -135,11 +113,7 @@ export default function ProfileDetailPage() {
         username: userProfile?.username || "Unknown",
         blockedAt: new Date().toISOString()
       }, { merge: true })
-      
-      toast({
-        title: "User Blocked",
-        description: `${userProfile?.username} has been blocked.`,
-      })
+      toast({ title: "User Blocked", description: `${userProfile?.username} has been blocked.` })
       router.push('/discover')
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Could not block user." })
@@ -149,7 +123,6 @@ export default function ProfileDetailPage() {
   const handleReport = async () => {
     if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport) return
     setIsSubmittingReport(true)
-
     try {
       const reportsCol = collection(firestore, "reports")
       await addDoc(reportsCol, {
@@ -159,11 +132,7 @@ export default function ProfileDetailPage() {
         createdAt: new Date().toISOString(),
         status: "pending"
       })
-
-      toast({
-        title: "Report Submitted",
-        description: "Our team will review this profile. Thank you for keeping MatchFlow safe.",
-      })
+      toast({ title: "Report Submitted", description: "Our team will review this profile." })
       setShowReportDialog(false)
       setReportDetails("")
     } catch (error) {
@@ -180,45 +149,30 @@ export default function ProfileDetailPage() {
     }
   }
 
-  if (isLoading) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+  if (isLoading || !currentUser) return <div className="flex items-center justify-center h-svh bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   
-  if (!userProfile && !isLoading) return (
+  if (!userProfile) return (
     <div className="flex flex-col items-center justify-center h-svh p-6 text-center space-y-6 bg-white">
-      <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100">
-        <UserX className="w-12 h-12 text-gray-300" />
-      </div>
+      <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100"><UserX className="w-12 h-12 text-gray-300" /></div>
       <div className="space-y-2">
         <h2 className="text-3xl font-black font-headline text-gray-900 tracking-tight">User logged out</h2>
-        <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-          This account no longer exists or has been deactivated.
-        </p>
+        <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">This account no longer exists or has been deactivated.</p>
       </div>
-      <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">
-        Go Back
-      </Button>
+      <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">Go Back</Button>
     </div>
   )
 
   if (userProfile?.isSupport) {
     return (
       <div className="flex flex-col items-center justify-center h-svh p-8 text-center space-y-6 bg-white">
-        <div className="w-24 h-24 bg-primary/10 rounded-[2.5rem] flex items-center justify-center border border-primary/20">
-          <Lock className="w-12 h-12 text-primary" />
-        </div>
+        <div className="w-24 h-24 bg-primary/10 rounded-[2.5rem] flex items-center justify-center border border-primary/20"><Lock className="w-12 h-12 text-primary" /></div>
         <div className="space-y-2">
           <h2 className="text-2xl font-black font-headline text-gray-900 tracking-tight">Access Restricted</h2>
-          <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-            Profile details for Customer Support agents are private.
-          </p>
+          <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">Profile details for Customer Support agents are private.</p>
         </div>
         <div className="flex flex-col w-full gap-3 max-w-[240px]">
-          <Button onClick={() => router.push(`/chat/${id}`)} className="h-14 rounded-full bg-primary font-black uppercase text-xs tracking-widest gap-3">
-            <Headset className="w-4 h-4" />
-            Chat with Support
-          </Button>
-          <Button variant="ghost" onClick={() => router.back()} className="h-14 rounded-full text-gray-400 font-bold uppercase text-[10px] tracking-widest">
-            Go Back
-          </Button>
+          <Button onClick={() => router.push(`/chat/${id}`)} className="h-14 rounded-full bg-primary font-black uppercase text-xs tracking-widest gap-3"><Headset className="w-4 h-4" />Chat with Support</Button>
+          <Button variant="ghost" onClick={() => router.back()} className="h-14 rounded-full text-gray-400 font-bold uppercase text-[10px] tracking-widest">Go Back</Button>
         </div>
       </div>
     )
@@ -232,287 +186,110 @@ export default function ProfileDetailPage() {
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-y-auto scroll-smooth">
-      {/* Hero Section */}
       <div className="relative aspect-[3/4] w-full shrink-0">
-        <Image 
-          src={mainPhoto} 
-          alt={userProfile?.username || "User"} 
-          fill 
-          className="object-cover cursor-pointer active:opacity-90" 
-          priority 
-          onClick={() => openFullscreen(mainPhoto)}
-        />
+        <Image src={mainPhoto} alt={userProfile?.username || "User"} fill className="object-cover cursor-pointer active:opacity-90" priority onClick={() => openFullscreen(mainPhoto)} />
         <div className="absolute top-12 left-4 right-4 flex justify-between items-center z-30">
-          <Button 
-            variant="ghost" 
-            size="icon" 
-            className="text-white bg-black/20 backdrop-blur-md hover:bg-black/30 rounded-full" 
-            onClick={() => router.back()}
-          >
-            <ChevronLeft className="w-8 h-8" />
-          </Button>
-
+          <Button variant="ghost" size="icon" className="text-white bg-black/20 backdrop-blur-md hover:bg-black/30 rounded-full" onClick={() => router.back()}><ChevronLeft className="w-8 h-8" /></Button>
           {!isProtected && (
             <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button 
-                  variant="ghost" 
-                  size="icon" 
-                  className="text-white bg-black/20 backdrop-blur-md hover:bg-black/30 rounded-full"
-                >
-                  <MoreHorizontal className="w-8 h-8" />
-                </Button>
-              </DropdownMenuTrigger>
+              <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="text-white bg-black/20 backdrop-blur-md hover:bg-black/30 rounded-full"><MoreHorizontal className="w-8 h-8" /></Button></DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-48 rounded-2xl bg-white border-none shadow-2xl p-2">
-                <DropdownMenuItem 
-                  onClick={() => setShowReportDialog(true)}
-                  className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-700 rounded-xl focus:bg-gray-50 cursor-pointer"
-                >
-                  <ShieldAlert className="w-4 h-4 text-amber-500" />
-                  Report User
-                </DropdownMenuItem>
-                <DropdownMenuItem 
-                  onClick={handleBlock}
-                  className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-600 rounded-xl focus:bg-red-50 cursor-pointer"
-                >
-                  <UserX className="w-4 h-4" />
-                  Block User
-                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => setShowReportDialog(true)} className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-gray-700 rounded-xl cursor-pointer"><ShieldAlert className="w-4 h-4 text-amber-500" />Report User</DropdownMenuItem>
+                <DropdownMenuItem onClick={handleBlock} className="flex items-center gap-3 px-4 py-3 text-xs font-bold text-red-600 rounded-xl cursor-pointer"><UserX className="w-4 h-4" />Block User</DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
           )}
         </div>
-        
-        {/* Presence Indicator */}
         <div className="absolute bottom-20 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 z-30">
           <div className={cn("w-2.5 h-2.5 rounded-full", presence.online ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
           <span className={cn("text-[10px] font-black uppercase tracking-tight", presence.online ? "text-white" : "text-white/60")}>{presenceText}</span>
         </div>
-
-        {/* Gradient Overlay for name transition */}
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
       </div>
 
-      {/* Profile Details Container */}
       <div className="flex-1 bg-white relative z-20 px-6 pb-40 -mt-10">
         <div className="space-y-8">
-          {/* Header Section */}
           <div className="space-y-2">
             <div className="flex items-center gap-2">
-              <h1 className="text-3xl font-black font-headline text-gray-900 leading-none">
-                {userProfile?.username}
-              </h1>
+              <h1 className="text-3xl font-black font-headline text-gray-900 leading-none">{userProfile?.username}</h1>
               {isVerified && <CheckCircle className="w-6 h-6 text-blue-500 fill-blue-500/10" />}
             </div>
-            
             <div className="flex flex-col gap-1.5">
-              <p className="text-[13px] font-medium text-gray-500 capitalize leading-none font-body">
-                {userProfile?.gender || "Not specified"} • {age ? `${age} years old` : 'Age hidden'}
-              </p>
-              
+              <p className="text-[13px] font-medium text-gray-500 capitalize leading-none font-body">{userProfile?.gender || "Not specified"} • {age ? `${age} years old` : 'Age hidden'}</p>
               <div className="flex items-center gap-4 mt-2">
-                <button 
-                  onClick={copyId}
-                  className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full text-[9px] font-black text-green-600 uppercase tracking-widest active:scale-95 transition-all"
-                >
-                  ID: {userProfile?.numericId || '---'}
-                  <Copy className="w-3 h-3 opacity-50" />
-                </button>
-                
-                <div className="flex items-center gap-1.5 text-[9px] font-black text-gray-400 uppercase tracking-widest">
-                  <Globe className="w-3 h-3" />
-                  {userProfile?.location || "Kenya"}
-                </div>
+                <button onClick={copyId} className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full text-[9px] font-black text-green-600 uppercase tracking-widest active:scale-95 transition-all">ID: {userProfile?.numericId || '---'}<Copy className="w-3 h-3 opacity-50" /></button>
+                <div className="flex items-center gap-1.5 text-[9px] font-black text-gray-400 uppercase tracking-widest"><Globe className="w-3 h-3" />{userProfile?.location || "Kenya"}</div>
               </div>
             </div>
           </div>
 
-          {/* Badges */}
           {(userProfile?.isAdmin || userProfile?.isSupport || isVerified) && (
             <div className="flex gap-2 flex-wrap">
-              {userProfile?.isAdmin && (
-                <div className="px-3 py-1 bg-primary/10 rounded-full inline-flex items-center gap-1.5 border border-primary/20">
-                  <Zap className="w-3 h-3 text-primary fill-current" />
-                  <span className="text-[9px] font-black text-primary uppercase tracking-widest">Admin</span>
-                </div>
-              )}
-              {userProfile?.isSupport && (
-                <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20">
-                  <Headset className="w-3 h-3 text-blue-500" />
-                  <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Support</span>
-                </div>
-              )}
-              {isVerified && (
-                <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20">
-                  <ShieldCheck className="w-3 h-3 text-blue-500" />
-                  <span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Verified</span>
-                </div>
-              )}
+              {userProfile?.isAdmin && <div className="px-3 py-1 bg-primary/10 rounded-full inline-flex items-center gap-1.5 border border-primary/20"><Zap className="w-3 h-3 text-primary fill-current" /><span className="text-[9px] font-black text-primary uppercase tracking-widest">Admin</span></div>}
+              {userProfile?.isSupport && <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20"><Headset className="w-3 h-3 text-blue-500" /><span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Support</span></div>}
+              {isVerified && <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20"><ShieldCheck className="w-3 h-3 text-blue-500" /><span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Verified</span></div>}
             </div>
           )}
 
-          {/* User Information Section */}
           <div className="space-y-4">
             <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">User Information</h3>
-            
             <div className="grid grid-cols-1 gap-3">
-              {userProfile?.bio && (
-                <div className="bg-gray-50/50 p-5 rounded-[1.5rem] border border-gray-100">
-                  <p className="text-sm font-medium text-gray-600 leading-relaxed italic">
-                    "{userProfile.bio}"
-                  </p>
-                </div>
-              )}
-
-              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary">
-                  <Calendar className="w-6 h-6" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Age Status</p>
-                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{age ? `${age} years old` : "Private"}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary">
-                  <Compass className="w-6 h-6" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Zodiac Sign</p>
-                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.horoscope || "Not set"}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary">
-                  <GraduationCap className="w-6 h-6" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Education</p>
-                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.education || "Private"}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary">
-                  <Star className="w-6 h-6" />
-                </div>
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Relationship Goal</p>
-                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.relationshipGoal || "Networking"}</p>
-                </div>
-              </div>
+              {userProfile?.bio && <div className="bg-gray-50/50 p-5 rounded-[1.5rem] border border-gray-100"><p className="text-sm font-medium text-gray-600 leading-relaxed italic">"{userProfile.bio}"</p></div>}
+              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm"><div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Calendar className="w-6 h-6" /></div><div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Age Status</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{age ? `${age} years old` : "Private"}</p></div></div>
+              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm"><div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Compass className="w-6 h-6" /></div><div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Zodiac Sign</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.horoscope || "Not set"}</p></div></div>
+              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm"><div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><GraduationCap className="w-6 h-6" /></div><div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Education</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.education || "Private"}</p></div></div>
+              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm"><div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Star className="w-6 h-6" /></div><div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Relationship Goal</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.relationshipGoal || "Networking"}</p></div></div>
             </div>
           </div>
 
-          {/* Interests */}
           {userProfile?.interests && userProfile.interests.length > 0 && (
             <div className="space-y-4 pt-4">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Interests</h3>
               <div className="flex flex-wrap gap-2">
                 {userProfile.interests.map((interest: string) => (
-                  <div key={interest} className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-full flex items-center gap-2">
-                    <Tag className="w-2.5 h-2.5 text-primary/40" />
-                    <span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">
-                      {interest}
-                    </span>
-                  </div>
+                  <div key={interest} className="px-4 py-2 bg-gray-50 border border-gray-100 rounded-full flex items-center gap-2"><Tag className="w-2.5 h-2.5 text-primary/40" /><span className="text-[9px] font-black text-gray-600 uppercase tracking-widest">{interest}</span></div>
                 ))}
               </div>
             </div>
           )}
 
-          {/* Gallery Section */}
           {extraPhotos.length > 0 && (
             <div className="space-y-4 pt-4">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Gallery</h3>
               <div className="grid grid-cols-2 gap-3">
                 {extraPhotos.map((url, index) => (
-                  <div 
-                    key={index} 
-                    className="relative aspect-square rounded-[2rem] overflow-hidden border-2 border-white shadow-md cursor-pointer active:scale-[0.98] transition-transform"
-                    onClick={() => openFullscreen(url)}
-                  >
-                    <Image src={url} alt={`Gallery ${index}`} fill className="object-cover" />
-                  </div>
+                  <div key={index} className="relative aspect-square rounded-[2rem] overflow-hidden border-2 border-white shadow-md cursor-pointer active:scale-[0.98] transition-transform" onClick={() => openFullscreen(url)}><Image src={url} alt={`Gallery ${index}`} fill className="object-cover" /></div>
                 ))}
               </div>
             </div>
           )}
-
           <div className="h-40" />
         </div>
       </div>
 
-      {/* Action Footer - Fixed at bottom */}
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-[60] flex flex-col items-center">
         <div className="w-full max-w-md">
-          <Button 
-            className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl shadow-primary/20 active:scale-95 transition-all flex items-center justify-center gap-3"
-            onClick={() => router.push(`/chat/${id}`)}
-          >
-            Send Message
-          </Button>
+          <Button className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3" onClick={() => router.push(`/chat/${id}`)}>Send Message</Button>
         </div>
       </div>
 
-      {/* Fullscreen Overlay */}
       {fullscreenImage && (
         <div className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center animate-in fade-in duration-300">
-          <div className="relative w-full flex-1">
-            <Image 
-              src={fullscreenImage} 
-              alt="Fullscreen" 
-              fill 
-              className="object-contain" 
-              priority
-            />
-          </div>
-          <div className="p-10 shrink-0">
-            <Button 
-              onClick={closeFullscreen}
-              className="h-16 px-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all gap-3"
-            >
-              <X className="w-5 h-5" />
-              Close Viewer
-            </Button>
-          </div>
+          <div className="relative w-full flex-1"><Image src={fullscreenImage} alt="Fullscreen" fill className="object-contain" priority /></div>
+          <div className="p-10 shrink-0"><Button onClick={closeFullscreen} className="h-16 px-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all gap-3"><X className="w-5 h-5" />Close Viewer</Button></div>
         </div>
       )}
 
-      {/* Report Dialog */}
       <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
         <DialogContent className="rounded-[2.5rem] bg-white border-none p-8 max-w-[90%] mx-auto shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black font-headline text-gray-900 text-center">Report Profile</DialogTitle>
-            <DialogDescription className="text-center text-gray-500 font-medium">
-              Please provide details about why you are reporting this user.
-            </DialogDescription>
+            <DialogDescription className="text-center text-gray-500 font-medium">Please provide details about why you are reporting this user.</DialogDescription>
           </DialogHeader>
-          <div className="py-4">
-            <Textarea 
-              placeholder="Tell us what happened..."
-              value={reportDetails}
-              onChange={(e) => setReportDetails(e.target.value)}
-              className="min-h-[140px] rounded-[1.5rem] bg-gray-50 border-none focus-visible:ring-primary/20 py-4 font-medium"
-            />
-          </div>
+          <div className="py-4"><Textarea placeholder="Tell us what happened..." value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} className="min-h-[140px] rounded-[1.5rem] bg-gray-50 border-none focus-visible:ring-primary/20 py-4 font-medium" /></div>
           <DialogFooter className="flex flex-col gap-3">
-            <Button 
-              onClick={handleReport}
-              disabled={!reportDetails.trim() || isSubmittingReport}
-              className="w-full h-14 rounded-full bg-primary text-white font-black shadow-lg"
-            >
-              {isSubmittingReport ? <Loader2 className="w-5 h-5 animate-spin" /> : "Submit Report"}
-            </Button>
-            <Button 
-              variant="ghost" 
-              onClick={() => setShowReportDialog(false)}
-              className="w-full h-12 rounded-full text-gray-400 font-black uppercase text-[10px] tracking-widest"
-            >
-              Cancel
-            </Button>
+            <Button onClick={handleReport} disabled={!reportDetails.trim() || isSubmittingReport} className="w-full h-14 rounded-full bg-primary text-white font-black shadow-lg">{isSubmittingReport ? <Loader2 className="w-5 h-5 animate-spin" /> : "Submit Report"}</Button>
+            <Button variant="ghost" onClick={() => setShowReportDialog(false)} className="w-full h-12 rounded-full text-gray-400 font-black uppercase text-[10px] tracking-widest">Cancel</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
