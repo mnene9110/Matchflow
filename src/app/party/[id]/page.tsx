@@ -11,16 +11,14 @@ import {
   Loader2, 
   Users, 
   Crown, 
-  Heart, 
   Send, 
   Smile, 
   Gift, 
-  Gamepad2, 
-  MessageSquare, 
   LayoutGrid,
   Trash2,
   CheckCircle,
-  X
+  X,
+  MessageSquare
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -48,8 +46,7 @@ let ZegoExpressEngine: any = null;
 
 /**
  * @fileOverview Party Room implementation.
- * Strictly adheres to Audio-Only constraints (no camera, no screen sharing).
- * Fixed: 'Join Failed' error and selective microphone logic.
+ * Uses the app's standard Pale Maroon design system.
  */
 
 export default function PartyRoomPage() {
@@ -70,7 +67,7 @@ export default function PartyRoomPage() {
   const [mySeatIndex, setMySeatIndex] = useState<number | null>(null)
   
   const [messages] = useState<any[]>([
-    { id: 'system-1', sender: 'System', text: 'Welcome to MatchFlow! Please respect others and chat politely.', type: 'system' }
+    { id: 'system-1', sender: 'System', text: 'Welcome to MatchFlow! Respect others and stay safe.', type: 'system' }
   ])
 
   const zegoEngineRef = useRef<any>(null)
@@ -94,14 +91,12 @@ export default function PartyRoomPage() {
         setSeats(data.seats || {})
         roomLoadedRef.current = true
       } else if (roomLoadedRef.current) {
-        toast({ title: "Room Closed", description: "The host has closed this room." })
+        toast({ title: "Room Closed", description: "This party has ended." })
         router.push('/party')
       }
     })
 
-    return () => {
-      off(roomRef, "value", unsubscribe)
-    }
+    return () => off(roomRef, "value", unsubscribe)
   }, [database, roomId, router, toast])
 
   // Listen to participants
@@ -118,7 +113,7 @@ export default function PartyRoomPage() {
     })
   }, [database, roomId])
 
-  // Track my seat index locally
+  // Track my seat index
   useEffect(() => {
     if (!currentUser) return
     const index = Object.entries(seats).find(([_, seat]) => seat.userId === currentUser.uid)?.[0]
@@ -155,17 +150,14 @@ export default function PartyRoomPage() {
             zg.startPlayingStream(stream.streamID).then((remoteStream: MediaStream) => {
               const audio = new Audio();
               audio.srcObject = remoteStream;
-              audio.play().catch(e => console.warn("Autoplay audio blocked", e));
+              audio.play().catch(() => {});
             });
           });
         } else if (updateType === 'DELETE') {
-          streamList.forEach(stream => {
-            zg.stopPlayingStream(stream.streamID);
-          });
+          streamList.forEach(stream => zg.stopPlayingStream(stream.streamID));
         }
       });
 
-      // Join Room
       await zg.loginRoom(roomId, currentUser.uid, { userName: profile.username || 'User' }, { userUpdate: true });
       
       setIsJoined(true);
@@ -188,24 +180,20 @@ export default function PartyRoomPage() {
       }
 
     } catch (error: any) {
-      console.error("Zego Join Error:", error);
-      toast({ variant: "destructive", title: "Connection Failed", description: error.message || "Could not join audio room." });
+      console.error("Zego Error:", error);
       setIsConnecting(false);
+      initStartedRef.current = false;
+      toast({ variant: "destructive", title: "Join Failed", description: "Audio service unavailable." });
       router.back();
     }
   }
 
   const handleTakeSeat = async (index: number) => {
     if (!currentUser || !profile || !isJoined || !zegoEngineRef.current || !database) return
-    if (mySeatIndex !== null) {
-      toast({ title: "Already seated", description: "Please leave your current seat first." })
-      return
-    }
+    if (mySeatIndex !== null) return
 
     try {
       const zg = zegoEngineRef.current;
-      
-      // Strict Audio-Only Stream
       const localStream = await zg.createStream({ camera: { audio: true, video: false } });
       localStreamRef.current = localStream;
       
@@ -219,11 +207,8 @@ export default function PartyRoomPage() {
         photo: profile.profilePhotoUrls?.[0] || ""
       });
       onDisconnect(seatRef).remove();
-
-      toast({ title: "Joined Seat", description: "You are now live on the mic!" });
     } catch (e: any) {
-      console.error("Mic Access Error:", e);
-      toast({ variant: "destructive", title: "Microphone Required", description: "Please allow microphone access to speak." });
+      toast({ variant: "destructive", title: "Microphone Required", description: "Please allow mic access to sit." });
     }
   }
 
@@ -238,11 +223,7 @@ export default function PartyRoomPage() {
         localStreamRef.current = null;
       }
       setIsMicOn(false);
-
-      const seatRef = ref(database, `partyRooms/${roomId}/seats/${mySeatIndex}`);
-      await remove(seatRef);
-      
-      toast({ title: "Left Seat", description: "You are now just listening." });
+      await remove(ref(database, `partyRooms/${roomId}/seats/${mySeatIndex}`));
     } catch (e) {}
   }
 
@@ -259,54 +240,34 @@ export default function PartyRoomPage() {
 
   const handleLeave = async () => {
     if (mySeatIndex !== null) await handleLeaveSeat();
-
-    if (zegoEngineRef.current) {
-      try { zegoEngineRef.current.logoutRoom(roomId); } catch (e) {}
-    }
+    if (zegoEngineRef.current) zegoEngineRef.current.logoutRoom(roomId);
     
     if (database && currentUser) {
       remove(ref(database, `partyRooms/${roomId}/participants/${currentUser.uid}`));
       if (hasIncrementedRef.current) {
         const countRef = ref(database, `partyRooms/${roomId}/memberCount`)
         runRtdbTransaction(countRef, (current) => Math.max(0, (current || 1) - 1))
-        hasIncrementedRef.current = false
       }
     }
-    
     router.push('/party');
   }
 
   const handleDeleteRoom = async () => {
-    if (!database || !roomId || !currentUser || room.hostId !== currentUser.uid) return
+    if (!database || !roomId || !room || room.hostId !== currentUser?.uid) return
     try {
-      if (zegoEngineRef.current) {
-        if (localStreamRef.current) {
-          zegoEngineRef.current.stopPublishingStream(`stream_${currentUser.uid}`);
-          zegoEngineRef.current.destroyStream(localStreamRef.current);
-        }
-        zegoEngineRef.current.logoutRoom(roomId);
-      }
+      if (zegoEngineRef.current) zegoEngineRef.current.logoutRoom(roomId);
       await remove(ref(database, `partyRooms/${roomId}`))
-      toast({ title: "Party Closed", description: "Room has been permanently deleted." })
       router.replace('/party')
     } catch (error) {
-      toast({ variant: "destructive", title: "Delete Failed", description: "Could not close the room." })
+      toast({ variant: "destructive", title: "Error", description: "Could not close room." })
     }
   }
 
-  if (!room || isConnecting || isUserLoading || !profile) {
+  if (isConnecting || !room || !profile) {
     return (
-      <div className="flex flex-col items-center justify-center h-svh bg-zinc-950 text-white space-y-6">
-        <div className="relative">
-          <div className="w-24 h-24 rounded-[2.25rem] bg-primary/20 border-2 border-primary/40 flex items-center justify-center animate-pulse">
-            <Users className="w-10 h-10 text-primary" />
-          </div>
-          <Loader2 className="absolute -bottom-2 -right-2 w-8 h-8 text-primary animate-spin" />
-        </div>
-        <div className="text-center space-y-1">
-          <h2 className="text-xl font-black font-headline uppercase tracking-widest">Entering Party</h2>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Optimizing Audio Engine...</p>
-        </div>
+      <div className="flex flex-col items-center justify-center h-svh bg-white">
+        <Loader2 className="w-10 h-10 animate-spin text-primary" />
+        <p className="text-[10px] font-black uppercase text-gray-400 mt-4 tracking-widest">Connecting to Party...</p>
       </div>
     )
   }
@@ -315,60 +276,46 @@ export default function PartyRoomPage() {
   const seatIndices = Array.from({ length: 8 }, (_, i) => i + 1);
 
   return (
-    <div className="flex flex-col h-svh bg-zinc-950 text-white overflow-hidden relative">
-      <div className="absolute inset-0 z-0">
-        <img 
-          src="https://picsum.photos/seed/nightsky/1080/1920" 
-          alt="Room Background" 
-          className="w-full h-full object-cover opacity-40 blur-[2px]"
-          data-ai-hint="night aurora"
-        />
-        <div className="absolute inset-0 bg-gradient-to-b from-black/60 via-transparent to-black/80" />
-      </div>
-
-      <header className="relative z-10 px-4 pt-12 pb-4 flex items-center justify-between">
-        <div className="flex items-center gap-3 bg-black/20 backdrop-blur-md px-3 py-2 rounded-full border border-white/10 max-w-[60%]">
-          <Avatar className="w-8 h-8 border-2 border-white/20">
+    <div className="flex flex-col h-svh bg-transparent overflow-hidden relative">
+      <header className="px-4 pt-12 pb-4 flex items-center justify-between z-10">
+        <div className="flex items-center gap-3 bg-white/40 backdrop-blur-md px-3 py-2 rounded-full border border-white/40 max-w-[60%] shadow-sm">
+          <Avatar className="w-8 h-8">
             <AvatarImage src={room.hostPhoto} className="object-cover" />
             <AvatarFallback>{room.hostName?.[0]}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col min-w-0">
-            <h1 className="text-xs font-black truncate">{room.title}</h1>
-            <span className="text-[8px] font-bold text-white/60 tracking-wider">ID: {room.id.slice(-8)}</span>
+            <h1 className="text-xs font-black truncate text-gray-900">{room.title}</h1>
+            <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Host: {room.hostName}</span>
           </div>
         </div>
 
         <div className="flex items-center gap-2">
           <Sheet>
             <SheetTrigger asChild>
-              <button className="flex items-center gap-1.5 bg-black/20 backdrop-blur-md px-3 py-2 rounded-full border border-white/10 active:bg-white/10 transition-colors">
-                <Users className="w-3.5 h-3.5 text-white/60" />
-                <span className="text-[10px] font-black">{participants.length}</span>
+              <button className="flex items-center gap-1.5 bg-white/40 backdrop-blur-md px-3 py-2 rounded-full border border-white/40 shadow-sm active:bg-white/60">
+                <Users className="w-3.5 h-3.5 text-primary" />
+                <span className="text-[10px] font-black text-gray-900">{participants.length}</span>
               </button>
             </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-[3rem] h-[60svh] bg-zinc-900 border-none p-0 text-white overflow-hidden flex flex-col">
+            <SheetContent side="bottom" className="rounded-t-[3rem] h-[60svh] bg-white border-none p-0 overflow-hidden flex flex-col">
               <SheetHeader className="p-8 pb-4 shrink-0">
-                <SheetTitle className="text-sm font-black uppercase tracking-widest text-zinc-400">Members in Room ({participants.length})</SheetTitle>
+                <SheetTitle className="text-xs font-black uppercase tracking-[0.2em] text-gray-400">Members in Room ({participants.length})</SheetTitle>
               </SheetHeader>
               <ScrollArea className="flex-1 px-6 pb-10">
-                <div className="space-y-4">
+                <div className="space-y-3">
                   {participants.map((p) => (
-                    <div key={p.id} className="flex items-center justify-between p-4 bg-white/5 rounded-2xl border border-white/5">
+                    <div key={p.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-2xl border border-gray-100">
                       <div className="flex items-center gap-4">
-                        <Avatar className="w-10 h-10 border border-white/10">
+                        <Avatar className="w-10 h-10">
                           <AvatarImage src={p.photo} className="object-cover" />
-                          <AvatarFallback className="bg-zinc-800 text-xs">{p.username?.[0]}</AvatarFallback>
+                          <AvatarFallback className="bg-primary/10 text-primary text-xs font-black">{p.username?.[0]}</AvatarFallback>
                         </Avatar>
                         <div className="flex flex-col">
-                          <span className="text-sm font-bold">{p.username}</span>
-                          {p.id === room.hostId && <span className="text-[8px] font-black text-amber-500 uppercase tracking-widest">Room Host</span>}
+                          <span className="text-sm font-bold text-gray-900">{p.username}</span>
+                          {p.id === room.hostId && <span className="text-[8px] font-black text-primary uppercase tracking-widest">Party Host</span>}
                         </div>
                       </div>
-                      {Object.values(seats).find(s => s.userId === p.id) ? (
-                        <Mic className="w-4 h-4 text-green-500" />
-                      ) : (
-                        <div className="w-2 h-2 rounded-full bg-zinc-700" />
-                      )}
+                      {Object.values(seats).find(s => s.userId === p.id) && <Mic className="w-4 h-4 text-green-500" />}
                     </div>
                   ))}
                 </div>
@@ -379,56 +326,46 @@ export default function PartyRoomPage() {
           {isHost && (
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <button className="w-9 h-9 flex items-center justify-center bg-red-500/20 backdrop-blur-md rounded-full border border-red-500/20 text-red-400 active:scale-90 transition-all">
+                <button className="w-9 h-9 flex items-center justify-center bg-red-500/10 backdrop-blur-md rounded-full border border-red-500/20 text-red-500 active:scale-90 transition-all shadow-sm">
                   <Trash2 className="w-4 h-4" />
                 </button>
               </AlertDialogTrigger>
-              <AlertDialogContent className="rounded-[2.5rem] bg-zinc-900 border border-white/10 text-white max-w-[85%] mx-auto">
+              <AlertDialogContent className="rounded-[2.5rem] bg-white border-none text-gray-900 max-w-[85%] mx-auto shadow-2xl">
                 <AlertDialogHeader>
                   <AlertDialogTitle className="text-xl font-black font-headline text-center">Close Room?</AlertDialogTitle>
-                  <AlertDialogDescription className="text-zinc-400 text-center font-medium text-xs leading-relaxed">
-                    This will permanently delete this party room and disconnect all participants.
+                  <AlertDialogDescription className="text-gray-500 text-center font-medium text-xs leading-relaxed">
+                    This will permanently delete this party and disconnect everyone.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter className="flex flex-col gap-2 mt-6">
-                  <AlertDialogAction onClick={handleDeleteRoom} className="rounded-full h-14 bg-red-500 hover:bg-red-600 text-white font-black text-xs uppercase tracking-widest w-full">
-                    Confirm & Delete
-                  </AlertDialogAction>
-                  <AlertDialogCancel className="rounded-full h-14 border-white/10 bg-zinc-800 text-zinc-400 font-black text-xs uppercase tracking-widest w-full hover:bg-zinc-700">
-                    Cancel
-                  </AlertDialogCancel>
+                  <AlertDialogAction onClick={handleDeleteRoom} className="rounded-full h-14 bg-red-500 hover:bg-red-600 text-white font-black text-xs uppercase tracking-widest w-full">Delete Room</AlertDialogAction>
+                  <AlertDialogCancel className="rounded-full h-14 border-none bg-gray-50 text-gray-400 font-black text-xs uppercase tracking-widest w-full">Cancel</AlertDialogCancel>
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
           )}
 
-          <button onClick={handleLeave} className="w-9 h-9 flex items-center justify-center bg-white/10 backdrop-blur-md rounded-full border border-white/10 active:scale-90 transition-all">
+          <button onClick={handleLeave} className="w-9 h-9 flex items-center justify-center bg-white/40 backdrop-blur-md rounded-full border border-white/40 text-gray-500 active:scale-90 transition-all shadow-sm">
             <LogOut className="w-4 h-4" />
           </button>
         </div>
       </header>
 
-      <ScrollArea className="flex-1 relative z-10 px-4 pt-4">
-        <div className="flex flex-col gap-8 pb-40">
-          <div className="flex flex-col items-center gap-6 mt-4">
-            <div className="flex flex-col items-center gap-2">
-              <div className="relative group">
-                <div className="absolute -inset-1 bg-amber-500/20 rounded-full blur-md" />
-                <div className="w-20 h-20 rounded-full border-2 border-amber-500/50 bg-black/40 flex items-center justify-center relative overflow-hidden">
-                  <Avatar className="w-full h-full">
-                    <AvatarImage src={room.hostPhoto} className="object-cover" />
-                    <AvatarFallback className="text-2xl font-black">{room.hostName?.[0]}</AvatarFallback>
-                  </Avatar>
-                  <div className="absolute inset-0 bg-gradient-to-t from-amber-500/20 to-transparent" />
-                </div>
-                <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-amber-500 text-[8px] font-black px-3 py-0.5 rounded-full uppercase tracking-widest text-zinc-950 border border-white/20">
-                  Host
-                </div>
+      <ScrollArea className="flex-1 px-4 pt-4">
+        <div className="flex flex-col gap-10 pb-40">
+          <div className="flex flex-col items-center gap-8 mt-4">
+            <div className="relative group">
+              <div className="w-24 h-24 rounded-[2.5rem] bg-white/60 backdrop-blur-xl border-4 border-white flex items-center justify-center shadow-xl overflow-hidden relative">
+                <Avatar className="w-full h-full">
+                  <AvatarImage src={room.hostPhoto} className="object-cover" />
+                  <AvatarFallback className="text-2xl font-black">{room.hostName?.[0]}</AvatarFallback>
+                </Avatar>
               </div>
-              <span className="text-[10px] font-black uppercase text-amber-500 tracking-widest">{room.hostName}</span>
+              <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-[8px] font-black px-3 py-0.5 rounded-full uppercase tracking-widest text-white border-2 border-white shadow-sm">Host</div>
+              <span className="text-[10px] font-black uppercase text-primary tracking-widest mt-4 block text-center">{room.hostName}</span>
             </div>
 
-            <div className="grid grid-cols-4 gap-x-6 gap-y-8 w-full max-w-sm px-2">
+            <div className="grid grid-cols-4 gap-x-6 gap-y-10 w-full max-w-sm px-4">
               {seatIndices.map((idx) => {
                 const seatedUser = seats[idx.toString()];
                 const isMeOnThisSeat = seatedUser && seatedUser.userId === currentUser?.uid;
@@ -439,36 +376,33 @@ export default function PartyRoomPage() {
                       onClick={() => !seatedUser ? handleTakeSeat(idx) : isMeOnThisSeat ? handleLeaveSeat() : null}
                       className={cn(
                         "relative cursor-pointer active:scale-95 transition-all group",
-                        isMeOnThisSeat && "ring-2 ring-primary ring-offset-2 ring-offset-zinc-950 rounded-full"
+                        isMeOnThisSeat && "ring-2 ring-primary ring-offset-4 ring-offset-transparent rounded-full"
                       )}
                     >
                       <div className={cn(
-                        "w-14 h-14 rounded-full border border-white/10 bg-black/30 flex items-center justify-center overflow-hidden",
-                        seatedUser ? "border-primary/40" : "hover:bg-white/5"
+                        "w-14 h-14 rounded-2xl border-2 bg-white/40 flex items-center justify-center overflow-hidden shadow-sm",
+                        seatedUser ? "border-primary/20" : "border-white/60 border-dashed"
                       )}>
                         {seatedUser ? (
                           <Avatar className="w-full h-full">
                             <AvatarImage src={seatedUser.photo} className="object-cover" />
-                            <AvatarFallback className="bg-zinc-800 text-xs font-black">{seatedUser.username?.[0]}</AvatarFallback>
+                            <AvatarFallback className="bg-primary/10 text-primary text-xs font-black">{seatedUser.username?.[0]}</AvatarFallback>
                           </Avatar>
                         ) : (
-                          <div className="bg-white/5 w-full h-full flex items-center justify-center">
-                            <LayoutGrid className="w-5 h-5 opacity-20 group-hover:opacity-40 transition-opacity" />
+                          <div className="bg-white/20 w-full h-full flex items-center justify-center">
+                            <span className="text-[8px] font-black text-gray-300 uppercase tracking-tighter">Seat {idx}</span>
                           </div>
                         )}
                       </div>
-                      <div className="absolute -top-2 left-1/2 -translate-x-1/2 bg-white/10 text-[7px] font-black px-2 py-0.5 rounded-full uppercase border border-white/5">
-                        {idx}
-                      </div>
                       {seatedUser && (
-                        <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-1 border-2 border-zinc-950">
+                        <div className="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-1 border-2 border-white shadow-sm">
                           <Mic className="w-2 h-2 text-white" />
                         </div>
                       )}
                     </div>
                     <span className={cn(
-                      "text-[9px] font-bold truncate w-14 text-center",
-                      seatedUser ? "text-white" : "text-white/40"
+                      "text-[9px] font-bold truncate w-14 text-center uppercase tracking-tight",
+                      seatedUser ? "text-gray-900" : "text-gray-300"
                     )}>
                       {seatedUser ? seatedUser.username : 'Mount'}
                     </span>
@@ -482,10 +416,10 @@ export default function PartyRoomPage() {
             {messages.map((msg, i) => (
               <div key={i} className="flex flex-col items-start gap-1 max-w-[85%]">
                 <div className={cn(
-                  "px-4 py-2.5 rounded-2xl text-xs font-medium leading-relaxed shadow-sm",
-                  msg.type === 'system' ? "bg-purple-500/20 text-purple-200 border border-purple-500/30" : "bg-black/30 backdrop-blur-md text-white border border-white/5"
+                  "px-4 py-2.5 rounded-2xl text-[11px] font-medium leading-relaxed shadow-sm",
+                  msg.type === 'system' ? "bg-primary/5 text-primary border border-primary/10 italic" : "bg-white/60 border border-white/40 text-gray-900"
                 )}>
-                  {msg.sender !== 'System' && <span className="font-black text-amber-400 mr-2">{msg.sender}:</span>}
+                  {msg.sender !== 'System' && <span className="font-black mr-2">{msg.sender}:</span>}
                   {msg.text}
                 </div>
               </div>
@@ -494,11 +428,11 @@ export default function PartyRoomPage() {
         </div>
       </ScrollArea>
 
-      <footer className="relative z-20 px-4 py-6 bg-gradient-to-t from-zinc-950 via-zinc-950/90 to-transparent flex items-center gap-3">
-        <div className="flex-1 h-12 bg-white/10 backdrop-blur-xl rounded-full border border-white/10 flex items-center px-4 gap-3 active:bg-white/20 transition-all cursor-text">
-          <MessageSquare className="w-4 h-4 text-white/40" />
-          <span className="text-[13px] font-medium text-white/40">Say something...</span>
-          <Smile className="w-5 h-5 text-white/60 ml-auto" />
+      <footer className="px-4 py-6 bg-white/20 backdrop-blur-xl border-t border-white/40 flex items-center gap-3">
+        <div className="flex-1 h-12 bg-white/60 rounded-full border border-white/60 flex items-center px-4 gap-3 active:bg-white shadow-sm cursor-text">
+          <MessageSquare className="w-4 h-4 text-gray-400" />
+          <span className="text-[13px] font-medium text-gray-400">Say something...</span>
+          <Smile className="w-5 h-5 text-gray-400 ml-auto" />
         </div>
 
         <div className="flex items-center gap-2">
@@ -506,18 +440,15 @@ export default function PartyRoomPage() {
             <button 
               onClick={toggleMic}
               className={cn(
-                "w-12 h-12 rounded-full border flex items-center justify-center active:scale-90 transition-all shadow-xl",
-                isMicOn ? "bg-primary border-primary/40 text-white" : "bg-red-500 border-red-400 text-white"
+                "w-12 h-12 rounded-full flex items-center justify-center active:scale-90 transition-all shadow-lg",
+                isMicOn ? "bg-primary text-white" : "bg-red-500 text-white"
               )}
             >
               {isMicOn ? <Mic className="w-5 h-5" /> : <MicOff className="w-5 h-5" />}
             </button>
           )}
-          <button className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/10 flex items-center justify-center active:scale-90 transition-all">
-            <Gift className="w-5 h-5 text-amber-400" />
-          </button>
-          <button className="w-12 h-12 rounded-full bg-white/10 backdrop-blur-xl border border-white/10 flex items-center justify-center active:scale-90 transition-all">
-            <LayoutGrid className="w-5 h-5 text-white/60" />
+          <button className="w-12 h-12 rounded-full bg-white/60 border border-white/60 flex items-center justify-center active:scale-90 transition-all shadow-sm">
+            <Gift className="w-5 h-5 text-amber-500" />
           </button>
         </div>
       </footer>

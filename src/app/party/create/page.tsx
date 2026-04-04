@@ -3,10 +3,11 @@
 
 import { useState, useRef, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Plus, Loader2, Camera, ChevronRight, X } from "lucide-react"
+import { ChevronLeft, Plus, Loader2, X, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
+import { Label } from "@/components/ui/label"
 import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
 import { doc, collection, writeBatch, increment as firestoreIncrement } from "firebase/firestore"
 import { ref, update, runTransaction as runRtdbTransaction, serverTimestamp as rtdbTimestamp } from "firebase/database"
@@ -79,7 +80,7 @@ export default function CreatePartyPage() {
         setImageToCrop(null)
       }
     } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to crop image." })
+      toast({ variant: "destructive", title: "Error", description: "Crop failed." })
     } finally {
       setIsCropping(false)
     }
@@ -99,7 +100,7 @@ export default function CreatePartyPage() {
 
       if (!balanceResult.committed) throw new Error("INSUFFICIENT_COINS")
 
-      const roomKey = formData.title.toLowerCase().replace(/[^a-z0-9]/g, '-') + '_' + Date.now()
+      const roomKey = `${formData.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}_${Date.now()}`
       const roomData = {
         id: roomKey,
         title: formData.title,
@@ -107,16 +108,14 @@ export default function CreatePartyPage() {
         announcement: formData.announcement,
         coverPhoto: formData.coverPhoto,
         hostId: currentUser.uid,
-        hostName: profile.username || "Admin",
+        hostName: profile.username || "User",
         hostPhoto: (profile.profilePhotoUrls && profile.profilePhotoUrls[0]) || "",
         memberCount: 0,
         createdAt: rtdbTimestamp(),
         status: "active"
       }
 
-      await update(ref(database), {
-        [`partyRooms/${roomKey}`]: roomData
-      })
+      await update(ref(database), { [`partyRooms/${roomKey}`]: roomData })
 
       const batch = writeBatch(firestore)
       const txRef = doc(collection(userProfileRef!, "transactions"))
@@ -127,116 +126,104 @@ export default function CreatePartyPage() {
         transactionDate: new Date().toISOString(),
         description: `Created Party Room: ${formData.title}`
       })
-
       batch.update(userProfileRef!, {
         coinBalance: firestoreIncrement(-ROOM_CREATION_COST),
         updatedAt: new Date().toISOString()
       })
-
       await batch.commit()
 
-      toast({ title: "Party Created!", description: "Your room is now live." })
+      toast({ title: "Party Live!", description: "Room created successfully." })
       router.push(`/party/${roomKey}`)
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
-        toast({ variant: "destructive", title: "Insufficient Coins", description: `You need ${ROOM_CREATION_COST} coins to create a room.` })
+        toast({ variant: "destructive", title: "Insufficient Coins", description: `You need ${ROOM_CREATION_COST} coins.` })
       } else {
-        toast({ variant: "destructive", title: "Error", description: "Failed to create party room." })
+        toast({ variant: "destructive", title: "Error", description: "Failed to create party." })
       }
     } finally {
       setIsCreating(false)
     }
   }
 
+  const darkMaroon = "bg-[#5A1010]";
+
   return (
-    <div className="flex flex-col h-svh bg-white text-gray-900 overflow-y-auto pb-20">
-      <header className="px-4 py-6 flex items-center bg-white sticky top-0 z-50">
+    <div className="flex flex-col h-svh bg-transparent text-gray-900 overflow-y-auto pb-20">
+      <header className="px-4 py-8 flex items-center bg-transparent shrink-0">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.back()} 
-          className="text-gray-900 h-10 w-10 bg-gray-100 rounded-full"
+          className="text-white h-10 w-10 bg-black/10 backdrop-blur-md rounded-full hover:bg-black/20"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
-        <h1 className="text-xl font-black font-headline ml-4 tracking-tight">Create Party</h1>
+        <h1 className="text-xl font-black font-headline ml-4 tracking-widest uppercase text-white drop-shadow-md">Host a Party</h1>
       </header>
 
-      <main className="flex-1 px-6 space-y-10 pt-4">
+      <main className="flex-1 px-6 space-y-8 pt-4">
         <section className="space-y-4">
-          <h2 className="text-xl font-black font-headline">Party Cover</h2>
+          <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-white/70 ml-1">Party Cover</Label>
           <div 
             onClick={() => fileInputRef.current?.click()}
-            className="w-32 aspect-square rounded-[2rem] bg-gray-50 border-2 border-dashed border-gray-200 flex items-center justify-center relative overflow-hidden group cursor-pointer active:scale-95 transition-all"
+            className="w-full aspect-video rounded-[2.5rem] bg-white/40 backdrop-blur-xl border-4 border-white/60 flex items-center justify-center relative overflow-hidden group cursor-pointer shadow-2xl transition-all active:scale-95"
           >
             {formData.coverPhoto ? (
               <Image src={formData.coverPhoto} alt="Cover" fill className="object-cover" />
             ) : (
-              <Plus className="w-8 h-8 text-gray-300 group-hover:text-primary transition-colors" />
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-white flex items-center justify-center shadow-lg"><Camera className="w-6 h-6 text-primary" /></div>
+                <span className="text-[10px] font-black uppercase tracking-[0.2em] text-white">Upload Cover</span>
+              </div>
             )}
             <input type="file" ref={fileInputRef} className="hidden" accept="image/*" onChange={handleFileChange} />
           </div>
         </section>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-black font-headline">Party Name</h2>
-          <div className="relative">
+        <div className="bg-white/60 backdrop-blur-2xl p-8 rounded-[2.5rem] border border-white/50 shadow-2xl space-y-6">
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Party Name</Label>
             <Input 
-              placeholder="Create a name for your party" 
+              placeholder="e.g., Chill Beats & Chat" 
               value={formData.title}
               onChange={(e) => setFormData(p => ({ ...p, title: e.target.value.slice(0, 20) }))}
-              className="h-14 rounded-full bg-gray-50 border-none px-6 text-sm font-medium pr-16"
+              className="h-14 rounded-2xl bg-white/80 border-none text-sm font-bold shadow-inner focus-visible:ring-primary/30"
             />
-            <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-300 uppercase">{formData.title.length}/20</span>
           </div>
-        </section>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-black font-headline">Party Tag</h2>
-          <div className="relative">
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Tag</Label>
             <Input 
-              placeholder="Set tags for your party" 
+              placeholder="e.g., Chill" 
               value={formData.tags}
               onChange={(e) => setFormData(p => ({ ...p, tags: e.target.value.slice(0, 10) }))}
-              className="h-14 rounded-full bg-gray-50 border-none px-6 text-sm font-medium pr-16"
+              className="h-14 rounded-2xl bg-white/80 border-none text-sm font-bold shadow-inner focus-visible:ring-primary/30"
             />
-            <span className="absolute right-6 top-1/2 -translate-y-1/2 text-[10px] font-bold text-gray-300 uppercase">{formData.tags.length}/10</span>
           </div>
-        </section>
 
-        <section className="space-y-4">
-          <h2 className="text-xl font-black font-headline">Party Announcement</h2>
-          <div className="relative">
+          <div className="space-y-3">
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Announcement</Label>
             <Textarea 
-              placeholder="Write an Announcement for your Party" 
+              placeholder="Welcome everyone to the party!" 
               value={formData.announcement}
               onChange={(e) => setFormData(p => ({ ...p, announcement: e.target.value.slice(0, 200) }))}
-              className="min-h-[140px] rounded-[2rem] bg-gray-50 border-none p-6 text-sm font-medium resize-none pb-10"
+              className="min-h-[120px] rounded-2xl bg-white/80 border-none text-sm font-bold shadow-inner focus-visible:ring-primary/30 py-4"
             />
-            <span className="absolute bottom-4 right-6 text-[10px] font-bold text-gray-300 uppercase">{formData.announcement.length}/200</span>
           </div>
-        </section>
+        </div>
 
-        <section className="flex items-center justify-between py-2 cursor-not-allowed opacity-60">
-          <h2 className="text-xl font-black font-headline">Review Method</h2>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-gray-400">Pass Automatically</span>
-            <ChevronRight className="w-4 h-4 text-gray-300" />
-          </div>
-        </section>
-
-        <div className="pt-10 flex flex-col items-center gap-6">
-          <div className="flex items-center gap-2">
-            <p className="text-sm font-bold text-gray-900">Creating a party consumes: {ROOM_CREATION_COST}</p>
-            <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center text-[10px] font-black text-white italic">S</div>
-          </div>
-
+        <div className="pt-6 pb-10">
           <Button 
             onClick={handleCreate}
             disabled={!formData.title.trim() || isCreating}
-            className="w-full h-16 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-900 font-black text-lg transition-all active:scale-95"
+            className={cn("w-full h-18 rounded-full text-white font-black text-lg shadow-[0_15px_40px_rgba(0,0,0,0.2)] transition-all active:scale-95 gap-3", darkMaroon)}
           >
-            {isCreating ? <Loader2 className="w-6 h-6 animate-spin" /> : "Create Party"}
+            {isCreating ? <Loader2 className="w-6 h-6 animate-spin" /> : (
+              <>
+                <span>Create for {ROOM_CREATION_COST}</span>
+                <div className="w-5 h-5 rounded-full bg-amber-500 flex items-center justify-center text-[10px] italic">S</div>
+              </>
+            )}
           </Button>
         </div>
       </main>
@@ -244,16 +231,14 @@ export default function CreatePartyPage() {
       <Dialog open={!!imageToCrop} onOpenChange={(open) => !open && !isCropping && setImageToCrop(null)}>
         <DialogContent className="rounded-[2.5rem] bg-white border-none p-0 max-w-[95%] mx-auto shadow-2xl overflow-hidden">
           <DialogHeader className="p-6"><DialogTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Crop Cover</DialogTitle></DialogHeader>
-          <div className="relative w-full aspect-square bg-zinc-950">
-            {imageToCrop && <Cropper image={imageToCrop} crop={crop} zoom={zoom} aspect={1} onCropChange={setCrop} onCropComplete={onCropComplete} onZoomChange={setZoom} />}
+          <div className="relative w-full aspect-video bg-zinc-950">
+            {imageToCrop && <Cropper image={imageToCrop} crop={crop} zoom={zoom} aspect={16/9} onCropChange={setCrop} onCropComplete={onCropComplete} onZoomChange={setZoom} />}
           </div>
           <div className="p-6 space-y-6">
             <input type="range" value={zoom} min={1} max={3} step={0.1} aria-labelledby="Zoom" onChange={(e) => setZoom(Number(e.target.value))} className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-primary" />
             <DialogFooter className="flex gap-3">
               <Button variant="ghost" onClick={() => setImageToCrop(null)} disabled={isCropping} className="flex-1 h-12 rounded-full font-black text-[10px] uppercase text-gray-400">Cancel</Button>
-              <Button onClick={handleApplyCrop} disabled={isCropping} className="flex-1 h-12 rounded-full bg-zinc-900 text-white font-black text-[10px] uppercase shadow-xl">
-                {isCropping ? <Loader2 className="w-4 h-4 animate-spin" /> : "Apply"}
-              </Button>
+              <Button onClick={handleApplyCrop} disabled={isCropping} className="flex-1 h-12 rounded-full bg-zinc-900 text-white font-black text-[10px] uppercase shadow-xl">Apply</Button>
             </DialogFooter>
           </div>
         </DialogContent>
