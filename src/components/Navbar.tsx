@@ -54,6 +54,7 @@ export function Navbar() {
     hiddenRoutes.some(route => pathname.startsWith(route)) || 
     pathname.startsWith("/chat/") || 
     (pathname.startsWith("/profile/") && pathname !== "/profile") ||
+    (pathname.startsWith("/party/") && pathname !== "/party") ||
     pathname === "/"
 
   if (shouldHide) return null
