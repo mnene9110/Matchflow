@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { RotateCcw, Globe, Loader2, CheckCircle, Sparkles, Trophy } from "lucide-react"
+import { RotateCcw, Globe, Loader2, CheckCircle, Sparkles, ClipboardList } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot, where, doc } from "firebase/firestore"
 import { ref, update, get } from "firebase/database"
@@ -68,13 +68,11 @@ export default function DiscoverPage() {
     syncBalanceIfMissing();
   }, [database, currentUser, isProfileLoading, !!currentUserProfile]);
 
-  // Logic to process, check presence, and shuffle
   const processAndShuffleUsers = async (fetchedUsers: any[]) => {
     if (!database) return fetchedUsers;
 
     const onlineStatusMap: Record<string, boolean> = { ...userPresenceMap };
     
-    // Fetch presence snapshots for new users
     await Promise.all(fetchedUsers.map(async (u) => {
       if (onlineStatusMap[u.id] !== undefined) return;
       try {
@@ -222,18 +220,40 @@ export default function DiscoverPage() {
     ? mappedUsers.filter(u => u.location.toLowerCase() === currentUserProfile.location.toLowerCase())
     : mappedUsers;
 
-  const darkMaroon = "bg-[#5A1010]";
-
   return (
     <div className="flex flex-col h-svh bg-transparent overflow-y-auto pb-32">
-      <div className="sticky top-0 z-30 px-4 py-6 bg-transparent shrink-0 space-y-4">
+      <div className="sticky top-0 z-30 px-4 py-8 bg-transparent shrink-0 space-y-6">
+        {/* Mystery Note and Task Center Row */}
+        <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-700">
+          <button 
+            onClick={() => router.push('/mystery-note')}
+            className="flex flex-col items-center justify-center gap-4 h-44 bg-[#8B0000] rounded-[3.5rem] shadow-2xl shadow-black/20 active:scale-95 transition-all group"
+          >
+            <div className="w-14 h-14 rounded-full bg-white/10 flex items-center justify-center transition-transform group-hover:scale-110">
+              <Sparkles className="w-7 h-7 text-white" />
+            </div>
+            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white">Mystery Note</span>
+          </button>
+          
+          <button 
+            onClick={() => router.push('/task-center')}
+            className="flex flex-col items-center justify-center gap-4 h-44 bg-[#F2DADA] rounded-[3.5rem] shadow-2xl shadow-black/5 active:scale-95 transition-all group"
+          >
+            <div className="w-14 h-14 rounded-full bg-[#8B0000]/10 flex items-center justify-center transition-transform group-hover:scale-110">
+              <ClipboardList className="w-7 h-7 text-[#8B0000]" />
+            </div>
+            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-[#8B0000]">Task Center</span>
+          </button>
+        </div>
+
+        {/* Navigation Tabs and Refresh Row */}
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-14 bg-white/40 backdrop-blur-md border border-white/30 rounded-full p-1 flex items-center shadow-lg shadow-black/5">
+          <div className="flex-1 h-16 bg-white/30 backdrop-blur-xl border border-white/20 rounded-full p-1.5 flex items-center shadow-lg">
             <button 
               onClick={() => setActiveTab('recommend')}
               className={cn(
-                "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
-                activeTab === 'recommend' ? cn(darkMaroon, "text-white") : "text-gray-50"
+                "flex-1 h-full rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all",
+                activeTab === 'recommend' ? "bg-[#8B0000] text-white shadow-lg" : "text-[#6B7280]"
               )}
             >
               Recommend
@@ -241,40 +261,23 @@ export default function DiscoverPage() {
             <button 
               onClick={() => setActiveTab('nearby')}
               className={cn(
-                "flex-1 h-full rounded-full text-[9px] font-black uppercase tracking-[0.15em] transition-all",
-                activeTab === 'nearby' ? cn(darkMaroon, "text-white") : "text-gray-50"
+                "flex-1 h-full rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all",
+                activeTab === 'nearby' ? "bg-[#8B0000] text-white shadow-lg" : "text-[#6B7280]"
               )}
             >
               Nearby
             </button>
           </div>
+          
           <button 
             onClick={handleRefresh} 
-            className="w-14 h-14 rounded-full bg-white/40 backdrop-blur-md border border-white/30 flex items-center justify-center active:rotate-180 transition-all duration-500 shadow-lg shadow-black/5"
+            className="w-16 h-16 rounded-full bg-white/30 backdrop-blur-xl border border-white/20 flex items-center justify-center active:rotate-180 transition-all duration-700 shadow-lg"
           >
-            {isInitialLoading ? <Loader2 className="w-4 h-4 animate-spin text-primary" /> : <RotateCcw className="w-4 h-4 text-gray-400" />}
-          </button>
-        </div>
-
-        {/* Action Buttons Row */}
-        <div className="grid grid-cols-2 gap-3 animate-in fade-in slide-in-from-top-2 duration-500">
-          <button 
-            onClick={() => router.push('/mystery-note')}
-            className="h-14 bg-white/40 backdrop-blur-md border border-white/30 rounded-[1.5rem] flex items-center justify-center gap-2 shadow-lg shadow-black/5 active:scale-95 transition-all"
-          >
-            <div className="w-8 h-8 rounded-xl bg-amber-500/10 flex items-center justify-center">
-              <Sparkles className="w-4 h-4 text-amber-600" />
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#5A1010]">Mystery Note</span>
-          </button>
-          <button 
-            onClick={() => router.push('/task-center')}
-            className="h-14 bg-white/40 backdrop-blur-md border border-white/30 rounded-[1.5rem] flex items-center justify-center gap-2 shadow-lg shadow-black/5 active:scale-95 transition-all"
-          >
-            <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
-              <Trophy className="w-4 h-4 text-primary" />
-            </div>
-            <span className="text-[10px] font-black uppercase tracking-widest text-[#5A1010]">Task Center</span>
+            {isInitialLoading ? (
+              <Loader2 className="w-5 h-5 animate-spin text-[#8B0000]" />
+            ) : (
+              <RotateCcw className="w-5 h-5 text-[#6B7280]" />
+            )}
           </button>
         </div>
       </div>
