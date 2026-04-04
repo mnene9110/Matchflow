@@ -1,20 +1,21 @@
+
 {
   "name": "MatchFlow",
   "short_name": "MatchFlow",
-  "description": "Connect with Heart - High quality video and audio interactions.",
+  "description": "Connect with Heart",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#B36666",
   "theme_color": "#B36666",
   "icons": [
     {
-      "src": "/icon-192.png",
+      "src": "https://picsum.photos/seed/mficon/192/192",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "/icon-512.png",
+      "src": "https://picsum.photos/seed/mficon/512/512",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

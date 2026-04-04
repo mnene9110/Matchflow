@@ -39,9 +39,11 @@ export default function PartyListPage() {
   const { data: profile } = useDoc(userProfileRef)
 
   useEffect(() => {
-    if (!database) return
+    // Only start listener if database and user are ready to prevent rule blocks
+    if (!database || !currentUser) return
+
     const partiesRef = ref(database, 'partyRooms')
-    return onValue(partiesRef, (snapshot) => {
+    const unsubscribe = onValue(partiesRef, (snapshot) => {
       const data = snapshot.val()
       if (data) {
         const list = Object.entries(data).map(([id, val]: [string, any]) => ({
@@ -54,8 +56,18 @@ export default function PartyListPage() {
         setParties([])
       }
       setIsPartiesLoading(false)
+    }, (error) => {
+      console.error("Party Rooms listener failed:", error)
+      setIsPartiesLoading(false)
+      toast({
+        variant: "destructive",
+        title: "Connection Error",
+        description: "Failed to load party rooms. Please try again."
+      })
     })
-  }, [database])
+
+    return () => unsubscribe()
+  }, [database, currentUser, toast])
 
   const handleCreateRoom = async () => {
     if (!currentUser || !profile || !roomTitle.trim() || isCreating || !database) return
