@@ -38,11 +38,28 @@
         "isAdmin": { "type": "boolean" },
         "isCoinseller": { "type": "boolean" },
         "isSupport": { "type": "boolean" },
+        "isPartyAdmin": { "type": "boolean" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" },
         "lastActiveAt": { "type": "string", "format": "date-time" }
       },
       "required": ["id", "authProviderId", "username", "dateOfBirth", "gender", "createdAt", "coinBalance"]
+    },
+    "PartyRoom": {
+      "title": "PartyRoom",
+      "description": "A group interaction room created by a Party Admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "hostId": { "type": "string" },
+        "hostName": { "type": "string" },
+        "hostPhoto": { "type": "string" },
+        "memberCount": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "status": { "type": "string", "enum": ["active", "closed"] }
+      },
+      "required": ["id", "title", "hostId", "createdAt", "status"]
     },
     "CoinTransaction": {
       "title": "CoinTransaction",
@@ -106,6 +123,10 @@
     "/reports/{reportId}": {
       "schema": { "$ref": "#/entities/Report" },
       "description": "User violation reports."
+    },
+    "/partyRooms/{roomId}": {
+      "schema": { "$ref": "#/entities/PartyRoom" },
+      "description": "Active party rooms."
     }
   }
 }

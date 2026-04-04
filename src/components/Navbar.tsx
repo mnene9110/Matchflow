@@ -1,9 +1,10 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { Home, MessageCircle, User } from "lucide-react"
+import { Home, MessageCircle, User, Music } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFirebase, useUser } from "@/firebase"
 import { ref, onValue } from "firebase/database"
@@ -59,6 +60,7 @@ export function Navbar() {
 
   const navItems = [
     { icon: Home, label: "Home", href: "/discover" },
+    { icon: Music, label: "Party", href: "/party" },
     { icon: MessageCircle, label: "Chats", href: "/chat", badge: totalUnread },
     { icon: User, label: "Profile", href: "/profile" },
   ]

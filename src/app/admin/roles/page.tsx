@@ -3,7 +3,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Search, Loader2, ShieldCheck, UserCheck, ShieldAlert, Coins } from "lucide-react"
+import { ChevronLeft, Search, Loader2, ShieldCheck, UserCheck, ShieldAlert, Coins, Music } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase"
@@ -47,6 +47,7 @@ export default function ManageRolesPage() {
         setFoundUser({ ...u, docId: snap.docs[0].id })
         if (u.isSupport) setSelectedRole("support")
         else if (u.isCoinseller) setSelectedRole("coinseller")
+        else if (u.isPartyAdmin) setSelectedRole("partyadmin")
         else setSelectedRole("none")
       }
     } catch (error) {
@@ -65,6 +66,7 @@ export default function ManageRolesPage() {
       await updateDoc(userRef, {
         isSupport: selectedRole === "support",
         isCoinseller: selectedRole === "coinseller",
+        isPartyAdmin: selectedRole === "partyadmin",
         updatedAt: new Date().toISOString()
       })
       toast({ title: "Role Updated", description: "User privileges have been saved." })
@@ -126,9 +128,10 @@ export default function ManageRolesPage() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-black text-lg text-gray-900 truncate leading-tight">{foundUser.username}</h3>
                 <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest">ID: {foundUser.numericId}</p>
-                <div className="flex gap-2 mt-2">
+                <div className="flex gap-2 mt-2 flex-wrap">
                    {foundUser.isSupport && <span className="text-[8px] font-black bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase">Support</span>}
                    {foundUser.isCoinseller && <span className="text-[8px] font-black bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase">Coinseller</span>}
+                   {foundUser.isPartyAdmin && <span className="text-[8px] font-black bg-purple-500/10 text-purple-500 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase">Party Admin</span>}
                 </div>
               </div>
             </div>
@@ -145,6 +148,11 @@ export default function ManageRolesPage() {
                   <RadioGroupItem value="coinseller" id="role_coinseller" />
                   <Label htmlFor="role_coinseller" className="flex-1 font-black text-sm uppercase tracking-wide cursor-pointer">Official Coinseller</Label>
                   <Coins className="w-4 h-4 text-amber-500" />
+                </div>
+                <div className="flex items-center space-x-3 bg-white/40 p-5 rounded-[1.75rem] border border-white/60 hover:bg-white/60 cursor-pointer transition-colors">
+                  <RadioGroupItem value="partyadmin" id="role_party" />
+                  <Label htmlFor="role_party" className="flex-1 font-black text-sm uppercase tracking-wide cursor-pointer">Party Admin</Label>
+                  <Music className="w-4 h-4 text-purple-500" />
                 </div>
                 <div className="flex items-center space-x-3 bg-white/40 p-5 rounded-[1.75rem] border border-white/60 hover:bg-white/60 cursor-pointer transition-colors">
                   <RadioGroupItem value="none" id="role_none" />

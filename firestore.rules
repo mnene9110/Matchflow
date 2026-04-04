@@ -1,3 +1,4 @@
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
@@ -21,6 +22,10 @@ service cloud.firestore {
       return isAuthenticated() && exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid)) && getUserData(request.auth.uid).get('isCoinseller', false) == true;
     }
 
+    function isPartyAdmin() {
+      return isAuthenticated() && exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid)) && getUserData(request.auth.uid).get('isPartyAdmin', false) == true;
+    }
+
     function isOwner(userId) {
       return isAuthenticated() && request.auth.uid == userId;
     }
@@ -29,23 +34,23 @@ service cloud.firestore {
       allow read: if isAuthenticated();
       
       allow create: if isOwner(userId) && (
-        !request.resource.data.hasAny(['isAdmin', 'isCoinseller', 'isSupport']) || 
+        !request.resource.data.hasAny(['isAdmin', 'isCoinseller', 'isSupport', 'isPartyAdmin']) || 
         (request.resource.data.get('isAdmin', false) == false && 
          request.resource.data.get('isCoinseller', false) == false && 
-         request.resource.data.get('isSupport', false) == false)
+         request.resource.data.get('isSupport', false) == false &&
+         request.resource.data.get('isPartyAdmin', false) == false)
       );
 
       allow update: if (
         isOwner(userId) && (
-          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'isCoinseller', 'isSupport'])
+          !request.resource.data.diff(resource.data).affectedKeys().hasAny(['isAdmin', 'isCoinseller', 'isSupport', 'isPartyAdmin'])
         )
       ) || isAdmin();
 
       allow delete: if isOwner(userId) || isAdmin();
 
       match /transactions/{transactionId} {
-        // Simplified and robust permission check
-        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || isSupport());
+        allow get, list: if isOwner(userId) || isAdmin() || isSupport();
         allow create: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || isCoinseller());
       }
 
@@ -66,6 +71,12 @@ service cloud.firestore {
         chatId.split('_')[0] == request.auth.uid ||
         chatId.split('_')[1] == request.auth.uid
       );
+    }
+
+    match /partyRooms/{roomId} {
+      allow read: if isAuthenticated();
+      allow create: if isPartyAdmin() || isAdmin();
+      allow update, delete: if isAdmin() || (isAuthenticated() && request.resource.data.hostId == request.auth.uid);
     }
 
     match /{path=**} {
