@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useEffect, useRef, use } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { ChevronLeft, Mic, MicOff, Video, VideoOff, LogOut, Loader2, Users, Crown } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -10,9 +10,9 @@ import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, updateDoc, increment as firestoreIncrement } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { getTencentUserSig } from "@/app/actions/tencent"
+import { getZegoConfig } from "@/app/actions/zego"
 
-let TRTC: any = null;
+let ZegoExpressEngine: any = null;
 
 export default function PartyRoomPage() {
   const params = useParams()
@@ -25,92 +25,98 @@ export default function PartyRoomPage() {
   const [isJoined, setIsJoined] = useState(false)
   const [isConnecting, setIsConnecting] = useState(true)
   const [isMicOn, setIsMicOn] = useState(true)
-  const [isCamOn, setIsCamOn] = useState(false)
   const [remoteUsers, setRemoteUsers] = useState<any[]>([])
 
-  const trtcClientRef = useRef<any>(null)
-  const localStreamRef = useRef<any>(null)
-  const remoteContainerRef = useRef<HTMLDivElement>(null)
+  const zegoEngineRef = useRef<any>(null)
+  const localStreamRef = useRef<MediaStream | null>(null)
 
   const roomRef = useMemoFirebase(() => roomId ? doc(firestore, "partyRooms", roomId) : null, [firestore, roomId])
   const { data: room, isLoading: isRoomLoading } = useDoc(roomRef)
 
   useEffect(() => {
     if (typeof window !== "undefined") {
-      import('trtc-js-sdk').then((module) => {
-        TRTC = module.default;
-        initRoom();
+      import('zego-express-engine-webrtc').then((module) => {
+        ZegoExpressEngine = module.ZegoExpressEngine;
+        initZego();
       });
     }
-    return () => handleLeave();
+    return () => {
+      handleLeave();
+    };
   }, []);
 
-  const initRoom = async () => {
-    if (!currentUser || !roomId || !TRTC) return;
+  const initZego = async () => {
+    if (!currentUser || !roomId || !ZegoExpressEngine) return;
 
     try {
-      const { userSig, sdkAppId } = await getTencentUserSig(currentUser.uid);
+      const config = await getZegoConfig();
+      const zg = new ZegoExpressEngine(config.appID, config.server);
+      zegoEngineRef.current = zg;
+
+      // Handle remote streams
+      zg.on('roomStreamUpdate', async (roomID: string, updateType: string, streamList: any[]) => {
+        if (updateType === 'ADD') {
+          streamList.forEach(stream => {
+            setRemoteUsers(prev => {
+              if (prev.find(u => u.streamID === stream.streamID)) return prev;
+              return [...prev, { streamID: stream.streamID, userId: stream.user.userID }];
+            });
+            // Auto-play remote audio
+            zg.startPlayingStream(stream.streamID).then((remoteStream: MediaStream) => {
+              const audio = new Audio();
+              audio.srcObject = remoteStream;
+              audio.play();
+            });
+          });
+        } else if (updateType === 'DELETE') {
+          streamList.forEach(stream => {
+            zg.stopPlayingStream(stream.streamID);
+            setRemoteUsers(prev => prev.filter(u => u.streamID !== stream.streamID));
+          });
+        }
+      });
+
+      // Login to room
+      await zg.loginRoom(roomId, currentUser.uid, { userName: currentUser.displayName || 'User' }, { userUpdate: true });
       
-      const client = TRTC.createClient({
-        mode: 'rtc',
-        sdkAppId,
-        userId: currentUser.uid,
-        userSig
-      });
-      trtcClientRef.current = client;
-
-      // Handle remote users
-      client.on('stream-subscribed', (event: any) => {
-        const remoteStream = event.stream;
-        setRemoteUsers(prev => [...prev, { userId: remoteStream.getUserId(), stream: remoteStream }]);
-        // In a real app, you'd find a div for this user and call remoteStream.play(divId)
-      });
-
-      client.on('stream-removed', (event: any) => {
-        const remoteStream = event.stream;
-        setRemoteUsers(prev => prev.filter(u => u.userId !== remoteStream.getUserId()));
-      });
-
-      await client.join({ roomId: Number(roomId.replace(/\D/g, '').slice(0, 8)) || 12345 });
-      
-      const localStream = TRTC.createStream({ userId: currentUser.uid, audio: true, video: false });
+      // Start publishing local audio
+      const localStream = await zg.createStream({ camera: { audio: true, video: false } });
       localStreamRef.current = localStream;
-      
-      await localStream.initialize();
-      await client.publish(localStream);
-      
+      zg.startPublishingStream(`stream_${currentUser.uid}`, localStream);
+
       setIsJoined(true);
       setIsConnecting(false);
 
-      // Update member count in Firestore
       if (roomRef) {
         updateDoc(roomRef, { memberCount: firestoreIncrement(1) });
       }
 
     } catch (error: any) {
-      console.error("TRTC Join Error:", error);
-      toast({ variant: "destructive", title: "Join Failed", description: "Could not connect to room." });
+      console.error("Zego Join Error:", error);
+      toast({ variant: "destructive", title: "Join Failed", description: "Check your ZegoCloud configuration." });
       router.back();
     }
   }
 
   const toggleMic = () => {
-    if (!localStreamRef.current) return;
+    if (!zegoEngineRef.current || !localStreamRef.current) return;
+    const zg = zegoEngineRef.current;
     if (isMicOn) {
-      localStreamRef.current.muteAudio();
+      zg.mutePublishStreamAudio(localStreamRef.current, true);
     } else {
-      localStreamRef.current.unmuteAudio();
+      zg.mutePublishStreamAudio(localStreamRef.current, false);
     }
     setIsMicOn(!isMicOn);
   }
 
   const handleLeave = async () => {
-    if (trtcClientRef.current) {
+    if (zegoEngineRef.current) {
+      const zg = zegoEngineRef.current;
       if (localStreamRef.current) {
-        await trtcClientRef.current.unpublish(localStreamRef.current);
-        localStreamRef.current.close();
+        zg.stopPublishingStream(`stream_${currentUser?.uid}`);
+        zg.destroyStream(localStreamRef.current);
       }
-      await trtcClientRef.current.leave();
+      zg.logoutRoom(roomId);
     }
     if (roomRef && isJoined) {
       updateDoc(roomRef, { memberCount: firestoreIncrement(-1) });
@@ -122,14 +128,14 @@ export default function PartyRoomPage() {
     return (
       <div className="flex flex-col items-center justify-center h-svh bg-zinc-950 text-white space-y-6">
         <div className="relative">
-          <div className="w-24 h-24 rounded-[2rem] bg-primary/20 border-2 border-primary/40 flex items-center justify-center animate-pulse">
+          <div className="w-24 h-24 rounded-[2.25rem] bg-primary/20 border-2 border-primary/40 flex items-center justify-center animate-pulse">
             <Users className="w-10 h-10 text-primary" />
           </div>
           <Loader2 className="absolute -bottom-2 -right-2 w-8 h-8 text-primary animate-spin" />
         </div>
         <div className="text-center space-y-1">
-          <h2 className="text-xl font-black font-headline uppercase tracking-widest">Entering Room</h2>
-          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Securing group connection...</p>
+          <h2 className="text-xl font-black font-headline uppercase tracking-widest">Joining Party</h2>
+          <p className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">Connecting via ZegoCloud...</p>
         </div>
       </div>
     )
@@ -182,9 +188,9 @@ export default function PartyRoomPage() {
           </div>
         </div>
 
-        {/* Remote Users will go here */}
+        {/* Remote Users */}
         {remoteUsers.map(u => (
-          <div key={u.userId} className="aspect-[3/4] bg-zinc-900 rounded-[2.5rem] border border-white/5 flex flex-col items-center justify-center p-6 text-center space-y-4">
+          <div key={u.streamID} className="aspect-[3/4] bg-zinc-900 rounded-[2.5rem] border border-white/5 flex flex-col items-center justify-center p-6 text-center space-y-4">
             <Avatar className="w-20 h-20 border-4 border-zinc-800">
               <AvatarFallback className="bg-zinc-800 text-xl font-black">?</AvatarFallback>
             </Avatar>
