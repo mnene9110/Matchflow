@@ -1,19 +1,17 @@
-
 "use client"
 
 import { useEffect } from 'react';
-import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { FirebaseClientProvider } from "@/firebase"
 import { OfflineDetector } from "@/components/OfflineDetector"
 import { Navbar } from "@/components/Navbar"
 import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
-import Script from 'next/script';
 
 /**
  * @fileOverview Root layout component.
- * Removed ExitGuard to stop "Leave site?" popups as requested.
+ * Fixed 'InvalidStateError' by moving ServiceWorker registration into a standard 
+ * client-side useEffect hook that respects the document's ready state.
  */
 
 export default function RootLayout({
@@ -21,6 +19,32 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  useEffect(() => {
+    // Robust ServiceWorker registration logic
+    if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
+      const registerSW = () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then((reg) => {
+            console.log('Service Worker registered successfully with scope:', reg.scope);
+          })
+          .catch((err) => {
+            // Log non-state errors only to prevent console noise during navigation
+            if (err.name !== 'InvalidStateError') {
+              console.error('Service Worker registration failed:', err);
+            }
+          });
+      };
+
+      // Ensure registration only happens when document is stable
+      if (document.readyState === 'complete') {
+        registerSW();
+      } else {
+        window.addEventListener('load', registerSW);
+        return () => window.removeEventListener('load', registerSW);
+      }
+    }
+  }, []);
+
   return (
     <html lang="en">
       <head>
@@ -46,24 +70,6 @@ export default function RootLayout({
           </OfflineDetector>
         </FirebaseClientProvider>
         <Toaster />
-        <Script id="register-sw" strategy="afterInteractive">
-          {`
-            if (typeof window !== 'undefined' && 'serviceWorker' in navigator && navigator.serviceWorker) {
-              window.addEventListener('load', function() {
-                navigator.serviceWorker.register('/sw.js').then(
-                  function(registration) {
-                    console.log('Service Worker registration successful');
-                  },
-                  function(err) {
-                    console.error('Service Worker registration failed: ', err);
-                  }
-                ).catch(function(e) {
-                   console.error('SW Error:', e);
-                });
-              });
-            }
-          `}
-        </Script>
       </body>
     </html>
   );
