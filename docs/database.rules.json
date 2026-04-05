@@ -2,31 +2,31 @@
   "rules": {
     "users": {
       "$uid": {
-        // Users can see each other's presence and coin balance (for UI context)
         ".read": "auth != null",
-        // Users can only update their own wallet and status
         ".write": "auth != null && auth.uid === $uid",
         "incomingCallId": {
-          // Others need to be able to set this when calling
           ".write": "auth != null"
         },
-        "chats": {
-          // Chat metadata is private
-          ".read": "auth != null && auth.uid === $uid",
+        "presence": {
           ".write": "auth != null && auth.uid === $uid"
+        },
+        "chats": {
+          "$otherId": {
+            // Allow the other participant to update my inbox metadata for our shared chat
+            ".write": "auth != null && $otherId === auth.uid",
+            ".read": "auth != null && (auth.uid === $uid || $otherId === auth.uid)"
+          }
         }
       }
     },
     "chats": {
       "$chatId": {
-        // Only the two participants in a chat can read or write to it
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)"
       }
     },
     "calls": {
       "$chatId": {
-        // Only the two participants in a call session can access it
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)"
       }

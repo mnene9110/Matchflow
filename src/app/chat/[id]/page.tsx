@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -66,7 +65,6 @@ function ChatDetailContent() {
   const currentUserProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile } = useDoc(currentUserProfileRef)
 
-  // CORRECT PATH: Only reading my own block status. We do NOT read the other user's private block list to avoid rule violations.
   const myBlockRef = useMemoFirebase(() => (currentUser && otherUserId) ? doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", otherUserId) : null, [firestore, currentUser, otherUserId])
   const { data: iBlockedThem } = useDoc(myBlockRef)
 
@@ -124,7 +122,6 @@ function ChatDetailContent() {
   const handleInitiateCall = async (type: 'video' | 'audio') => {
     if (!database || !chatId || !currentUser || !currentUserProfile || !otherUser) return
 
-    // Pre-check other user's status (Busy or DND)
     try {
       const otherStatusSnap = await get(ref(database, `users/${otherUserId}`));
       const otherStatus = otherStatusSnap.val();
@@ -196,7 +193,6 @@ function ChatDetailContent() {
 
   useEffect(() => {
     if (!database || !chatId) return
-    // ECONOMY: Query with limit to avoid fetching old messages initially
     const msgQuery = query(ref(database, `chats/${chatId}/messages`), limitToLast(msgLimit))
     
     return onValue(msgQuery, (snapshot) => {
@@ -273,9 +269,20 @@ function ChatDetailContent() {
         sentAt: rtdbTimestamp(), 
         status: 'sent'
       }
-      updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: textToUse, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0, hidden: false }
       
+      updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
+      
+      // Update sender's inbox metadata
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { 
+        lastMessage: textToUse, 
+        timestamp: rtdbTimestamp(), 
+        otherUserId, 
+        chatId, 
+        unreadCount: 0, 
+        hidden: false 
+      }
+      
+      // Update recipient's inbox metadata
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = textToUse
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/otherUserId`] = currentUser.uid
@@ -286,6 +293,7 @@ function ChatDetailContent() {
       await update(ref(database), updates)
       if (!textOverride) setInputText("")
     } catch (error: any) {
+      console.error("Message send error:", error);
       if (error.message === "INSUFFICIENT_COINS") {
         toast({
           variant: "destructive",
@@ -295,7 +303,7 @@ function ChatDetailContent() {
           action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button>
         });
       } else {
-        toast({ variant: "destructive", title: "Error", description: "Could not send message." });
+        toast({ variant: "destructive", title: "Send Failed", description: "Check your connection and try again." });
       }
     } finally { setIsSending(false) }
   }
@@ -351,20 +359,36 @@ function ChatDetailContent() {
         giftId: gift.id,
         status: 'sent'
       }
+      
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}/lastMessage`] = giftMessage
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}/timestamp`] = rtdbTimestamp()
+      
+      // Update sender's metadata
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = {
+        lastMessage: giftMessage,
+        timestamp: rtdbTimestamp(),
+        otherUserId,
+        chatId,
+        unreadCount: 0,
+        hidden: false
+      }
+
+      // Update recipient's metadata
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = giftMessage
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
+      
       await update(ref(database), updates)
 
       toast({ title: "Gift Sent!", description: `You sent a ${gift.name}.` });
       setIsGiftSheetOpen(false);
       setSelectedGift(null);
     } catch (error: any) {
+      console.error("Gift send error:", error);
       if (error.message === "INSUFFICIENT_COINS") {
         toast({ variant: "destructive", title: "Insufficient Coins", description: "Please recharge to send this gift." });
       } else {
-        toast({ variant: "destructive", title: "Error", description: "Could not send gift. Please check your connection." });
+        toast({ variant: "destructive", title: "Gift Failed", description: "Could not deliver gift. Try again." });
       }
     } finally { setIsSendingGift(false) }
   }
@@ -393,8 +417,6 @@ function ChatDetailContent() {
   }
 
   const isOtherUserSupport = otherUser?.isSupport === true
-  // CORRECTED: Shadow-block logic. We only check if WE blocked them. 
-  // We can't know if they blocked us because that's private in their own profile records.
   const isBlocked = !isOtherUserSupport && !!iBlockedThem
   const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUserId}/200/200`
   const otherUserName = isOtherUserSupport ? "Customer Support" : (otherUser?.username || "User")

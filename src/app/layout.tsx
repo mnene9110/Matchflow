@@ -11,6 +11,7 @@ import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 /**
  * @fileOverview Root layout component.
  * Optimized to remove browser artifacts like navigation prompts and scroll bounce.
+ * Disabled zooming for native-app feel.
  */
 
 export default function RootLayout({
