@@ -5,21 +5,15 @@ import { useState, useEffect, useRef } from "react"
 import { Phone, PhoneOff, Loader2 } from "lucide-react"
 import { useFirebase, useUser } from "@/firebase"
 import { ref, onValue, remove, update, push, serverTimestamp as rtdbTimestamp, off, runTransaction as runRtdbTransaction } from "firebase/database"
-import { doc, collection, setDoc, updateDoc as updateFirestoreDoc, increment as firestoreIncrement } from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { getAgoraToken } from "@/app/actions/agora"
 
 let AgoraRTC: any = null;
 
-/**
- * @fileOverview Global Call Overlay for Agora-powered calls.
- * Optimized for reliable UI display and robust status management.
- */
-
 export function GlobalCallOverlay() {
   const { user: currentUser } = useUser()
-  const { database, firestore } = useFirebase()
+  const { database } = useFirebase()
   
   const [callData, setCallData] = useState<any>(null)
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
@@ -40,7 +34,6 @@ export function GlobalCallOverlay() {
   const activeChatIdRef = useRef<string | null>(null)
   const logRecordedRef = useRef(false)
 
-  // Use a ref to track the current status for logic inside callbacks
   const statusRef = useRef<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
 
   useEffect(() => {
@@ -100,7 +93,6 @@ export function GlobalCallOverlay() {
             return;
           }
 
-          // STALE CALL PROTECTION: Ignore calls older than 60s
           const now = Date.now();
           const callAge = now - (data.timestamp || 0);
           if (data.status === 'ringing' && callAge > 60000) {
@@ -161,8 +153,6 @@ export function GlobalCallOverlay() {
         setCallStatus('ongoing');
         setIsConnecting(true);
         initiateAgoraConnection(activeChatIdRef.current!, data.callType);
-        
-        // Sync Busy Status
         update(ref(database, `users/${currentUser.uid}`), { inCall: true });
       }
     }
@@ -188,15 +178,14 @@ export function GlobalCallOverlay() {
         }
       }
     } catch (e) {
-      console.error("Hardware engagement failed:", e);
+      console.error("Hardware failed:", e);
     }
   };
 
   const deductCoins = async (amount: number) => {
-    if (!database || !currentUser || !activeChatIdRef.current || !firestore) return;
+    if (!database || !currentUser || !activeChatIdRef.current) return;
     
     const userCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
-    
     try {
       const result = await runRtdbTransaction(userCoinRef, (current) => {
         if (current === null) return current;
@@ -209,22 +198,16 @@ export function GlobalCallOverlay() {
         return;
       }
 
-      const profileRef = doc(firestore, "userProfiles", currentUser.uid);
-      updateFirestoreDoc(profileRef, {
-        coinBalance: firestoreIncrement(-amount),
-        updatedAt: new Date().toISOString()
-      });
-
-      const txRef = doc(collection(profileRef, "transactions"));
-      setDoc(txRef, {
-        id: txRef.id,
+      const logRef = push(ref(database, `userTransactions/${currentUser.uid}`));
+      await set(logRef, {
+        id: logRef.key,
         type: "deduction",
         amount: -amount,
-        transactionDate: new Date().toISOString(),
+        transactionDate: Date.now(),
         description: `Call charge (${callData?.callType})`
       });
     } catch (error) {
-      console.error("Call billing failed:", error);
+      console.error("Billing failed:", error);
       handleEndCall();
     }
   };
@@ -320,7 +303,6 @@ export function GlobalCallOverlay() {
       logCallInChat(activeChatIdRef.current, callDurationRef.current, `[${mins}:${secs.toString().padStart(2, '0')}]`);
     }
 
-    // Clear Busy Status
     if (currentUser && database) {
       update(ref(database, `users/${currentUser.uid}`), { inCall: false });
     }

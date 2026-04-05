@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, Gift, Ban, CheckCircle, UserX, ArrowUp } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, Gift, CheckCircle, UserX, ArrowUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -208,7 +208,7 @@ function ChatDetailContent() {
         });
         if (!result.committed) throw new Error("INSUFFICIENT_COINS");
 
-        // Record log in RTDB transactions node
+        // Record log
         const logRef = push(ref(database, `userTransactions/${currentUser.uid}`));
         await set(logRef, {
           id: logRef.key,
@@ -225,6 +225,8 @@ function ChatDetailContent() {
       
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
       updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: textToUse, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0, hidden: false }
+      
+      // Separate updates for the other user to match strict security rules
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = textToUse
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/otherUserId`] = currentUser.uid
@@ -245,7 +247,7 @@ function ChatDetailContent() {
 
   const handleSendGift = async (giftOverride?: typeof GIFTS[0]) => {
     const gift = giftOverride || selectedGift;
-    if (!gift || !currentUser || !otherUserId || isSendingGift || !currentUserProfile || !database) return;
+    if (!gift || !currentUser || !otherUserId || isSendingGift || !currentUserProfile || !database || !otherUser) return;
     
     setIsSendingGift(true);
     const giftPrice = gift.price;
@@ -263,7 +265,7 @@ function ChatDetailContent() {
       const receiverDiamondRef = ref(database, `users/${otherUserId}/diamondBalance`);
       await runRtdbTransaction(receiverDiamondRef, (current) => (current || 0) + diamondGain);
 
-      // Logs in RTDB
+      // Logs
       const senderLogRef = push(ref(database, `userTransactions/${currentUser.uid}`));
       await set(senderLogRef, { id: senderLogRef.key, type: "gift_sent", amount: -giftPrice, transactionDate: Date.now(), description: `Sent a ${gift.name} to ${otherUser?.username}` });
 
@@ -277,8 +279,11 @@ function ChatDetailContent() {
       
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
       updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: giftMessage, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0, hidden: false }
+      
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = giftMessage
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/otherUserId`] = currentUser.uid
+      updates[`/users/${otherUserId}/chats/${currentUser.uid}/chatId`] = chatId
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
       
