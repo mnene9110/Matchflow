@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, collection, writeBatch, increment as firestoreIncrement } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, query, limitToLast } from "firebase/database"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, query, limitToLast, get } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
@@ -123,6 +123,29 @@ function ChatDetailContent() {
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
     if (!database || !chatId || !currentUser || !currentUserProfile || !otherUser) return
+
+    // Pre-check other user's status (Busy or DND)
+    try {
+      const otherStatusSnap = await get(ref(database, `users/${otherUserId}`));
+      const otherStatus = otherStatusSnap.val();
+
+      if (otherStatus?.inCall) {
+        toast({ variant: "destructive", title: "User Busy", description: "This user is currently on another call." });
+        return;
+      }
+
+      const dndKey = type === 'video' ? 'dndVideo' : 'dndVoice';
+      if (otherStatus?.settings?.[dndKey]) {
+        toast({ 
+          variant: "destructive", 
+          title: "Do Not Disturb", 
+          description: `This user has enabled DND for ${type} calls.` 
+        });
+        return;
+      }
+    } catch (e) {
+      console.error("Status check failed", e);
+    }
 
     const costPerMin = type === 'video' ? 160 : 80;
     const isFree = currentUserProfile.isAdmin || 

@@ -1,6 +1,7 @@
+
 "use client"
 
-import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, Award, MessageSquare, Ban, Languages, Trash2, Info } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, Award, MessageSquare, Ban, Languages, Trash2, Info, BellOff } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
@@ -53,6 +54,7 @@ export default function SettingsPage() {
 
   const settingsItems = [
     { label: "Bind account", icon: ShieldCheck, badge: isGuest ? "Guest Mode" : "Verified", onClick: () => isGuest ? router.push("/settings/bind") : toast({ title: "Already verified", description: "Your account is linked." }) },
+    { label: "Call settings", icon: BellOff, onClick: () => router.push("/settings/calls") },
     { label: "Charge settings", icon: CreditCard, onClick: () => router.push("/settings/charges") },
     { label: "Chat settings", icon: MessageSquare },
     { label: "Blocked List", icon: Ban, onClick: () => router.push("/settings/blocked") },

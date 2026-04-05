@@ -161,6 +161,9 @@ export function GlobalCallOverlay() {
         setCallStatus('ongoing');
         setIsConnecting(true);
         initiateAgoraConnection(activeChatIdRef.current!, data.callType);
+        
+        // Sync Busy Status
+        update(ref(database, `users/${currentUser.uid}`), { inCall: true });
       }
     }
   };
@@ -315,6 +318,11 @@ export function GlobalCallOverlay() {
       const mins = Math.floor(callDurationRef.current / 60);
       const secs = callDurationRef.current % 60;
       logCallInChat(activeChatIdRef.current, callDurationRef.current, `[${mins}:${secs.toString().padStart(2, '0')}]`);
+    }
+
+    // Clear Busy Status
+    if (currentUser && database) {
+      update(ref(database, `users/${currentUser.uid}`), { inCall: false });
     }
 
     setCallStatus('idle');
