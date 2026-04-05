@@ -17,7 +17,8 @@ import {
   ArrowDownToLine,
   Gamepad2,
   ShieldAlert,
-  ClipboardList
+  ClipboardList,
+  Building2
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
@@ -168,6 +169,17 @@ export default function ProfilePage() {
             </div>
             <ChevronRight className="w-5 h-5 text-gray-300" />
           </button>
+
+          {!isLoading && userProfile?.gender?.toLowerCase() === 'female' && (
+            <button onClick={() => router.push('/profile/agency')} className="w-full h-16 rounded-[2rem] bg-white/40 backdrop-blur-md border border-white/30 flex items-center px-6 gap-4 active:bg-white/60 transition-all shadow-sm">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-amber-500/10"><Building2 className="w-5 h-5 text-amber-600" /></div>
+              <div className="flex-1 text-left">
+                <span className="text-gray-900 font-black uppercase tracking-[0.1em] text-[10px] block">Agency</span>
+                <span className="text-gray-400 text-[11px] font-bold">Join an agency anchor</span>
+              </div>
+              <ChevronRight className="w-5 h-5 text-gray-300" />
+            </button>
+          )}
 
           {!isLoading && userProfile?.isSupport && (
             <button onClick={() => router.push('/support/reports')} className="w-full h-16 rounded-[2rem] bg-zinc-900 border border-zinc-800 flex items-center px-6 gap-4 active:scale-[0.98] transition-all shadow-xl relative">

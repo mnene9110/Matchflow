@@ -304,9 +304,9 @@ export default function DiscoverPage() {
                 e.stopPropagation(); 
                 router.push(`/chat/${user.id}`); 
               }}
-              className="absolute top-3 right-3 h-8 px-4 bg-white border border-white shadow-lg rounded-full flex items-center justify-center z-10 active:scale-90 transition-all"
+              className="absolute top-3 right-3 h-8 px-4 bg-[#B36666]/40 backdrop-blur-md border border-white/20 shadow-lg rounded-full flex items-center justify-center z-10 active:scale-90 transition-all"
             >
-              <span className="text-[8px] font-black text-[#8B0000] uppercase tracking-[0.1em]">Chat</span>
+              <span className="text-[8px] font-black text-white uppercase tracking-[0.1em]">Chat</span>
             </button>
 
             <div className="absolute inset-x-0 bottom-0 p-4 z-10 pointer-events-none">
