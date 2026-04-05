@@ -10,8 +10,7 @@ import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 
 /**
  * @fileOverview Root layout component.
- * Fixed 'InvalidStateError' by moving ServiceWorker registration into a standard 
- * client-side useEffect hook that respects the document's ready state.
+ * Optimized to remove browser artifacts like navigation prompts and scroll bounce.
  */
 
 export default function RootLayout({
@@ -20,29 +19,39 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   useEffect(() => {
-    // Robust ServiceWorker registration logic
+    // 1. Prevent "Leave Site" browser prompts completely
+    window.onbeforeunload = null;
+    const preventConfirm = (e: BeforeUnloadEvent) => {
+      delete e['returnValue'];
+    };
+    window.addEventListener('beforeunload', preventConfirm);
+
+    // 2. Robust ServiceWorker registration
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       const registerSW = () => {
         navigator.serviceWorker.register('/sw.js')
           .then((reg) => {
-            console.log('Service Worker registered successfully with scope:', reg.scope);
+            console.log('Service Worker registered');
           })
           .catch((err) => {
-            // Log non-state errors only to prevent console noise during navigation
             if (err.name !== 'InvalidStateError') {
-              console.error('Service Worker registration failed:', err);
+              console.error('SW registration failed:', err);
             }
           });
       };
 
-      // Ensure registration only happens when document is stable
       if (document.readyState === 'complete') {
         registerSW();
       } else {
         window.addEventListener('load', registerSW);
-        return () => window.removeEventListener('load', registerSW);
+        return () => {
+          window.removeEventListener('load', registerSW);
+          window.removeEventListener('beforeunload', preventConfirm);
+        };
       }
     }
+    
+    return () => window.removeEventListener('beforeunload', preventConfirm);
   }, []);
 
   return (
@@ -52,14 +61,15 @@ export default function RootLayout({
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
         <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&family=Pacifico&display=swap" rel="stylesheet" />
         <link rel="manifest" href="/manifest.json" />
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="MatchFlow" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
         <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
       </head>
-      <body className="font-body antialiased">
+      <body className="font-body antialiased selection:bg-none">
         <FirebaseClientProvider>
           <OfflineDetector>
             <div className="app-container">

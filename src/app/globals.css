@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -11,7 +10,7 @@
     --card-foreground: 0 0% 3.9%;
     --popover: 0 0% 100%;
     --popover-foreground: 0 0% 3.9%;
-    --primary: 0 34% 55%; /* Pale Maroon (#B36666) for default buttons */
+    --primary: 0 34% 55%;
     --primary-foreground: 0 0% 98%;
     --secondary: 0 0% 96.1%;
     --secondary-foreground: 0 0% 9%;
@@ -31,31 +30,37 @@
 @layer base {
   * {
     @apply border-border;
-    /* Disable text selection globally */
     -webkit-user-select: none;
     -moz-user-select: none;
     -ms-user-select: none;
     user-select: none;
     -webkit-touch-callout: none;
+    -webkit-tap-highlight-color: transparent;
   }
   
   html, body {
     @apply m-0 p-0 overflow-x-hidden min-h-svh;
-    background-color: #B36666; /* Base color for stability */
-    overscroll-behavior-y: none; /* CRITICAL: Disables browser pull-to-refresh gestures */
+    background-color: #B36666;
+    overscroll-behavior-y: none; /* Disables browser pull-to-refresh */
+    overscroll-behavior-x: none;
+    touch-action: manipulation; /* Prevents double-tap zoom and improves tap response */
+    position: fixed; /* Prevents body scroll artifacts on mobile */
+    width: 100%;
+    height: 100%;
   }
 
   body {
-    @apply text-foreground selection:bg-primary/20 antialiased;
-    /* Pale Maroon top, fading to White corner-to-corner */
+    @apply text-foreground antialiased;
     background: linear-gradient(180deg, #B36666 0%, #B36666 15%, rgba(255, 255, 255, 1) 60%, rgba(255, 255, 255, 1) 100%);
     background-attachment: fixed;
+    overflow-y: auto; /* Re-enable scroll for the content wrapper only */
   }
 }
 
 .app-container {
-  @apply relative min-h-svh w-full flex flex-col;
+  @apply relative h-full w-full flex flex-col overflow-y-auto;
   padding-top: env(safe-area-inset-top, 0px);
+  -webkit-overflow-scrolling: touch;
 }
 
 .font-logo {
@@ -75,7 +80,6 @@
   animation: float 3s ease-in-out infinite;
 }
 
-/* Glassmorphism utility for Party Room UI */
 .glass-card {
   background: rgba(255, 255, 255, 0.05);
   backdrop-filter: blur(12px);

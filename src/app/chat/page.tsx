@@ -182,7 +182,6 @@ export default function ChatListPage() {
   useEffect(() => {
     if (!database || !currentUser) return
     
-    // ECONOMY: Stop fetching ALL chats. Only fetch the 20 most recent ones to keep it fast.
     const userChatsRef = ref(database, `users/${currentUser.uid}/chats`)
     const recentChatsQuery = query(userChatsRef, orderByChild('timestamp'), limitToLast(20))
     
@@ -260,8 +259,9 @@ export default function ChatListPage() {
               </div>
             </div>
           ) : (
-            <div className="flex justify-center py-20">
-              <Loader2 className="w-6 h-6 animate-spin text-primary" />
+            <div className="flex flex-col items-center justify-center py-20 gap-3 opacity-20">
+              <MessageSquare className="w-8 h-8" />
+              <p className="text-[10px] font-black uppercase tracking-widest">Loading Chats</p>
             </div>
           )}
         </section>
