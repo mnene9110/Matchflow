@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, use, Suspense } from "react"
@@ -30,6 +29,7 @@ function PaymentMethodContent() {
   const { data: profile } = useDoc(meRef)
 
   const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
+  const isKenyan = profile?.location === "Kenya";
 
   const coinsellersQuery = useMemoFirebase(() => {
     if (!firestore) return null
@@ -42,8 +42,7 @@ function PaymentMethodContent() {
     if (!user || !amount || !localPrice) return
     setIsProcessing('pesapal')
 
-    // PesaPal typically requires KES or USD base. We'll send the price in KES for the gateway
-    // and let the gateway handle currency if needed, or stick to KES for regional stability.
+    // PesaPal typically requires KES or USD base.
     const priceKes = Math.round(localPrice / currencyInfo.rate);
 
     const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
@@ -116,49 +115,51 @@ function PaymentMethodContent() {
           </button>
         </section>
 
-        <section className="space-y-4">
-          <div className="flex items-center justify-between px-2">
-            <h3 className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">Official Coinsellers</h3>
-            <Users className="w-3.5 h-3.5 text-gray-300" />
-          </div>
+        {isKenyan && (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">Official Coinsellers</h3>
+              <Users className="w-3.5 h-3.5 text-gray-300" />
+            </div>
 
-          <div className="space-y-3">
-            {isSellersLoading ? (
-              <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
-            ) : coinsellers && coinsellers.length > 0 ? (
-              coinsellers.map((seller: any) => (
-                <div 
-                  key={seller.id}
-                  className="w-full flex items-center justify-between p-4 bg-white/40 backdrop-blur-md border border-white/30 rounded-[2rem] shadow-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10 border border-white shadow-sm">
-                      <AvatarImage src={seller.profilePhotoUrls?.[0] || `https://picsum.photos/seed/${seller.id}/100/100`} className="object-cover" />
-                      <AvatarFallback className="bg-primary text-white text-[10px] font-black">{seller.username?.[0]}</AvatarFallback>
-                    </Avatar>
-                    <div className="flex flex-col">
-                      <span className="text-[11px] font-black text-gray-900">{seller.username}</span>
-                      <span className="text-[8px] font-black text-green-500 uppercase tracking-widest">Available Now</span>
-                    </div>
-                  </div>
-                  <Button 
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => router.push(`/chat/${seller.id}?msg=${encodeURIComponent(`I want to buy ${amount} coins for ${currencyInfo.symbol} ${localPrice}`)}`)}
-                    className="h-10 px-4 rounded-full bg-white/50 text-primary hover:bg-white font-black text-[9px] uppercase tracking-widest gap-2"
+            <div className="space-y-3">
+              {isSellersLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
+              ) : coinsellers && coinsellers.length > 0 ? (
+                coinsellers.map((seller: any) => (
+                  <div 
+                    key={seller.id}
+                    className="w-full flex items-center justify-between p-4 bg-white/40 backdrop-blur-md border border-white/30 rounded-[2rem] shadow-sm"
                   >
-                    <MessageCircle className="w-3.5 h-3.5" />
-                    Buy via Chat
-                  </Button>
+                    <div className="flex items-center gap-3">
+                      <Avatar className="w-10 h-10 border border-white shadow-sm">
+                        <AvatarImage src={seller.profilePhotoUrls?.[0] || `https://picsum.photos/seed/${seller.id}/100/100`} className="object-cover" />
+                        <AvatarFallback className="bg-primary text-white text-[10px] font-black">{seller.username?.[0]}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex flex-col">
+                        <span className="text-[11px] font-black text-gray-900">{seller.username}</span>
+                        <span className="text-[8px] font-black text-green-500 uppercase tracking-widest">Available Now</span>
+                      </div>
+                    </div>
+                    <Button 
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => router.push(`/chat/${seller.id}?msg=${encodeURIComponent(`I want to buy ${amount} coins for ${currencyInfo.symbol} ${localPrice}`)}`)}
+                      className="h-10 px-4 rounded-full bg-white/50 text-primary hover:bg-white font-black text-[9px] uppercase tracking-widest gap-2"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5" />
+                      Buy via Chat
+                    </Button>
+                  </div>
+                ))
+              ) : (
+                <div className="p-8 text-center bg-white/20 rounded-[2rem] border border-white/30 border-dashed">
+                  <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No sellers online</p>
                 </div>
-              ))
-            ) : (
-              <div className="p-8 text-center bg-white/20 rounded-[2rem] border border-white/30 border-dashed">
-                <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No sellers online</p>
-              </div>
-            )}
-          </div>
-        </section>
+              )}
+            </div>
+          </section>
+        )}
       </main>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 flex flex-col items-center gap-2">

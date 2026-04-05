@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
@@ -12,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
 // Standard Pricing (Normal Users)
-const STANDARD_PACKAGES = [
+export const STANDARD_PACKAGES = [
   { amount: 500, priceKes: 70 },
   { amount: 1000, priceKes: 120 },
   { amount: 2000, priceKes: 240 },
@@ -27,7 +26,7 @@ export const COUNTRY_CURRENCIES: Record<string, { code: string; symbol: string; 
   "Djibouti": { code: "DJF", symbol: "Fdj", rate: 1.37 },
   "Eritrea": { code: "ERN", symbol: "Nfk", rate: 0.115 },
   "Ethiopia": { code: "ETB", symbol: "Br", rate: 0.94 },
-  "Kenya": { code: "KES", symbol: "KES", rate: 1.0 },
+  "Kenya": { code: "KES", symbol: "Ksh", rate: 1.0 },
   "Madagascar": { code: "MGA", symbol: "Ar", rate: 35.2 },
   "Malawi": { code: "MWK", symbol: "MK", rate: 13.2 },
   "Mauritius": { code: "MUR", symbol: "₨", rate: 0.35 },
@@ -57,6 +56,7 @@ function RechargeContent() {
 
   const packages = STANDARD_PACKAGES;
   const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
+  const isKenyan = profile?.location === "Kenya";
 
   useEffect(() => {
     const status = searchParams?.get('status')
@@ -120,9 +120,11 @@ function RechargeContent() {
           </div>
         </section>
 
-        <section className="mt-12 flex flex-col items-center pb-10">
-          <button onClick={() => router.push(`/recharge/coinsellers`)} className="text-[10px] font-black text-white uppercase tracking-[0.3em] border-b border-white/30 pb-1.5 active:opacity-50">Contact Coinsellers</button>
-        </section>
+        {isKenyan && (
+          <section className="mt-12 flex flex-col items-center pb-10">
+            <button onClick={() => router.push(`/recharge/coinsellers`)} className="text-[10px] font-black text-white uppercase tracking-[0.3em] border-b border-white/30 pb-1.5 active:opacity-50">Contact Coinsellers</button>
+          </section>
+        )}
       </main>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50">

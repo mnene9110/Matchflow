@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Suspense, useState, useEffect } from "react"
@@ -9,7 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, where, onSnapshot, doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
-import { COUNTRY_CURRENCIES } from "../page"
+import { COUNTRY_CURRENCIES, STANDARD_PACKAGES } from "../page"
 
 function CoinsellersContent() {
   const router = useRouter()
@@ -18,7 +17,7 @@ function CoinsellersContent() {
   const { user: currentUser } = useUser()
   const { toast } = useToast()
 
-  const selectedAmount = searchParams?.get('amount')
+  const selectedAmount = Number(searchParams?.get('amount'))
   const [coinsellers, setCoinsellers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
@@ -42,8 +41,11 @@ function CoinsellersContent() {
   }, [firestore])
 
   const handleChatWithSeller = (sellerId: string) => {
+    const pkg = STANDARD_PACKAGES.find(p => p.amount === selectedAmount);
+    const localPrice = pkg ? Math.round(pkg.priceKes * currencyInfo.rate) : 0;
+
     const message = selectedAmount 
-      ? `I want to buy ${selectedAmount} coins via ${currencyInfo.code}` 
+      ? `I want to buy ${selectedAmount} coins for ${currencyInfo.symbol} ${localPrice}` 
       : "I want to buy coins"
     
     router.push(`/chat/${sellerId}?msg=${encodeURIComponent(message)}`)
