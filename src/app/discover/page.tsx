@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -15,12 +16,14 @@ let cachedUsers: any[] = []
 let cachedLastVisible: QueryDocumentSnapshot<DocumentData> | null = null
 let cachedHasMore: boolean = true
 let cachedInitialLoaded: boolean = false
+let cachedPresenceMap: Record<string, boolean> = {}
 
 export function clearDiscoverCache() {
   cachedUsers = []
   cachedLastVisible = null
   cachedHasMore = true
   cachedInitialLoaded = false
+  cachedPresenceMap = {}
 }
 
 // Utility to shuffle an array (Fisher-Yates)
@@ -44,7 +47,7 @@ export default function DiscoverPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(cachedHasMore)
   const [isInitialLoading, setIsInitialLoading] = useState(!cachedInitialLoaded)
-  const [userPresenceMap, setUserPresenceMap] = useState<Record<string, boolean>>({})
+  const [userPresenceMap, setUserPresenceMap] = useState<Record<string, boolean>>(cachedPresenceMap)
 
   const currentUserRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc(currentUserRef)
@@ -68,27 +71,29 @@ export default function DiscoverPage() {
     syncBalanceIfMissing();
   }, [database, currentUser, isProfileLoading, !!currentUserProfile]);
 
-  const processAndShuffleUsers = async (fetchedUsers: any[]) => {
+  const processAndSortUsers = async (fetchedUsers: any[]) => {
     if (!database) return fetchedUsers;
 
-    const onlineStatusMap: Record<string, boolean> = { ...userPresenceMap };
+    const currentMap: Record<string, boolean> = { ...userPresenceMap };
     
+    // Fetch presence snapshots (NOT listeners) to ensure static UI
     await Promise.all(fetchedUsers.map(async (u) => {
-      if (onlineStatusMap[u.id] !== undefined) return;
       try {
         const pRef = ref(database, `users/${u.id}/presence/online`);
         const snap = await get(pRef);
-        onlineStatusMap[u.id] = snap.val() === true;
+        currentMap[u.id] = snap.val() === true;
       } catch (e) {
-        onlineStatusMap[u.id] = false;
+        currentMap[u.id] = false;
       }
     }));
 
-    setUserPresenceMap(onlineStatusMap);
+    setUserPresenceMap(currentMap);
+    cachedPresenceMap = currentMap;
 
-    const onlineUsers = fetchedUsers.filter(u => onlineStatusMap[u.id]);
-    const offlineUsers = fetchedUsers.filter(u => !onlineStatusMap[u.id]);
+    const onlineUsers = fetchedUsers.filter(u => currentMap[u.id]);
+    const offlineUsers = fetchedUsers.filter(u => !currentMap[u.id]);
 
+    // Shuffle within groups to keep feed interesting, but maintain strict status ordering
     return [...shuffleArray(onlineUsers), ...shuffleArray(offlineUsers)];
   }
 
@@ -110,7 +115,7 @@ export default function DiscoverPage() {
         collection(firestore, 'userProfiles'), 
         where('gender', '==', targetGender),
         orderBy('createdAt', 'desc'),
-        limit(20)
+        limit(24)
       )
       
       const snap = await getDocs(q)
@@ -126,17 +131,16 @@ export default function DiscoverPage() {
         .map(doc => ({ id: doc.id, ...doc.data() }))
         .filter(u => u.id !== currentUser?.uid && !u.isSupport)
       
-      const processed = await processAndShuffleUsers(fetchedRaw);
-      const displayBatch = processed.slice(0, 10);
+      const processed = await processAndSortUsers(fetchedRaw);
       
-      setUsers(displayBatch);
-      cachedUsers = displayBatch;
+      setUsers(processed);
+      cachedUsers = processed;
       
       const last = snap.docs[snap.docs.length - 1];
       setLastVisible(last);
       cachedLastVisible = last;
       
-      const more = snap.docs.length >= 10;
+      const more = snap.docs.length >= 20;
       setHasMore(more);
       cachedHasMore = more;
       
@@ -181,8 +185,8 @@ export default function DiscoverPage() {
         .filter(u => u.id !== currentUser?.uid && !u.isSupport)
 
       if (fetchedRaw.length > 0) {
-        const processed = await processAndShuffleUsers(fetchedRaw);
-        const updatedUsers = [...users, ...processed]
+        const processedBatch = await processAndSortUsers(fetchedRaw);
+        const updatedUsers = [...users, ...processedBatch]
         setUsers(updatedUsers)
         cachedUsers = updatedUsers
         
@@ -203,7 +207,6 @@ export default function DiscoverPage() {
 
   const handleRefresh = async () => {
     clearDiscoverCache();
-    setUserPresenceMap({});
     await fetchUsers(true);
   }
 
