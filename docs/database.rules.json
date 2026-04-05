@@ -12,7 +12,7 @@
         },
         "chats": {
           "$otherId": {
-            // Allow the other participant to update my inbox metadata for our shared chat
+            // Allow the other participant to update my inbox metadata for our shared chat (e.g. unread count)
             ".write": "auth != null && $otherId === auth.uid",
             ".read": "auth != null && (auth.uid === $uid || $otherId === auth.uid)"
           }
@@ -21,14 +21,27 @@
     },
     "chats": {
       "$chatId": {
+        // Only members whose UID is in the chatId can read/write the messages
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)"
       }
     },
     "calls": {
       "$chatId": {
+        // Only members whose UID is in the chatId can manage the call state
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)"
+      }
+    },
+    "partyRooms": {
+      ".read": "auth != null",
+      "$roomId": {
+        ".write": "auth != null && (!data.exists() || data.child('hostId').val() === auth.uid)",
+        "participants": {
+          "$userId": {
+            ".write": "auth != null && $userId === auth.uid"
+          }
+        }
       }
     }
   }

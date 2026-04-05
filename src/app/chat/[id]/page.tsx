@@ -152,6 +152,7 @@ function ChatDetailContent() {
                    otherUser.isCoinseller ||
                    (currentUserProfile.gender === 'female' && otherUser?.gender === 'male');
 
+    // STRICT BALANCE CHECK BEFORE STARTING CALL
     if (!isFree && userCoins < costPerMin) {
       toast({
         variant: "destructive",
