@@ -1,46 +1,40 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, ArrowUpRight, ArrowDownLeft, Coins } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser } from "@/firebase"
-import { ref, onValue, query, limitToLast } from "firebase/database"
+import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
+import { collection, query, orderBy, limit } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
 export default function CoinHistoryPage() {
   const router = useRouter()
   const { user } = useUser()
-  const { database } = useFirebase()
-  const [transactions, setTransactions] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const { firestore } = useFirebase()
 
-  useEffect(() => {
-    if (!database || !user) return
-    const transRef = query(ref(database, `userTransactions/${user.uid}`), limitToLast(30));
-    return onValue(transRef, (snap) => {
-      const data = snap.val()
-      if (data) {
-        const list = Object.values(data);
-        list.sort((a: any, b: any) => (b.transactionDate || 0) - (a.transactionDate || 0));
-        setTransactions(list);
-      }
-      setIsLoading(false)
-    })
-  }, [database, user])
+  const historyQuery = useMemoFirebase(() => {
+    if (!firestore || !user) return null;
+    return query(
+      collection(firestore, "userProfiles", user.uid, "transactions"),
+      orderBy("transactionDate", "desc"),
+      limit(50)
+    )
+  }, [firestore, user])
+
+  const { data: transactions, isLoading } = useCollection(historyQuery)
 
   return (
     <div className="flex flex-col h-svh bg-transparent text-gray-900 overflow-hidden">
       <header className="px-4 py-6 flex items-center sticky top-0 bg-transparent z-10 shrink-0">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"><ChevronLeft className="w-6 h-6" /></Button>
-        <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase text-gray-900">Coin History</h1>
+        <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase text-white drop-shadow-md">Coin History</h1>
       </header>
 
       <main className="flex-1 px-6 pb-20 overflow-y-auto scroll-smooth">
         {isLoading ? (
-          <div className="flex flex-col items-center justify-center py-20 gap-4"><Loader2 className="w-8 h-8 animate-spin text-primary" /><span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Loading history...</span></div>
+          <div className="flex flex-col items-center justify-center py-20 gap-4"><Loader2 className="w-8 h-8 animate-spin text-white" /><span className="text-[10px] font-black text-white/60 uppercase tracking-widest">Loading history...</span></div>
         ) : transactions && transactions.length > 0 ? (
           <div className="space-y-3 pb-10">
             {transactions.map((tx: any) => {
@@ -61,7 +55,7 @@ export default function CoinHistoryPage() {
             })}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-24 text-center space-y-4"><div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-[2.5rem] flex items-center justify-center border border-white/30"><Coins className="w-8 h-8 text-gray-200" /></div><div className="space-y-1"><h3 className="text-sm font-black text-gray-900 uppercase">No transactions yet</h3><p className="text-[10px] font-bold text-gray-400 max-w-[180px] mx-auto uppercase tracking-tighter">Your coin history will appear here once you start using MatchFlow.</p></div></div>
+          <div className="flex flex-col items-center justify-center py-24 text-center space-y-4"><div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-[2.5rem] flex items-center justify-center border border-white/30"><Coins className="w-8 h-8 text-white/40" /></div><div className="space-y-1"><h3 className="text-sm font-black text-white/60 uppercase">No transactions yet</h3></div></div>
         )}
       </main>
     </div>

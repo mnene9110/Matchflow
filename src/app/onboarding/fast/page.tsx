@@ -7,8 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { useUser, useFirebase } from "@/firebase"
-import { ref, set as setRtdb } from "firebase/database"
-import { doc, setDoc } from "firebase/firestore"
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 
@@ -25,10 +24,10 @@ export default function FastOnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
   const { user } = useUser()
-  const { database, firestore } = useFirebase()
+  const { firestore } = useFirebase()
 
   const handleConfirm = async () => {
-    if (!user || !gender || !country || isSubmitting) return
+    if (!user || !gender || !country || isSubmitting || !firestore) return
     setIsSubmitting(true)
 
     try {
@@ -45,7 +44,7 @@ export default function FastOnboardingPage() {
         profilePhotoUrls: [`https://picsum.photos/seed/${user.uid}/600/800`],
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
+        lastActiveAt: serverTimestamp(),
         interests: ["Travel"],
         coinBalance: welcomeCoins,
         diamondBalance: 0,
@@ -55,28 +54,11 @@ export default function FastOnboardingPage() {
         isAgent: false,
         dateOfBirth: "2000-01-01",
         isVerified: false,
+        isOnline: true,
         agencyJoinStatus: "none"
       }
 
-      // 1. Save to Firestore (Primary Profile Store)
       await setDoc(doc(firestore, "userProfiles", user.uid), profileData);
-
-      // 2. Save minimal data to RTDB (For balances, presence, and rules)
-      await setRtdb(ref(database, `users/${user.uid}`), {
-        id: user.uid,
-        numericId,
-        username: profileData.username,
-        gender: profileData.gender,
-        coinBalance: welcomeCoins,
-        diamondBalance: 0,
-        isAdmin: false,
-        isCoinseller: false,
-        isSupport: false,
-        isAgent: false,
-        presence: { online: true, lastSeen: Date.now() },
-        inCall: false
-      });
-
       router.push("/discover")
     } catch (error) {
       console.error("Fast onboarding failed:", error)

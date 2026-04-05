@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from "react"
@@ -63,9 +62,7 @@ export default function WelcomePage() {
               </svg>
             </div>
             <h2 className="text-white font-logo text-3xl tracking-tight">MatchFlow</h2>
-            <div className="absolute inset-0 bg-gradient-to-tr from-primary/10 to-transparent pointer-events-none" />
           </div>
-          <div className="absolute -inset-10 bg-primary/20 rounded-full blur-[90px] -z-10 opacity-30" />
         </div>
 
         <h1 className="text-5xl font-logo text-primary mb-2 drop-shadow-md">MatchFlow</h1>
@@ -79,7 +76,6 @@ export default function WelcomePage() {
             {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-primary" />} Fast Login
           </Button>
         </div>
-        <footer className="mt-12"><p className="text-[10px] text-gray-900 font-black uppercase tracking-[0.25em] leading-normal max-w-[200px] opacity-40">SECURE ACCESS • PRIVATE DATA</p></footer>
       </main>
     </div>
   )
