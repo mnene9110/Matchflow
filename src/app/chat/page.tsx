@@ -6,7 +6,7 @@ import { MessageSquare, ChevronRight, CheckCircle, Ban, EyeOff, Loader2, Trash2 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { ref, onValue, update } from "firebase/database"
+import { ref, onValue, update, query, orderByChild, limitToLast } from "firebase/database"
 import { doc, getDoc, collection } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import {
@@ -17,7 +17,6 @@ import {
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
 
-// ECONOMY: Global module-level caches
 let cachedSessions: any[] = []
 let cachedLoaded: boolean = false
 const profileCache: Record<string, any> = {}
@@ -93,7 +92,6 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
   }
 
   const handleItemClick = () => {
-    // Only navigate if we didn't just perform a long press
     if (!longPressedRef.current) {
       router.push(`/chat/${session.otherUserId}`)
     }
@@ -184,8 +182,12 @@ export default function ChatListPage() {
 
   useEffect(() => {
     if (!database || !currentUser) return
+    
+    // ECONOMY: Stop fetching ALL chats. Only fetch the 20 most recent ones to keep it fast.
     const userChatsRef = ref(database, `users/${currentUser.uid}/chats`)
-    return onValue(userChatsRef, (snapshot) => {
+    const recentChatsQuery = query(userChatsRef, orderByChild('timestamp'), limitToLast(20))
+    
+    return onValue(recentChatsQuery, (snapshot) => {
       const data = snapshot.val()
       if (data) {
         const sessionList = Object.entries(data).map(([key, val]: [string, any]) => ({
@@ -246,7 +248,7 @@ export default function ChatListPage() {
                 />
               ))}
               <div className="py-8 flex justify-center">
-                 <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em]">No more chats</p>
+                 <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.2em]">Showing latest chats</p>
               </div>
             </div>
           ) : hasFetched ? (

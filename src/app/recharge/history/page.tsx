@@ -16,10 +16,11 @@ export default function CoinHistoryPage() {
 
   const transactionsQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null
+    // ECONOMY: Only fetch latest 20 transactions initially to keep audit log lightweight
     return query(
       collection(firestore, "userProfiles", user.uid, "transactions"),
       orderBy("transactionDate", "desc"),
-      limit(50)
+      limit(20)
     )
   }, [firestore, user])
 
@@ -48,7 +49,6 @@ export default function CoinHistoryPage() {
         ) : transactions && transactions.length > 0 ? (
           <div className="space-y-3 pb-10">
             {transactions.map((tx: any) => {
-              // Reliably determine if addition or deduction based on amount sign
               const isAddition = tx.amount > 0
               
               return (
@@ -89,6 +89,9 @@ export default function CoinHistoryPage() {
                 </div>
               )
             })}
+            <div className="py-10 text-center">
+               <p className="text-[9px] font-black text-gray-300 uppercase tracking-widest">End of recent history</p>
+            </div>
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">

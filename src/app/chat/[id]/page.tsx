@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, Gift, Ban, CheckCircle, UserX } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, Gift, Ban, CheckCircle, UserX, ArrowUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, collection, writeBatch, increment as firestoreIncrement } from "firebase/firestore"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction } from "firebase/database"
+import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, query, limitToLast } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
@@ -50,6 +50,10 @@ function ChatDetailContent() {
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
   const [userCoins, setUserCoins] = useState(0)
   
+  // PAGINATION: Limit messages to keep it fast
+  const [msgLimit, setMsgLimit] = useState(30)
+  const [hasMore, setHasMore] = useState(true)
+
   const [isGiftSheetOpen, setIsGiftSheetOpen] = useState(false)
   const [selectedGift, setSelectedGift] = useState<typeof GIFTS[0] | null>(null)
   const [isSendingGift, setIsSendingGift] = useState(false)
@@ -62,7 +66,6 @@ function ChatDetailContent() {
   const currentUserProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile } = useDoc(currentUserProfileRef)
 
-  // Use optional chaining and null safety for blocks
   const myBlockRef = useMemoFirebase(() => (currentUser && otherUserId) ? doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", otherUserId) : null, [firestore, currentUser, otherUserId])
   const { data: iBlockedThem } = useDoc(myBlockRef)
 
@@ -172,15 +175,22 @@ function ChatDetailContent() {
 
   useEffect(() => {
     if (!database || !chatId) return
-    return onValue(ref(database, `chats/${chatId}/messages`), (snapshot) => {
+    // ECONOMY: Query with limit to avoid fetching old messages initially
+    const msgQuery = query(ref(database, `chats/${chatId}/messages`), limitToLast(msgLimit))
+    
+    return onValue(msgQuery, (snapshot) => {
       const data = snapshot.val()
       if (data) {
         const msgList = Object.entries(data).map(([key, val]: [string, any]) => ({ id: key, ...val }))
         msgList.sort((a, b) => (a.sentAt || 0) - (b.sentAt || 0))
         setMessages(msgList)
-      } else { setMessages([]) }
+        setHasMore(msgList.length >= msgLimit)
+      } else { 
+        setMessages([]) 
+        setHasMore(false)
+      }
     })
-  }, [database, chatId])
+  }, [database, chatId, msgLimit])
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
@@ -278,7 +288,6 @@ function ChatDetailContent() {
     const diamondGain = Math.floor(giftPrice * 0.6);
 
     try {
-      // 1. DEDUCT COINS (RTDB - Primary Source)
       const senderCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
       const result = await runRtdbTransaction(senderCoinRef, (current) => {
         if (current === null) return current;
@@ -288,11 +297,9 @@ function ChatDetailContent() {
 
       if (!result.committed) throw new Error("INSUFFICIENT_COINS");
 
-      // 2. ADD DIAMONDS (RTDB - Primary Source)
       const receiverDiamondRef = ref(database, `users/${otherUserId}/diamondBalance`);
       await runRtdbTransaction(receiverDiamondRef, (current) => (current || 0) + diamondGain);
 
-      // 3. LOG TRANSACTION (Firestore - Audit Trail)
       const batch = writeBatch(firestore);
       const senderRef = doc(firestore, "userProfiles", currentUser.uid);
       const senderTxRef = doc(collection(senderRef, "transactions"));
@@ -312,7 +319,6 @@ function ChatDetailContent() {
 
       await batch.commit();
 
-      // 4. SEND CHAT NOTIFICATION
       const giftMessage = `🎁 Sent a gift: ${gift.name}`;
       const updates: any = {}
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
@@ -400,6 +406,18 @@ function ChatDetailContent() {
 
       <ScrollArea className="flex-1 px-4 py-4 bg-white">
         <div className="flex flex-col gap-4">
+          {hasMore && (
+            <button 
+              onClick={() => setMsgLimit(prev => prev + 30)}
+              className="py-4 flex flex-col items-center gap-1 group active:opacity-50 transition-all"
+            >
+              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors">
+                <ArrowUp className="w-4 h-4 text-gray-400" />
+              </div>
+              <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Load Earlier</span>
+            </button>
+          )}
+
           {messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.uid
             const isCallLog = msg.isCallLog === true
