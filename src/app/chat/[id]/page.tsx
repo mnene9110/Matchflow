@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -93,7 +92,12 @@ function ChatDetailContent() {
   useEffect(() => {
     if (!database || !currentUser || !otherUserId) return
     const unreadRef = ref(database, `users/${currentUser.uid}/chats/${otherUserId}/unreadCount`)
-    set(unreadRef, 0)
+    // Only reset if the node already exists to avoid creating empty "ghost" chats in the list
+    get(unreadRef).then(snap => {
+      if (snap.exists() && snap.val() !== 0) {
+        set(unreadRef, 0)
+      }
+    })
   }, [database, currentUser, otherUserId])
 
   useEffect(() => {
@@ -224,7 +228,15 @@ function ChatDetailContent() {
       const msgData = { messageText: textToUse, senderId: currentUser.uid, sentAt: rtdbTimestamp(), status: 'sent' }
       
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: textToUse, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0, hidden: false }
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { 
+        lastMessage: textToUse, 
+        timestamp: rtdbTimestamp(), 
+        otherUserId, 
+        chatId, 
+        unreadCount: 0, 
+        hidden: false,
+        userHasSent: true // Mark that current user has texted this person
+      }
       
       // Separate updates for the other user to match strict security rules
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = textToUse
@@ -278,7 +290,15 @@ function ChatDetailContent() {
       const msgData = { messageText: giftMessage, senderId: currentUser.uid, sentAt: rtdbTimestamp(), isGift: true, giftId: gift.id, status: 'sent' }
       
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: giftMessage, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0, hidden: false }
+      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { 
+        lastMessage: giftMessage, 
+        timestamp: rtdbTimestamp(), 
+        otherUserId, 
+        chatId, 
+        unreadCount: 0, 
+        hidden: false,
+        userHasSent: true // Sending a gift counts as interaction
+      }
       
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = giftMessage
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()

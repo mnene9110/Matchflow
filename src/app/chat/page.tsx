@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -192,7 +191,7 @@ export default function ChatListPage() {
     if (!database || !currentUser) return
     
     const userChatsRef = ref(database, `users/${currentUser.uid}/chats`)
-    const recentChatsQuery = query(userChatsRef, orderByChild('timestamp'), limitToLast(20))
+    const recentChatsQuery = query(userChatsRef, orderByChild('timestamp'), limitToLast(50))
     
     return onValue(recentChatsQuery, (snapshot) => {
       const data = snapshot.val()
@@ -229,7 +228,12 @@ export default function ChatListPage() {
     }
   }
 
-  const filteredSessions = sessions.filter(s => !blockedIds.has(s.otherUserId) && !s.hidden)
+  // REQUIREMENT: Only show chats if the user has sent a message OR there is an unread message waiting
+  const filteredSessions = sessions.filter(s => 
+    !blockedIds.has(s.otherUserId) && 
+    !s.hidden && 
+    (s.userHasSent === true || (s.unreadCount > 0 && s.lastMessage))
+  )
 
   return (
     <div className="flex flex-col h-svh pb-20 bg-transparent overflow-y-auto">

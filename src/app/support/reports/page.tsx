@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -6,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, CheckCircle, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirebase, useUser } from "@/firebase"
-import { ref, onValue, remove, set, push, serverTimestamp as rtdbTimestamp, get } from "firebase/database"
+import { ref, onValue, remove, set, push, serverTimestamp as rtdbTimestamp, get, update } from "firebase/database"
 import { format } from "date-fns"
 
 export default function ReviewReportsPage() {
@@ -39,22 +38,41 @@ export default function ReviewReportsPage() {
   }
 
   const handleReviewed = async (report: any) => {
-    if (!database || processingId) return
+    if (!database || processingId || !supportProfile) return
     setProcessingId(report.id)
 
     try {
-      const chatId = [report.reporterId, supportProfile?.id].sort().join("_")
+      const chatId = [report.reporterId, supportProfile.id].sort().join("_")
       const msgRef = push(ref(database, `chats/${chatId}/messages`))
+      const feedbackText = "Your complaint is being reviewed by our team. Thank you for your feedback."
       
       const updates: any = {}
       updates[`/reports/${report.id}`] = null // Delete report
       updates[`/chats/${chatId}/messages/${msgRef.key}`] = {
-        messageText: "Your complaint is being reviewed by our team. Thank you for your feedback.",
-        senderId: supportProfile?.id,
+        messageText: feedbackText,
+        senderId: supportProfile.id,
         sentAt: rtdbTimestamp()
       }
-      updates[`/users/${report.reporterId}/chats/${supportProfile?.id}/lastMessage`] = "Feedback sent"
-      updates[`/users/${report.reporterId}/chats/${supportProfile?.id}/timestamp`] = rtdbTimestamp()
+      
+      // Update metadata for both so it shows in chat lists correctly
+      updates[`/users/${report.reporterId}/chats/${supportProfile.id}`] = {
+        lastMessage: feedbackText,
+        timestamp: rtdbTimestamp(),
+        otherUserId: supportProfile.id,
+        chatId,
+        unreadCount: increment(1),
+        hidden: false
+      }
+
+      updates[`/users/${supportProfile.id}/chats/${report.reporterId}`] = {
+        lastMessage: feedbackText,
+        timestamp: rtdbTimestamp(),
+        otherUserId: report.reporterId,
+        chatId,
+        unreadCount: 0,
+        hidden: false,
+        userHasSent: true // Agent texted the user
+      }
       
       await update(ref(database), updates)
     } catch (error) {

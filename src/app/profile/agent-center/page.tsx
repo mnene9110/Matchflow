@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -20,7 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useUser, useDoc, useFirestore, useMemoFirebase, useFirebase } from "@/firebase"
 import { doc, setDoc as setFirestoreDoc, updateDoc as updateFirestoreDoc } from "firebase/firestore"
-import { ref, set, update, onValue, push } from "firebase/database"
+import { ref, set, update, onValue, push, increment } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
@@ -103,10 +102,10 @@ export default function AgentCenterPage() {
         createdAt: Date.now()
       })
 
-      // 2. Firestore Sync
-      await updateFirestoreDoc(doc(firestore, "userProfiles", currentUser.uid), {
+      // 2. Mirror status to user node
+      await update(ref(database, `users/${currentUser.uid}`), {
         agencyId: generatedId,
-        updatedAt: new Date().toISOString()
+        updatedAt: Date.now()
       })
 
       toast({ title: "Agency Created", description: `Your Agency ID is: ${generatedId}` })
@@ -127,18 +126,14 @@ export default function AgentCenterPage() {
           ...userData, 
           joinedAt: Date.now() 
         }
-        // Update user's profile in Firestore
-        await updateFirestoreDoc(doc(firestore, "userProfiles", userId), {
-          agencyJoinStatus: 'approved',
-          memberOfAgencyId: profile.agencyId,
-          updatedAt: new Date().toISOString()
-        })
+        // Update user's profile node in RTDB
+        updates[`users/${userId}/agencyJoinStatus`] = 'approved'
+        updates[`users/${userId}/memberOfAgencyId`] = profile.agencyId
+        updates[`users/${userId}/updatedAt`] = Date.now()
       } else {
-        await updateFirestoreDoc(doc(firestore, "userProfiles", userId), {
-          agencyJoinStatus: 'none',
-          memberOfAgencyId: null,
-          updatedAt: new Date().toISOString()
-        })
+        updates[`users/${userId}/agencyJoinStatus`] = 'none'
+        updates[`users/${userId}/memberOfAgencyId`] = null
+        updates[`users/${userId}/updatedAt`] = Date.now()
       }
       updates[`agencyRequests/${profile.agencyId}/${userId}`] = null
       await update(ref(database), updates)
@@ -154,22 +149,44 @@ export default function AgentCenterPage() {
     if (!database || !profile?.agencyId || !profile || processingId) return
     setProcessingId(withdrawal.id)
     try {
-      // 1. Update status in RTDB
-      await update(ref(database, `agencyWithdrawals/${profile.agencyId}/${withdrawal.id}`), {
-        status: 'paid',
-        paidAt: Date.now()
-      })
-
-      // 2. Send system message via RTDB
+      const msgText = "✅ Your withdrawal request has been paid through the agency anchor. Please check your account."
       const chatId = [withdrawal.userId, currentUser?.uid].sort().join("_")
       const msgRef = push(ref(database, `chats/${chatId}/messages`))
-      await set(msgRef, {
-        messageText: "✅ Your withdrawal request has been paid through the agency anchor. Please check your account.",
+      
+      const updates: any = {}
+      // 1. Update withdrawal status
+      updates[`agencyWithdrawals/${profile.agencyId}/${withdrawal.id}/status`] = 'paid'
+      updates[`agencyWithdrawals/${profile.agencyId}/${withdrawal.id}/paidAt`] = Date.now()
+
+      // 2. Push message to history
+      updates[`/chats/${chatId}/messages/${msgRef.key}`] = {
+        messageText: msgText,
         senderId: currentUser?.uid,
         sentAt: Date.now(),
         status: 'sent'
-      })
+      }
 
+      // 3. Update metadata for both so it appears in Chat List
+      updates[`/users/${withdrawal.userId}/chats/${currentUser?.uid}`] = {
+        lastMessage: msgText,
+        timestamp: Date.now(),
+        otherUserId: currentUser?.uid,
+        chatId,
+        unreadCount: increment(1),
+        hidden: false
+      }
+
+      updates[`/users/${currentUser?.uid}/chats/${withdrawal.userId}`] = {
+        lastMessage: msgText,
+        timestamp: Date.now(),
+        otherUserId: withdrawal.userId,
+        chatId,
+        unreadCount: 0,
+        hidden: false,
+        userHasSent: true // Agent initiated this interaction
+      }
+
+      await update(ref(database), updates)
       toast({ title: "Paid", description: "Message sent to member." })
     } catch (e) {
       toast({ variant: "destructive", title: "Error" })
@@ -285,7 +302,7 @@ export default function AgentCenterPage() {
               <TabsContent value="members" className="space-y-4">
                 {members.length > 0 ? (
                   members.map(member => (
-                    <div key={member.id} className="bg-white border border-gray-100 p-4 rounded-[2rem] flex items-center justify-between shadow-sm">
+                    <div key={member.id} className="bg-white border border-gray-100 p-4 rounded-[2.25rem] flex items-center justify-between shadow-sm">
                       <div className="flex items-center gap-3">
                         <Avatar className="w-12 h-12 border-2 border-white shadow-md"><AvatarImage src={member.photo} /><AvatarFallback>{member.username?.[0]}</AvatarFallback></Avatar>
                         <div>

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -96,7 +95,8 @@ export default function MysteryNotePage() {
           otherUserId: targetId,
           chatId,
           unreadCount: 0,
-          hidden: false
+          hidden: false,
+          userHasSent: true // Mark interaction for list visibility
         }
 
         // Update their side
@@ -110,24 +110,21 @@ export default function MysteryNotePage() {
 
       await update(ref(database), rtdbUpdates)
 
-      // 4. Log Transaction in Firestore (Batch)
-      const batch = writeBatch(firestore);
-      const txRef = doc(collection(userProfileRef!, "transactions"));
-      
-      batch.update(userProfileRef!, {
-        coinBalance: firestoreIncrement(-totalCost),
-        updatedAt: new Date().toISOString()
-      });
-
-      batch.set(txRef, {
-        id: txRef.id,
+      // 4. Log Transaction in RTDB (Primary)
+      const logRef = push(ref(database, `userTransactions/${currentUser.uid}`));
+      await set(logRef, {
+        id: logRef.key,
         type: "mystery_note",
         amount: -totalCost,
-        transactionDate: new Date().toISOString(),
+        transactionDate: Date.now(),
         description: `Sent Mystery Note to ${potentialTargets.length} people`
       });
 
-      await batch.commit();
+      // Sync roles/balance to RTDB if needed (handled by logic above)
+      await update(ref(database, `users/${currentUser.uid}`), {
+        coinBalance: profile.coinBalance - totalCost,
+        updatedAt: Date.now()
+      })
 
       toast({
         title: "Mystery Sent!",
