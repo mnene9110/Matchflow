@@ -33,7 +33,7 @@
     "partyRooms": {
       ".read": "auth != null",
       "$roomId": {
-        ".write": "auth != null && (!data.exists() || data.child('hostId').val() === auth.uid)",
+        ".write": "auth != null && (!data.exists() || data.child('hostId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
         "participants": {
           "$userId": {
             ".write": "auth != null && $userId === auth.uid"
@@ -44,14 +44,14 @@
     "agencies": {
       ".read": "auth != null",
       "$agencyId": {
-        ".write": "auth != null && (!data.exists() || data.child('agentId').val() === auth.uid)"
+        ".write": "auth != null && (!data.exists() || data.child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)"
       }
     },
     "agencyRequests": {
       "$agencyId": {
-        ".read": "auth != null && root.child('agencies').child($agencyId).child('agentId').val() === auth.uid",
+        ".read": "auth != null && (root.child('agencies').child($agencyId).child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
         "$userId": {
-          ".write": "auth != null && (auth.uid === $userId || root.child('agencies').child($agencyId).child('agentId').val() === auth.uid)"
+          ".write": "auth != null && (auth.uid === $userId || root.child('agencies').child($agencyId).child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)"
         }
       }
     },
@@ -59,13 +59,13 @@
       "$agencyId": {
         ".read": "auth != null",
         "$userId": {
-          ".write": "auth != null && (auth.uid === $userId || root.child('agencies').child($agencyId).child('agentId').val() === auth.uid)"
+          ".write": "auth != null && (auth.uid === $userId || root.child('agencies').child($agencyId).child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)"
         }
       }
     },
     "agencyWithdrawals": {
       "$agencyId": {
-        ".read": "auth != null && root.child('agencies').child($agencyId).child('agentId').val() === auth.uid",
+        ".read": "auth != null && (root.child('agencies').child($agencyId).child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
         "$requestId": {
           ".write": "auth != null"
         }
