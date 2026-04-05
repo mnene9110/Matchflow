@@ -113,13 +113,13 @@ service cloud.firestore {
       }
     }
 
-    // Reports: Any user can report another, but only staff should handle them
+    // Reports
     match /reports/{reportId} {
       allow create: if isAuthenticated();
       allow read, update, delete: if isSupport();
     }
 
-    // Global list permissions for queries
+    // Global list permissions
     match /{path=**} {
       allow list: if isAuthenticated();
     }

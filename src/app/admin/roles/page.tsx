@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -54,7 +53,7 @@ export default function ManageRolesPage() {
     if (!foundUser || !selectedRole || isUpdating || !firestore) return
 
     if (selectedRole === "agent" && foundUser.gender !== "female") {
-      toast({ variant: "destructive", title: "Appointment Failed", description: "Only female users can be Agents." })
+      toast({ variant: "destructive", title: "Appointment Failed", description: "Only female users can be Agency heads." })
       return
     }
 
@@ -67,15 +66,15 @@ export default function ManageRolesPage() {
       await updateDoc(doc(firestore, "userProfiles", foundUser.id), {
         isSupport,
         isCoinseller,
-        isAgent,
+        isAgent, // Agency head
         updatedAt: new Date().toISOString()
       })
 
-      toast({ title: "Role Updated" })
+      toast({ title: "Role Updated", description: `${foundUser.username} position has been applied.` })
       setFoundUser(null)
       setTargetNumericId("")
     } catch (error) {
-      toast({ variant: "destructive", title: "Update failed" })
+      toast({ variant: "destructive", title: "Update failed", description: "You might lack permissions or the database is locked." })
     } finally {
       setIsUpdating(false)
     }
@@ -112,7 +111,7 @@ export default function ManageRolesPage() {
                 <div className="flex gap-2 mt-2 flex-wrap">
                    {foundUser.isSupport && <span className="text-[8px] font-black bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase">Support</span>}
                    {foundUser.isCoinseller && <span className="text-[8px] font-black bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase">Coinseller</span>}
-                   {foundUser.isAgent && <span className="text-[8px] font-black bg-purple-500/10 text-purple-500 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase">Agent</span>}
+                   {foundUser.isAgent && <span className="text-[8px] font-black bg-purple-500/10 text-purple-500 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase">Agency Head</span>}
                 </div>
               </div>
             </div>

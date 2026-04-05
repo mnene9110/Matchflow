@@ -1,7 +1,6 @@
-
 "use client"
 
-import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, Award, MessageSquare, Ban, Languages, Trash2, Info, BellOff } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, MessageSquare, Ban, Info, BellOff, Zap, ShieldAlert } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
@@ -9,7 +8,6 @@ import { signOut } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
 import { doc } from "firebase/firestore"
 import { clearDiscoverCache } from "@/app/discover/page"
-import { clearChatCache, clearProfileCache } from "@/app/chat/page"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -40,8 +38,6 @@ export default function SettingsPage() {
   const handleSignOut = async () => {
     try {
       clearDiscoverCache();
-      clearChatCache();
-      clearProfileCache();
       await signOut(auth)
       router.push("/welcome")
     } catch (error) {
