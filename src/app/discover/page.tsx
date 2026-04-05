@@ -75,7 +75,6 @@ export default function DiscoverPage() {
 
     const currentMap: Record<string, boolean> = { ...userPresenceMap };
     
-    // Fetch presence snapshots (NOT listeners) to ensure static UI
     await Promise.all(fetchedUsers.map(async (u) => {
       try {
         const pRef = ref(database, `users/${u.id}/presence/online`);
@@ -92,7 +91,6 @@ export default function DiscoverPage() {
     const onlineUsers = fetchedUsers.filter(u => currentMap[u.id]);
     const offlineUsers = fetchedUsers.filter(u => !currentMap[u.id]);
 
-    // ONLINE USERS FIRST, then offline. Shuffle within groups for variety.
     return [...shuffleArray(onlineUsers), ...shuffleArray(offlineUsers)];
   }
 
@@ -223,8 +221,9 @@ export default function DiscoverPage() {
     : mappedUsers;
 
   return (
-    <div className="flex flex-col h-svh bg-transparent overflow-y-auto pb-32">
-      <div className="sticky top-0 z-30 px-4 py-8 bg-transparent shrink-0 space-y-6">
+    <div className="flex flex-col h-svh bg-transparent overflow-y-auto pb-32 relative">
+      {/* 1. Action Buttons - Scrolls away */}
+      <div className="px-4 pt-8 pb-4 shrink-0 space-y-6">
         <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-700">
           <button 
             onClick={() => router.push('/mystery-note')}
@@ -246,9 +245,13 @@ export default function DiscoverPage() {
             <span className="text-[10px] font-black uppercase tracking-[0.2em] text-[#8B0000]">Task Center</span>
           </button>
         </div>
+      </div>
 
+      {/* 2. Navigation Row - Sticky pinned to top */}
+      <div className="sticky top-0 z-30 px-4 py-4 shrink-0">
+        <div className="absolute inset-0 bg-[#B36666]/10 backdrop-blur-xl -z-10" />
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-16 bg-white/30 backdrop-blur-xl border border-white/20 rounded-full p-1.5 flex items-center shadow-lg">
+          <div className="flex-1 h-16 bg-white/30 border border-white/20 rounded-full p-1.5 flex items-center shadow-lg">
             <button 
               onClick={() => setActiveTab('recommend')}
               className={cn(
@@ -271,7 +274,7 @@ export default function DiscoverPage() {
           
           <button 
             onClick={handleRefresh} 
-            className="w-16 h-16 rounded-full bg-white/30 backdrop-blur-xl border border-white/20 flex items-center justify-center active:rotate-180 transition-all duration-700 shadow-lg"
+            className="w-16 h-16 rounded-full bg-white/30 border border-white/20 flex items-center justify-center active:rotate-180 transition-all duration-700 shadow-lg"
           >
             {isInitialLoading ? (
               <Loader2 className="w-5 h-5 animate-spin text-[#8B0000]" />
@@ -282,7 +285,8 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      <main className="px-4 grid grid-cols-2 gap-3 pb-8 flex-1">
+      {/* 3. Main Content - Profiles scroll behind nav */}
+      <main className="px-4 grid grid-cols-2 gap-3 pb-8 flex-1 mt-2">
         {displayUsers.map((user) => (
           <div key={user.id} className="group relative aspect-[3/4.2] rounded-[2.5rem] overflow-hidden bg-white/20 shadow-md transition-transform active:scale-95" onClick={() => router.push(`/profile/${user.id}`)}>
             <div className="absolute inset-0 z-0">
