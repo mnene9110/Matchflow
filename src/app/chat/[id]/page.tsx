@@ -9,8 +9,7 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, collection, writeBatch, increment as firestoreIncrement } from "firebase/firestore"
+import { useFirebase, useUser } from "@/firebase"
 import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, query, limitToLast, get } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -37,18 +36,20 @@ function ChatDetailContent() {
   const initialMsg = searchParams?.get('msg')
   
   const { user: currentUser } = useUser()
-  const { firestore, database } = useFirebase()
+  const { database } = useFirebase()
   const router = useRouter()
   const { toast } = useToast()
   
   const scrollRef = useRef<HTMLDivElement>(null)
   
-  const [mounted, setMounted] = useState(false)
   const [inputText, setInputText] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
   const [userCoins, setUserCoins] = useState(0)
+  const [otherUser, setOtherUser] = useState<any>(null)
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null)
+  const [isOtherUserLoading, setIsOtherUserLoading] = useState(true)
   
   // PAGINATION
   const [msgLimit, setMsgLimit] = useState(30)
@@ -59,26 +60,24 @@ function ChatDetailContent() {
   const [isSendingGift, setIsSendingGift] = useState(false)
 
   const chatId = currentUser && otherUserId ? [currentUser.uid, otherUserId].sort().join("_") : ""
-  
-  const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "userProfiles", otherUserId) : null, [firestore, otherUserId])
-  const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
-
-  const currentUserProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: currentUserProfile } = useDoc(currentUserProfileRef)
-
-  const myBlockRef = useMemoFirebase(() => (currentUser && otherUserId) ? doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", otherUserId) : null, [firestore, currentUser, otherUserId])
-  const { data: iBlockedThem } = useDoc(myBlockRef)
 
   useEffect(() => {
-    setMounted(true)
-    return () => setMounted(false)
-  }, []);
+    if (!database || !otherUserId) return;
+    const userRef = ref(database, `users/${otherUserId}`);
+    return onValue(userRef, (snap) => {
+      setOtherUser(snap.val());
+      setIsOtherUserLoading(false);
+    });
+  }, [database, otherUserId]);
 
   useEffect(() => {
-    if (!database || !currentUser) return
-    const coinRef = ref(database, `users/${currentUser.uid}/coinBalance`)
-    return onValue(coinRef, (snap) => setUserCoins(snap.val() || 0))
-  }, [database, currentUser])
+    if (!database || !currentUser) return;
+    const meRef = ref(database, `users/${currentUser.uid}`);
+    return onValue(meRef, (snap) => {
+      setCurrentUserProfile(snap.val());
+      setUserCoins(snap.val()?.coinBalance || 0);
+    });
+  }, [database, currentUser]);
 
   useEffect(() => {
     if (initialMsg && currentUser && otherUserId && database && otherUser && !isSending) {
@@ -99,7 +98,6 @@ function ChatDetailContent() {
 
   useEffect(() => {
     if (!database || !chatId || !currentUser || !messages.length) return
-    
     const unreadMsgs = messages.filter(m => m.senderId !== currentUser.uid && m.status === 'sent')
     if (unreadMsgs.length > 0) {
       const updates: any = {}
@@ -114,78 +112,55 @@ function ChatDetailContent() {
     if (presence.online) return "Online";
     if (!presence.lastSeen) return "Offline";
     const date = new Date(presence.lastSeen);
-    const now = new Date();
-    const diffInDays = (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24);
-    if (diffInDays > 2) return "Offline";
     return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }, [presence]);
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
     if (!database || !chatId || !currentUser || !currentUserProfile || !otherUser) return
 
-    try {
-      const otherStatusSnap = await get(ref(database, `users/${otherUserId}`));
-      const otherStatus = otherStatusSnap.val();
+    const otherStatusSnap = await get(ref(database, `users/${otherUserId}`));
+    const otherStatus = otherStatusSnap.val();
 
-      if (otherStatus?.inCall) {
-        toast({ variant: "destructive", title: "User Busy", description: "This user is currently on another call." });
-        return;
-      }
+    if (otherStatus?.inCall) {
+      toast({ variant: "destructive", title: "User Busy", description: "This user is currently on another call." });
+      return;
+    }
 
-      const dndKey = type === 'video' ? 'dndVideo' : 'dndVoice';
-      if (otherStatus?.settings?.[dndKey]) {
-        toast({ 
-          variant: "destructive", 
-          title: "Do Not Disturb", 
-          description: `This user has enabled DND for ${type} calls.` 
-        });
-        return;
-      }
-    } catch (e) {
-      console.error("Status check failed", e);
+    const dndKey = type === 'video' ? 'dndVideo' : 'dndVoice';
+    if (otherStatus?.settings?.[dndKey]) {
+      toast({ variant: "destructive", title: "Do Not Disturb", description: `This user has enabled DND for ${type} calls.` });
+      return;
     }
 
     const costPerMin = type === 'video' ? 160 : 80;
-    
-    // CALL ECONOMY: Female users ALSO pay for calls now.
-    const isFree = currentUserProfile.isAdmin || 
-                   currentUserProfile.isSupport || 
-                   currentUserProfile.isCoinseller ||
-                   otherUser.isSupport ||
-                   otherUser.isCoinseller;
+    const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.isCoinseller || otherUser.isSupport || otherUser.isCoinseller;
 
     if (!isFree && userCoins < costPerMin) {
       toast({
         variant: "destructive",
         title: "Insufficient Balance",
         description: `You need at least ${costPerMin} coins to start this call.`,
-        duration: 3000,
         action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button>
       });
       return;
     }
 
-    try {
-      const callRef = ref(database, `calls/${chatId}`);
-      await set(callRef, { 
-        callerId: currentUser.uid, 
-        receiverId: otherUserId, 
-        status: 'ringing', 
-        callType: type, 
-        timestamp: Date.now(),
-        callerName: currentUserProfile.username || 'Someone',
-        costPerMin: costPerMin,
-        isFree: isFree
-      });
+    const callRef = ref(database, `calls/${chatId}`);
+    await set(callRef, { 
+      callerId: currentUser.uid, 
+      receiverId: otherUserId, 
+      status: 'ringing', 
+      callType: type, 
+      timestamp: Date.now(),
+      callerName: currentUserProfile.username || 'Someone',
+      costPerMin: costPerMin,
+      isFree: isFree
+    });
 
-      const updates: any = {}
-      updates[`users/${otherUserId}/incomingCallId`] = chatId;
-      updates[`users/${currentUser.uid}/incomingCallId`] = chatId;
-      await update(ref(database), updates);
-
-    } catch (error: any) {
-      toast({ variant: "destructive", title: "Call Failed", description: "Could not establish connection." });
-    }
+    const updates: any = {}
+    updates[`users/${otherUserId}/incomingCallId`] = chatId;
+    updates[`users/${currentUser.uid}/incomingCallId`] = chatId;
+    await update(ref(database), updates);
   }
 
   useEffect(() => {
@@ -196,7 +171,6 @@ function ChatDetailContent() {
   useEffect(() => {
     if (!database || !chatId) return
     const msgQuery = query(ref(database, `chats/${chatId}/messages`), limitToLast(msgLimit))
-    
     return onValue(msgQuery, (snapshot) => {
       const data = snapshot.val()
       if (data) {
@@ -215,25 +189,11 @@ function ChatDetailContent() {
 
   const handleSendMessage = async (textOverride?: string) => {
     const textToUse = textOverride || inputText;
-    if (!textToUse.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || isSending) return
+    if (!textToUse.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || isSending || !currentUserProfile) return
     
-    if (!currentUserProfile) {
-      toast({ variant: "destructive", title: "Loading profile", description: "Please wait..." });
-      return;
-    }
-
-    // ECONOMY: Free chat for female users OR Agency Agent & Member free communication
     const isMemberOfMyAgency = currentUserProfile.agencyId && otherUser.memberOfAgencyId === currentUserProfile.agencyId;
     const isMyAgent = currentUserProfile.memberOfAgencyId && otherUser.agencyId === currentUserProfile.memberOfAgencyId;
-
-    const isFree = currentUserProfile.isAdmin || 
-                   currentUserProfile.isSupport || 
-                   currentUserProfile.isCoinseller || 
-                   otherUser.isSupport || 
-                   otherUser.isCoinseller ||
-                   currentUserProfile.gender?.toLowerCase() === 'female' ||
-                   isMemberOfMyAgency ||
-                   isMyAgent;
+    const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.isCoinseller || otherUser.isSupport || otherUser.isCoinseller || currentUserProfile.gender?.toLowerCase() === 'female' || isMemberOfMyAgency || isMyAgent;
 
     const messageCost = isFree ? 0 : 15;
     
@@ -246,37 +206,22 @@ function ChatDetailContent() {
           if (current < messageCost) return undefined;
           return current - messageCost;
         });
-
         if (!result.committed) throw new Error("INSUFFICIENT_COINS");
 
-        const batch = writeBatch(firestore);
-        const pRef = doc(firestore, "userProfiles", currentUser.uid);
-        const txRef = doc(collection(pRef, "transactions"));
-        
-        batch.update(pRef, {
-          coinBalance: firestoreIncrement(-messageCost),
-          updatedAt: new Date().toISOString()
-        });
-        
-        batch.set(txRef, {
-          id: txRef.id,
+        // Record log in RTDB transactions node
+        const logRef = push(ref(database, `userTransactions/${currentUser.uid}`));
+        await set(logRef, {
+          id: logRef.key,
           type: "deduction",
           amount: -messageCost,
-          transactionDate: new Date().toISOString(),
+          transactionDate: Date.now(),
           description: `Message sent to ${otherUser?.username || 'user'}`
         });
-        
-        await batch.commit();
       }
 
       const updates: any = {}
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-      const msgData = { 
-        messageText: textToUse, 
-        senderId: currentUser.uid, 
-        sentAt: rtdbTimestamp(), 
-        status: 'sent'
-      }
+      const msgData = { messageText: textToUse, senderId: currentUser.uid, sentAt: rtdbTimestamp(), status: 'sent' }
       
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
       updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: textToUse, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0, hidden: false }
@@ -308,47 +253,27 @@ function ChatDetailContent() {
 
     try {
       const senderCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
-      const result = await runRtdbTransaction(senderCoinRef, (current) => {
+      const coinResult = await runRtdbTransaction(senderCoinRef, (current) => {
         if (current === null) return current;
         if (current < giftPrice) return undefined;
         return current - giftPrice;
       });
-
-      if (!result.committed) throw new Error("INSUFFICIENT_COINS");
+      if (!coinResult.committed) throw new Error("INSUFFICIENT_COINS");
 
       const receiverDiamondRef = ref(database, `users/${otherUserId}/diamondBalance`);
       await runRtdbTransaction(receiverDiamondRef, (current) => (current || 0) + diamondGain);
 
-      const batch = writeBatch(firestore);
-      const senderRef = doc(firestore, "userProfiles", currentUser.uid);
-      const senderTxRef = doc(collection(senderRef, "transactions"));
+      // Logs in RTDB
+      const senderLogRef = push(ref(database, `userTransactions/${currentUser.uid}`));
+      await set(senderLogRef, { id: senderLogRef.key, type: "gift_sent", amount: -giftPrice, transactionDate: Date.now(), description: `Sent a ${gift.name} to ${otherUser?.username}` });
 
-      batch.update(senderRef, {
-        coinBalance: firestoreIncrement(-giftPrice),
-        updatedAt: new Date().toISOString()
-      });
-      
-      batch.set(senderTxRef, {
-        id: senderTxRef.id,
-        type: "gift_sent",
-        amount: -giftPrice,
-        transactionDate: new Date().toISOString(),
-        description: `Sent a ${gift.name} to ${otherUser?.username || 'user'}`
-      });
-
-      await batch.commit();
+      const receiverLogRef = push(ref(database, `userTransactions/${otherUserId}`));
+      await set(receiverLogRef, { id: receiverLogRef.key, type: "gift_received", amount: diamondGain, transactionDate: Date.now(), description: `Received ${gift.name} from ${currentUserProfile.username}` });
 
       const giftMessage = `🎁 Sent a gift: ${gift.name}`;
       const updates: any = {}
       const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-      const msgData = { 
-        messageText: giftMessage, 
-        senderId: currentUser.uid, 
-        sentAt: rtdbTimestamp(), 
-        isGift: true,
-        giftId: gift.id,
-        status: 'sent'
-      }
+      const msgData = { messageText: giftMessage, senderId: currentUser.uid, sentAt: rtdbTimestamp(), isGift: true, giftId: gift.id, status: 'sent' }
       
       updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
       updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { lastMessage: giftMessage, timestamp: rtdbTimestamp(), otherUserId, chatId, unreadCount: 0, hidden: false }
@@ -358,7 +283,6 @@ function ChatDetailContent() {
       updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
       
       await update(ref(database), updates)
-
       toast({ title: "Gift Sent!", description: `You sent a ${gift.name}.` });
       setIsGiftSheetOpen(false);
       setSelectedGift(null);
@@ -383,19 +307,14 @@ function ChatDetailContent() {
         </div>
         <div className="space-y-2">
           <h2 className="text-3xl font-black font-headline text-gray-900 tracking-tight">User logged out</h2>
-          <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-            This account no longer exists or has been deactivated.
-          </p>
+          <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">This account no longer exists or has been deactivated.</p>
         </div>
-        <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">
-          Go Back
-        </Button>
+        <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">Go Back</Button>
       </div>
     )
   }
 
   const isOtherUserSupport = otherUser?.isSupport === true
-  const isBlocked = !isOtherUserSupport && !!iBlockedThem
   const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUserId}/200/200`
   const otherUserName = isOtherUserSupport ? "Customer Support" : (otherUser?.username || "User")
   const isOtherUserVerified = !!otherUser?.isVerified
@@ -404,24 +323,14 @@ function ChatDetailContent() {
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       <header className="px-5 pt-8 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-full bg-gray-50 text-gray-500"><ChevronLeft className="w-5 h-5" /></Button>
-        <div 
-          className={cn("flex items-center gap-3 transition-opacity flex-1 justify-center mr-10", isOtherUserSupport ? "cursor-default" : "cursor-pointer active:opacity-70")} 
-          onClick={() => !isOtherUserSupport && router.push(`/profile/${otherUserId}`)}
-        >
+        <div className={cn("flex items-center gap-3 transition-opacity flex-1 justify-center mr-10", isOtherUserSupport ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => !isOtherUserSupport && router.push(`/profile/${otherUserId}`)}>
           <Avatar className="w-9 h-9 border border-gray-100 shadow-sm"><AvatarImage src={otherUserImage} className="object-cover" /><AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback></Avatar>
           <div className="flex flex-col text-center">
             <div className="flex items-center justify-center gap-1 mb-1">
-              <h3 className={cn("font-bold text-[13px] leading-none h-3.5", otherUserName === "User logged out" ? "text-gray-400 font-medium italic" : "text-gray-900")}>
-                {otherUserName}
-              </h3>
+              <h3 className={cn("font-bold text-[13px] leading-none h-3.5", otherUserName === "User logged out" ? "text-gray-400 font-medium italic" : "text-gray-900")}>{otherUserName}</h3>
               {isOtherUserVerified && <CheckCircle className="w-3 h-3 text-blue-500 fill-blue-500/10" />}
             </div>
-            <span className={cn(
-              "text-[9px] font-black uppercase tracking-widest", 
-              presence.online ? "text-green-500" : "text-gray-400"
-            )}>
-              {presenceText}
-            </span>
+            <span className={cn("text-[9px] font-black uppercase tracking-widest", presence.online ? "text-green-500" : "text-gray-400")}>{presenceText}</span>
           </div>
         </div>
         <div className="w-10" />
@@ -430,13 +339,8 @@ function ChatDetailContent() {
       <ScrollArea className="flex-1 px-4 py-4 bg-white">
         <div className="flex flex-col gap-4">
           {hasMore && (
-            <button 
-              onClick={() => setMsgLimit(prev => prev + 30)}
-              className="py-4 flex flex-col items-center gap-1 group active:opacity-50 transition-all"
-            >
-              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors">
-                <ArrowUp className="w-4 h-4 text-gray-400" />
-              </div>
+            <button onClick={() => setMsgLimit(prev => prev + 30)} className="py-4 flex flex-col items-center gap-1 group active:opacity-50 transition-all">
+              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors"><ArrowUp className="w-4 h-4 text-gray-400" /></div>
               <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Load Earlier</span>
             </button>
           )}
@@ -463,14 +367,7 @@ function ChatDetailContent() {
                           <div className="absolute bottom-4 right-4 italic font-black text-sky-500 text-2xl">x 1</div>
                         </div>
                         {isMe && (
-                          <button 
-                            onClick={() => {
-                              const gift = GIFTS.find(g => g.id === msg.giftId);
-                              if (gift) handleSendGift(gift);
-                            }}
-                            disabled={isSendingGift}
-                            className="w-full h-12 bg-[#00AEEF] hover:bg-[#009EDF] text-white font-black text-sm uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2"
-                          >
+                          <button onClick={() => { const gift = GIFTS.find(g => g.id === msg.giftId); if (gift) handleSendGift(gift); }} disabled={isSendingGift} className="w-full h-12 bg-[#00AEEF] hover:bg-[#009EDF] text-white font-black text-sm uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
                             {isSendingGift ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send one more"}
                           </button>
                         )}
@@ -493,82 +390,47 @@ function ChatDetailContent() {
       </ScrollArea>
 
       <footer className="px-5 py-5 pb-8 space-y-4 bg-white border-t border-gray-50">
-        {isBlocked ? (
-          <div className="flex flex-col items-center justify-center py-4 gap-2">
-            <Ban className="w-6 h-6 text-red-500" />
-            <p className="text-[11px] font-black uppercase tracking-widest text-red-500">User Blocked</p>
-          </div>
-        ) : (
-          <>
-            <div className="relative group">
-              <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px]" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
-              <Button size="icon" className={cn("absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9", inputText.trim() && !isSending ? "bg-primary text-white" : "bg-gray-200 text-gray-400")} onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
-                {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-              </Button>
-            </div>
-            {!isOtherUserSupport && (
-              <div className="grid grid-cols-3 gap-2">
-                <button onClick={() => handleInitiateCall('audio')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Phone className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span></button>
-                <button onClick={() => handleInitiateCall('video')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Video className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span></button>
-                
-                <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
-                  <SheetTrigger asChild>
-                    <button className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
-                      <Gift className="w-4 h-4 text-primary" />
-                      <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Gift</span>
-                    </button>
-                  </SheetTrigger>
-                  <SheetContent side="bottom" className="rounded-t-[3rem] h-[75svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
-                    <SheetHeader className="px-6 pt-8 pb-4 shrink-0">
-                      <SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Select a Gift</SheetTitle>
-                    </SheetHeader>
-                    
-                    <div className="flex-1 overflow-y-auto px-4 pb-32">
-                      <div className="grid grid-cols-4 gap-2">
-                        {GIFTS.map((gift) => (
-                          <div 
-                            key={gift.id}
-                            onClick={() => setSelectedGift(gift)}
-                            className={cn(
-                              "flex flex-col items-center gap-2 p-2 rounded-2xl border transition-all cursor-pointer",
-                              selectedGift?.id === gift.id ? "bg-primary/20 border-primary shadow-lg" : "bg-transparent border-transparent"
-                            )}
-                          >
-                            <div className="w-14 h-14 flex items-center justify-center text-4xl">
-                              {gift.emoji}
-                            </div>
-                            <div className="flex flex-col items-center gap-0.5">
-                              <div className="flex items-center gap-1">
-                                <div className="w-3 h-3 rounded-full bg-amber-500 flex items-center justify-center text-[6px] font-black text-zinc-900 italic">S</div>
-                                <span className="text-[10px] font-black">{gift.price}</span>
-                              </div>
-                              <span className="text-[8px] font-bold text-zinc-400 text-center truncate w-full">{gift.name}</span>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    <footer className="absolute bottom-0 left-0 right-0 p-6 bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-800 flex items-center justify-between z-50">
-                      <div className="flex items-center gap-3">
-                        <div className="flex items-center gap-1.5 bg-zinc-800 px-3 py-2 rounded-full border border-zinc-700">
-                          <div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[8px] font-black text-zinc-900 italic">S</div>
-                          <span className="text-xs font-black">{userCoins.toLocaleString()}</span>
+        <div className="relative group">
+          <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px]" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
+          <Button size="icon" className={cn("absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9", inputText.trim() && !isSending ? "bg-primary text-white" : "bg-gray-200 text-gray-400")} onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
+            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+          </Button>
+        </div>
+        {!isOtherUserSupport && (
+          <div className="grid grid-cols-3 gap-2">
+            <button onClick={() => handleInitiateCall('audio')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Phone className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span></button>
+            <button onClick={() => handleInitiateCall('video')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Video className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span></button>
+            <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
+              <SheetTrigger asChild>
+                <button className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
+                  <Gift className="w-4 h-4 text-primary" />
+                  <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Gift</span>
+                </button>
+              </SheetTrigger>
+              <SheetContent side="bottom" className="rounded-t-[3rem] h-[75svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
+                <SheetHeader className="px-6 pt-8 pb-4 shrink-0"><SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Select a Gift</SheetTitle></SheetHeader>
+                <div className="flex-1 overflow-y-auto px-4 pb-32">
+                  <div className="grid grid-cols-4 gap-2">
+                    {GIFTS.map((gift) => (
+                      <div key={gift.id} onClick={() => setSelectedGift(gift)} className={cn("flex flex-col items-center gap-2 p-2 rounded-2xl border transition-all cursor-pointer", selectedGift?.id === gift.id ? "bg-primary/20 border-primary shadow-lg" : "bg-transparent border-transparent")}>
+                        <div className="w-14 h-14 flex items-center justify-center text-4xl">{gift.emoji}</div>
+                        <div className="flex flex-col items-center gap-0.5">
+                          <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-amber-500 flex items-center justify-center text-[6px] font-black text-zinc-900 italic">S</div><span className="text-[10px] font-black">{gift.price}</span></div>
+                          <span className="text-[8px] font-bold text-zinc-400 text-center truncate w-full">{gift.name}</span>
                         </div>
                       </div>
-                      <Button 
-                        onClick={() => handleSendGift()}
-                        disabled={!selectedGift || isSendingGift}
-                        className="h-12 px-10 rounded-full bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all"
-                      >
-                        {isSendingGift ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
-                      </Button>
-                    </footer>
-                  </SheetContent>
-                </Sheet>
-              </div>
-            )}
-          </>
+                    ))}
+                  </div>
+                </div>
+                <footer className="absolute bottom-0 left-0 right-0 p-6 bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-800 flex items-center justify-between z-50">
+                  <div className="flex items-center gap-3"><div className="flex items-center gap-1.5 bg-zinc-800 px-3 py-2 rounded-full border border-zinc-700"><div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[8px] font-black text-zinc-900 italic">S</div><span className="text-xs font-black">{userCoins.toLocaleString()}</span></div></div>
+                  <Button onClick={() => handleSendGift()} disabled={!selectedGift || isSendingGift} className="h-12 px-10 rounded-full bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all">
+                    {isSendingGift ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
+                  </Button>
+                </footer>
+              </SheetContent>
+            </Sheet>
+          </div>
         )}
       </footer>
     </div>

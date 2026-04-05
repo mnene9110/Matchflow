@@ -8,8 +8,8 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { useFirestore, useUser, setDocumentNonBlocking } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useUser, useFirebase } from "@/firebase"
+import { ref, set as setRtdb } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 
@@ -29,11 +29,11 @@ export default function FullOnboardingPage() {
   
   const router = useRouter()
   const { user } = useUser()
-  const firestore = useFirestore()
+  const { database } = useFirebase()
   const { toast } = useToast()
 
-  const handleSave = useCallback(() => {
-    if (!user || !name || !dob || !gender || !country || !lookingFor) return
+  const handleSave = useCallback(async () => {
+    if (!user || !name || !dob || !gender || !country || !lookingFor || !database) return
 
     const birthDate = new Date(dob)
     const today = new Date()
@@ -54,7 +54,6 @@ export default function FullOnboardingPage() {
 
     const numericId = Math.floor(10000000 + Math.random() * 90000000);
 
-    const userRef = doc(firestore, "userProfiles", user.uid)
     const profileData = {
       id: user.uid,
       numericId,
@@ -66,20 +65,23 @@ export default function FullOnboardingPage() {
       relationshipGoal: lookingFor,
       location: country,
       profilePhotoUrls: [`https://picsum.photos/seed/${user.uid}/600/800`],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      lastActiveAt: new Date().toISOString(),
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
+      lastActiveAt: Date.now(),
       interests: ["Nature", "Adventure"],
       coinBalance: 500,
+      diamondBalance: 0,
       isAdmin: false,
       isCoinseller: false,
       isSupport: false,
-      isVerified: false
+      isAgent: false,
+      isVerified: false,
+      inCall: false
     }
 
-    setDocumentNonBlocking(userRef, profileData, { merge: true })
+    await setRtdb(ref(database, `users/${user.uid}`), profileData);
     router.push("/discover")
-  }, [user, name, dob, gender, country, lookingFor, firestore, router, toast])
+  }, [user, name, dob, gender, country, lookingFor, database, router, toast])
 
   const darkMaroonText = "text-[#5A1010]";
   const darkMaroonBg = "bg-[#5A1010]";

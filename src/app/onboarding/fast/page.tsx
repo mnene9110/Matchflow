@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { useFirestore, useUser, useFirebase } from "@/firebase"
-import { doc, setDoc } from "firebase/firestore"
+import { useUser, useFirebase } from "@/firebase"
 import { ref, set as setRtdb } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
@@ -26,7 +25,7 @@ export default function FastOnboardingPage() {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
   const { user } = useUser()
-  const { firestore, database } = useFirebase()
+  const { database } = useFirebase()
 
   const handleConfirm = async () => {
     if (!user || !gender || !country || isSubmitting) return
@@ -36,17 +35,8 @@ export default function FastOnboardingPage() {
       const numericId = Math.floor(10000000 + Math.random() * 90000000);
       const welcomeCoins = 500;
 
-      // 1. RTDB Init (Primary)
+      // 1. RTDB Init (Primary Source of Truth)
       const rtdbUserRef = ref(database, `users/${user.uid}`);
-      await setRtdb(rtdbUserRef, {
-        coinBalance: welcomeCoins,
-        diamondBalance: 0,
-        presence: { online: true, lastSeen: Date.now() },
-        inCall: false
-      });
-
-      // 2. Firestore Init (Persistent Profile)
-      const userRef = doc(firestore, "userProfiles", user.uid)
       const profileData = {
         id: user.uid,
         numericId,
@@ -55,20 +45,23 @@ export default function FastOnboardingPage() {
         gender,
         location: country,
         profilePhotoUrls: [`https://picsum.photos/seed/${user.uid}/600/800`],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastActiveAt: new Date().toISOString(),
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        lastActiveAt: Date.now(),
         interests: ["Travel"],
         coinBalance: welcomeCoins,
+        diamondBalance: 0,
         isAdmin: false,
         isCoinseller: false,
         isSupport: false,
+        isAgent: false,
         dateOfBirth: "2000-01-01",
-        isVerified: false
+        isVerified: false,
+        presence: { online: true, lastSeen: Date.now() },
+        inCall: false
       }
 
-      // We await this to ensure the Discover query finds the user immediately
-      await setDoc(userRef, profileData, { merge: true })
+      await setRtdb(rtdbUserRef, profileData);
       router.push("/discover")
     } catch (error) {
       console.error("Fast onboarding failed:", error)

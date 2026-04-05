@@ -4,29 +4,22 @@
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { RotateCcw, Globe, Loader2, CheckCircle, Sparkles, ClipboardList } from "lucide-react"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { collection, query, limit, getDocs, startAfter, orderBy, DocumentData, QueryDocumentSnapshot, where, doc } from "firebase/firestore"
-import { ref, update, get } from "firebase/database"
+import { useFirebase, useUser } from "@/firebase"
+import { ref, onValue, get, query as rtdbQuery, orderByChild, limitToLast } from "firebase/database"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 
-// ECONOMY: Session-based feed caching
 let cachedUsers: any[] = []
-let cachedLastVisible: QueryDocumentSnapshot<DocumentData> | null = null
-let cachedHasMore: boolean = true
 let cachedInitialLoaded: boolean = false
 let cachedPresenceMap: Record<string, boolean> = {}
 
 export function clearDiscoverCache() {
   cachedUsers = []
-  cachedLastVisible = null
-  cachedHasMore = true
   cachedInitialLoaded = false
   cachedPresenceMap = {}
 }
 
-// Utility to shuffle an array (Fisher-Yates)
 function shuffleArray<T>(array: T[]): T[] {
   const newArr = [...array];
   for (let i = newArr.length - 1; i > 0; i--) {
@@ -38,66 +31,26 @@ function shuffleArray<T>(array: T[]): T[] {
 
 export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
-  const { firestore, database } = useFirebase()
+  const { database } = useFirebase()
   const { user: currentUser } = useUser()
   const router = useRouter()
 
   const [users, setUsers] = useState<any[]>(cachedUsers)
-  const [lastVisible, setLastVisible] = useState<QueryDocumentSnapshot<DocumentData> | null>(cachedLastVisible)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(cachedHasMore)
   const [isInitialLoading, setIsInitialLoading] = useState(!cachedInitialLoaded)
   const [userPresenceMap, setUserPresenceMap] = useState<Record<string, boolean>>(cachedPresenceMap)
-
-  const currentUserRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc(currentUserRef)
+  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null)
 
   useEffect(() => {
-    if (!database || !currentUser || isProfileLoading || !currentUserProfile) return;
-
-    const syncBalanceAndRoles = async () => {
-      const rtdbRef = ref(database, `users/${currentUser.uid}`);
-      
-      // Mirror roles to RTDB so security rules can verify status immediately
-      await update(rtdbRef, {
-        coinBalance: currentUserProfile.coinBalance || 0,
-        diamondBalance: currentUserProfile.diamondBalance || 0,
-        isAdmin: !!currentUserProfile.isAdmin,
-        isCoinseller: !!currentUserProfile.isCoinseller,
-        isAgent: !!currentUserProfile.isAgent,
-        isSupport: !!currentUserProfile.isSupport,
-        inCall: false
-      });
-    }
-    syncBalanceAndRoles();
-  }, [database, currentUser, isProfileLoading, !!currentUserProfile]);
-
-  const processAndSortUsers = async (fetchedUsers: any[]) => {
-    if (!database) return fetchedUsers;
-
-    const currentMap: Record<string, boolean> = { ...userPresenceMap };
-    
-    await Promise.all(fetchedUsers.map(async (u) => {
-      try {
-        const pRef = ref(database, `users/${u.id}/presence/online`);
-        const snap = await get(pRef);
-        currentMap[u.id] = snap.val() === true;
-      } catch (e) {
-        currentMap[u.id] = false;
-      }
-    }));
-
-    setUserPresenceMap(currentMap);
-    cachedPresenceMap = currentMap;
-
-    const onlineUsers = fetchedUsers.filter(u => currentMap[u.id]);
-    const offlineUsers = fetchedUsers.filter(u => !currentMap[u.id]);
-
-    return [...shuffleArray(onlineUsers), ...shuffleArray(offlineUsers)];
-  }
+    if (!database || !currentUser) return;
+    const userRef = ref(database, `users/${currentUser.uid}`);
+    return onValue(userRef, (snap) => {
+      const data = snap.val();
+      if (data) setCurrentUserProfile(data);
+    });
+  }, [database, currentUser]);
 
   const fetchUsers = async (isRefresh = false) => {
-    if (!firestore || !currentUser || isProfileLoading || !currentUserProfile) return;
+    if (!database || !currentUser || !currentUserProfile) return;
     
     if (isRefresh) {
       setIsInitialLoading(true);
@@ -110,39 +63,39 @@ export default function DiscoverPage() {
       const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
       const targetGender = currentGender === 'male' ? 'female' : 'male'
 
-      const q = query(
-        collection(firestore, 'userProfiles'), 
-        where('gender', '==', targetGender),
-        orderBy('createdAt', 'desc'),
-        limit(24)
-      )
+      // RTDB Query: Fetch latest 50 users and filter client-side
+      const usersRef = ref(database, 'users');
+      const q = rtdbQuery(usersRef, orderByChild('createdAt'), limitToLast(50));
+      const snap = await get(q);
       
-      const snap = await getDocs(q)
-      if (snap.empty) {
-        setHasMore(false);
-        cachedHasMore = false;
+      if (!snap.exists()) {
         setUsers([]);
         cachedUsers = [];
         return;
       }
 
-      const fetchedRaw = snap.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(u => u.id !== currentUser?.uid && !u.isSupport)
+      const allUsers = Object.values(snap.val());
+      const filtered = allUsers.filter((u: any) => 
+        u.id !== currentUser.uid && 
+        u.gender?.toLowerCase() === targetGender &&
+        !u.isSupport
+      );
+
+      const currentMap: Record<string, boolean> = { ...userPresenceMap };
+      filtered.forEach((u: any) => {
+        currentMap[u.id] = u.presence?.online === true;
+      });
+
+      setUserPresenceMap(currentMap);
+      cachedPresenceMap = currentMap;
+
+      const onlineUsers = filtered.filter((u: any) => currentMap[u.id]);
+      const offlineUsers = filtered.filter((u: any) => !currentMap[u.id]);
+
+      const sorted = [...shuffleArray(onlineUsers), ...shuffleArray(offlineUsers)];
       
-      const processed = await processAndSortUsers(fetchedRaw);
-      
-      setUsers(processed);
-      cachedUsers = processed;
-      
-      const last = snap.docs[snap.docs.length - 1];
-      setLastVisible(last);
-      cachedLastVisible = last;
-      
-      const more = snap.docs.length >= 20;
-      setHasMore(more);
-      cachedHasMore = more;
-      
+      setUsers(sorted);
+      cachedUsers = sorted;
       cachedInitialLoaded = true;
     } catch (error) {
       console.error("Error fetching users:", error)
@@ -152,57 +105,8 @@ export default function DiscoverPage() {
   }
 
   useEffect(() => {
-    fetchUsers();
-  }, [firestore, currentUser, isProfileLoading, currentUserProfile?.gender]);
-
-  const loadMore = async () => {
-    if (!firestore || !lastVisible || isLoadingMore || !hasMore || !currentUserProfile) return
-    setIsLoadingMore(true)
-
-    try {
-      const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
-      const targetGender = currentGender === 'male' ? 'female' : 'male'
-
-      const q = query(
-        collection(firestore, 'userProfiles'),
-        where('gender', '==', targetGender),
-        orderBy('createdAt', 'desc'),
-        startAfter(lastVisible),
-        limit(15)
-      )
-
-      const snap = await getDocs(q)
-      if (snap.empty) {
-        setHasMore(false)
-        cachedHasMore = false
-        setIsLoadingMore(false)
-        return
-      }
-
-      const fetchedRaw = snap.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter(u => u.id !== currentUser?.uid && !u.isSupport)
-
-      if (fetchedRaw.length > 0) {
-        const processedBatch = await processAndSortUsers(fetchedRaw);
-        const updatedUsers = [...users, ...processedBatch]
-        setUsers(updatedUsers)
-        cachedUsers = updatedUsers
-        
-        const last = snap.docs[snap.docs.length - 1]
-        setLastVisible(last)
-        cachedLastVisible = last
-      }
-      
-      const more = snap.docs.length >= 15
-      setHasMore(more)
-      cachedHasMore = more
-    } catch (error) {
-      console.error("Error loading more users:", error)
-    } finally {
-      setIsLoadingMore(false)
-    }
-  }
+    if (currentUserProfile) fetchUsers();
+  }, [currentUserProfile]);
 
   const handleRefresh = async () => {
     clearDiscoverCache();
@@ -324,22 +228,9 @@ export default function DiscoverPage() {
           </div>
         ))}
 
-        {(isInitialLoading || isProfileLoading) && Array.from({ length: 4 }).map((_, i) => (
+        {isInitialLoading && Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="aspect-[3/4.2] rounded-[2.5rem] bg-white/20 animate-pulse" />
         ))}
-
-        {hasMore && !(isInitialLoading || isProfileLoading) && (
-          <div className="col-span-2 flex justify-center py-8">
-            <Button 
-              variant="ghost" 
-              onClick={loadMore} 
-              disabled={isLoadingMore}
-              className="h-12 px-8 rounded-full bg-white/40 backdrop-blur-md border border-white/30 text-[10px] font-black uppercase tracking-widest text-primary hover:bg-white"
-            >
-              {isLoadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : "Load More"}
-            </Button>
-          </div>
-        )}
       </main>
     </div>
   )
