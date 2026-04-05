@@ -1,72 +1,126 @@
 {
   "rules": {
     "users": {
+      ".read": "auth != null",
+      ".indexOn": ["gender", "numericId", "createdAt", "isCoinseller", "isSupport", "isAgent"],
       "$uid": {
-        ".read": "auth != null",
+        // Users can edit themselves; Admins/Coinsellers can manage any user (for roles/balance)
         ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isCoinseller').val() === true)",
+        
         "incomingCallId": {
+          // Required so anyone can "ring" this user
           ".write": "auth != null"
         },
+        
         "presence": {
           ".write": "auth != null && auth.uid === $uid"
         },
+        
         "chats": {
           "$otherId": {
+            // Allow the sender ($otherId) to update the recipient's inbox metadata (unread count, etc.)
             ".write": "auth != null && $otherId === auth.uid",
             ".read": "auth != null && (auth.uid === $uid || $otherId === auth.uid)"
           }
+        },
+        
+        "blockedUsers": {
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid"
         }
       }
     },
+    
+    "userTransactions": {
+      "$uid": {
+        // Only the owner or Admins can see the ledger
+        ".read": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
+        // Logs are permanent; only the owner or official financial roles can append records
+        ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isCoinseller').val() === true)"
+      }
+    },
+    
     "chats": {
       "$chatId": {
+        // Chat contents are strictly for the two people in the conversation
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)"
       }
     },
+    
     "calls": {
       "$chatId": {
+        // Signaling data is strictly for the two participants
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)"
       }
     },
-    "partyRooms": {
-      ".read": "auth != null",
-      "$roomId": {
-        ".write": "auth != null && (!data.exists() || data.child('hostId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
-        "participants": {
-          "$userId": {
-            ".write": "auth != null && $userId === auth.uid"
-          }
-        }
+    
+    "reports": {
+      // Only Support or Admins can browse the reports queue
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('isSupport').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
+      "$reportId": {
+        // Anyone can file a report
+        ".write": "auth != null"
       }
     },
+    
     "agencies": {
       ".read": "auth != null",
       "$agencyId": {
+        // Create if doesn't exist, otherwise must be the Agent or an Admin
         ".write": "auth != null && (!data.exists() || data.child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)"
       }
     },
+    
     "agencyRequests": {
       "$agencyId": {
+        // Only the Agent or Admins can see pending requests
         ".read": "auth != null && (root.child('agencies').child($agencyId).child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
         "$userId": {
+          // Users can apply/withdraw; Agent/Admin can process
           ".write": "auth != null && (auth.uid === $userId || root.child('agencies').child($agencyId).child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)"
         }
       }
     },
+    
     "agencyMembers": {
+      ".read": "auth != null",
       "$agencyId": {
-        ".read": "auth != null",
         "$userId": {
+          // Member can leave; Agent/Admin can manage
           ".write": "auth != null && (auth.uid === $userId || root.child('agencies').child($agencyId).child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)"
         }
       }
     },
+    
     "agencyWithdrawals": {
       "$agencyId": {
+        // Only Agent/Admin can see withdrawal history
         ".read": "auth != null && (root.child('agencies').child($agencyId).child('agentId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
         "$requestId": {
+          // Anyone can request a withdrawal; processing done by Agent/Admin
+          ".write": "auth != null"
+        }
+      }
+    },
+    
+    "partyRooms": {
+      ".read": "auth != null",
+      "$roomId": {
+        // Only Host or Admin can manage room settings
+        ".write": "auth != null && (!data.exists() || data.child('hostId').val() === auth.uid || root.child('users').child(auth.uid).child('isAdmin').val() === true)",
+        
+        "participants": {
+          "$userId": {
+            // Users manage their own entry/exit
+            ".write": "auth != null && $userId === auth.uid"
+          }
+        },
+        
+        "messages": {
+          // Messages within a party room are readable by anyone in the room
+          ".read": "auth != null",
           ".write": "auth != null"
         }
       }
