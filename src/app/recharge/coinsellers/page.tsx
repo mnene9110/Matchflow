@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Suspense, useState, useEffect } from "react"
@@ -5,19 +6,26 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, MessageCircle, Users, Loader2, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useFirebase } from "@/firebase"
-import { collection, query, where, onSnapshot } from "firebase/firestore"
+import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { collection, query, where, onSnapshot, doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
+import { COUNTRY_CURRENCIES } from "../page"
 
 function CoinsellersContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const { firestore } = useFirebase()
+  const { user: currentUser } = useUser()
   const { toast } = useToast()
 
   const selectedAmount = searchParams?.get('amount')
   const [coinsellers, setCoinsellers] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+
+  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const { data: profile } = useDoc(meRef)
+
+  const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
 
   useEffect(() => {
     if (!firestore) return
@@ -35,7 +43,7 @@ function CoinsellersContent() {
 
   const handleChatWithSeller = (sellerId: string) => {
     const message = selectedAmount 
-      ? `I want to buy ${selectedAmount} coins` 
+      ? `I want to buy ${selectedAmount} coins via ${currencyInfo.code}` 
       : "I want to buy coins"
     
     router.push(`/chat/${sellerId}?msg=${encodeURIComponent(message)}`)
@@ -57,19 +65,19 @@ function CoinsellersContent() {
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
-        <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Official Sellers</h1>
+        <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase text-white drop-shadow-md">Official Sellers</h1>
       </header>
 
       <main className="flex-1 px-6 pb-20 space-y-4">
         <div className="flex items-center gap-2 mb-2">
-           <Users className="w-4 h-4 text-primary/40" />
-           <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Select a seller to purchase coins</p>
+           <Users className="w-4 h-4 text-white/40" />
+           <p className="text-[10px] font-black text-white/60 uppercase tracking-widest">Select a seller to purchase coins in {currencyInfo.code}</p>
         </div>
 
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
-            <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Loading sellers...</span>
+            <Loader2 className="w-8 h-8 animate-spin text-white" />
+            <span className="text-[10px] font-black text-white/40 uppercase tracking-widest">Loading sellers...</span>
           </div>
         ) : coinsellers && coinsellers.length > 0 ? (
           <div className="space-y-3">
@@ -107,11 +115,11 @@ function CoinsellersContent() {
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
             <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-[2.5rem] flex items-center justify-center border border-white/30">
-              <Users className="w-8 h-8 text-gray-200" />
+              <Users className="w-8 h-8 text-white/20" />
             </div>
             <div className="space-y-1">
-              <h3 className="text-sm font-black text-gray-900 uppercase">No Sellers Online</h3>
-              <p className="text-[10px] font-bold text-gray-400 max-w-[180px] mx-auto uppercase tracking-tighter">
+              <h3 className="text-sm font-black text-white/60 uppercase">No Sellers Online</h3>
+              <p className="text-[10px] font-bold text-white/40 max-w-[180px] mx-auto uppercase tracking-tighter">
                 Please try again later or use the digital payment gateway.
               </p>
             </div>
