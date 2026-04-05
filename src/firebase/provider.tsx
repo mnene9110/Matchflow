@@ -3,9 +3,9 @@
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore } from 'firebase/firestore';
+import { Firestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
-import { Database, ref, onValue, set, onDisconnect, serverTimestamp as rtdbTimestamp } from 'firebase/database';
+import { Database } from 'firebase/database';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 
 interface FirebaseProviderProps {
@@ -82,35 +82,37 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     return () => unsubscribe();
   }, [auth]);
 
-  // Global Presence System Logic
+  // Firestore Presence tracking
   useEffect(() => {
-    if (!userAuthState.user || !database) return;
+    if (!userAuthState.user || !firestore) return;
 
-    const userId = userAuthState.user.uid;
-    const userStatusRef = ref(database, `users/${userId}/presence`);
-    const connectedRef = ref(database, '.info/connected');
+    const userRef = doc(firestore, "userProfiles", userAuthState.user.uid);
+    
+    // Set online
+    updateDoc(userRef, { 
+      isOnline: true, 
+      lastActiveAt: serverTimestamp() 
+    }).catch(() => {});
 
-    const unsubscribe = onValue(connectedRef, (snap) => {
-      if (snap.val() === true) {
-        // We are connected (or reconnected)!
-        // When I disconnect, update this child to offline and set last seen
-        onDisconnect(userStatusRef).set({
-          online: false,
-          lastSeen: rtdbTimestamp()
-        }).then(() => {
-          // After setting up the onDisconnect, set the user to online
-          set(userStatusRef, {
-            online: true,
-            lastSeen: rtdbTimestamp()
-          });
-        });
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        updateDoc(userRef, { isOnline: true, lastActiveAt: serverTimestamp() }).catch(() => {});
+      } else {
+        updateDoc(userRef, { isOnline: false }).catch(() => {});
       }
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', () => {
+      // Best effort offline update
+      updateDoc(userRef, { isOnline: false }).catch(() => {});
     });
 
     return () => {
-      unsubscribe();
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      updateDoc(userRef, { isOnline: false }).catch(() => {});
     };
-  }, [userAuthState.user, database]);
+  }, [userAuthState.user, firestore]);
 
   const contextValue = useMemo((): FirebaseContextState => {
     const servicesAvailable = !!(firebaseApp && firestore && auth && database);
@@ -136,15 +138,10 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
 export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
-
-  if (context === undefined) {
-    throw new Error('useFirebase must be used within a FirebaseProvider.');
-  }
-
+  if (context === undefined) throw new Error('useFirebase must be used within a FirebaseProvider.');
   if (!context.areServicesAvailable || !context.firebaseApp || !context.firestore || !context.auth || !context.database) {
-    throw new Error('Firebase core services not available. Check FirebaseProvider props.');
+    throw new Error('Firebase core services not available.');
   }
-
   return {
     firebaseApp: context.firebaseApp,
     firestore: context.firestore,

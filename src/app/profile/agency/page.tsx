@@ -3,13 +3,12 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Loader2, Building2, Clock, CheckCircle2, XCircle, LogOut, Wallet, ArrowRight } from "lucide-react"
+import { ChevronLeft, Loader2, Building2, Clock, CheckCircle2, LogOut, Wallet, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useToast } from "@/hooks/use-toast"
-import { useUser, useDoc, useFirestore, useMemoFirebase, useFirebase } from "@/firebase"
-import { doc, updateDoc, getDoc, setDoc } from "firebase/firestore"
-import { ref, update, onValue, get, remove, set, push } from "firebase/database"
+import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
+import { doc, updateDoc, getDoc, setDoc, collection, addDoc, serverTimestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -22,10 +21,10 @@ import {
 export default function JoinAgencyPage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
-  const { database, firestore } = useFirebase()
+  const { firestore } = useFirebase()
   const { toast } = useToast()
   
-  const userRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const userRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
   const { data: profile, isLoading } = useDoc(userRef)
 
   const [agencyId, setAgencyId] = useState("")
@@ -34,15 +33,15 @@ export default function JoinAgencyPage() {
   const [withdrawAmount, setWithdrawAmount] = useState("")
 
   const handleSubmit = async () => {
-    if (!agencyId.trim() || !currentUser || !database) {
+    if (!agencyId.trim() || !currentUser || !firestore) {
       toast({ variant: "destructive", title: "Missing ID", description: "Please enter an agency ID." })
       return
     }
 
     setIsSubmitting(true)
     try {
-      // 1. Check if Agency exists in RTDB
-      const agencySnap = await get(ref(database, `agencies/${agencyId.trim()}`))
+      const agencyRef = doc(firestore, "agencies", agencyId.trim())
+      const agencySnap = await getDoc(agencyRef)
 
       if (!agencySnap.exists()) {
         toast({ variant: "destructive", title: "Invalid ID", description: "This Agency ID does not exist." })
@@ -50,18 +49,14 @@ export default function JoinAgencyPage() {
         return
       }
 
-      const agencyData = agencySnap.val()
-
-      // 2. Submit request to RTDB
-      await set(ref(database, `agencyRequests/${agencyId.trim()}/${currentUser.uid}`), {
+      await setDoc(doc(firestore, "agencies", agencyId.trim(), "requests", currentUser.uid), {
         userId: currentUser.uid,
         username: profile?.username || "User",
         photo: profile?.profilePhotoUrls?.[0] || "",
         numericId: profile?.numericId || "",
-        timestamp: Date.now()
+        timestamp: serverTimestamp()
       })
 
-      // 3. Update Firestore status
       await updateDoc(doc(firestore, "userProfiles", currentUser.uid), {
         agencyJoinStatus: "pending",
         memberOfAgencyId: agencyId.trim(),
@@ -77,13 +72,11 @@ export default function JoinAgencyPage() {
   }
 
   const handleLeaveAgency = async () => {
-    if (!currentUser || !profile?.memberOfAgencyId || !database) return
+    if (!currentUser || !profile?.memberOfAgencyId || !firestore) return
     setIsSubmitting(true)
     try {
       const aid = profile.memberOfAgencyId
-      const updates: any = {}
-      updates[`agencyMembers/${aid}/${currentUser.uid}`] = null
-      await update(ref(database), updates)
+      await deleteDoc(doc(firestore, "agencies", aid, "members", currentUser.uid))
 
       await updateDoc(doc(firestore, "userProfiles", currentUser.uid), {
         agencyJoinStatus: "none",
@@ -91,7 +84,7 @@ export default function JoinAgencyPage() {
         updatedAt: new Date().toISOString()
       })
 
-      toast({ title: "Left Agency", description: "You are no longer a member of the agency." })
+      toast({ title: "Left Agency", description: "You are no longer a member." })
     } catch (e) {
       toast({ variant: "destructive", title: "Error" })
     } finally {
@@ -100,20 +93,19 @@ export default function JoinAgencyPage() {
   }
 
   const handleWithdrawRequest = async () => {
-    if (!withdrawAmount || !currentUser || !profile?.memberOfAgencyId || !database) return
+    if (!withdrawAmount || !currentUser || !profile?.memberOfAgencyId || !firestore) return
     setIsSubmitting(true)
     try {
       const aid = profile.memberOfAgencyId
-      const requestId = push(ref(database, `agencyWithdrawals/${aid}`)).key
+      const withdrawalsRef = collection(firestore, "agencies", aid, "withdrawals")
       
-      await update(ref(database, `agencyWithdrawals/${aid}/${requestId}`), {
-        id: requestId,
+      await addDoc(withdrawalsRef, {
         userId: currentUser.uid,
         username: profile.username,
         photo: profile.profilePhotoUrls?.[0] || "",
         amount: Number(withdrawAmount),
         status: 'pending',
-        timestamp: Date.now()
+        timestamp: serverTimestamp()
       })
 
       toast({ title: "Request Sent", description: "The agent will notify you when paid." })
@@ -149,20 +141,13 @@ export default function JoinAgencyPage() {
           </div>
 
           <div className="grid grid-cols-1 gap-4">
-            <button 
-              onClick={() => setShowWithdrawDialog(true)}
-              className="w-full h-20 bg-gray-50 border border-gray-100 rounded-[2rem] flex items-center px-6 gap-4 active:scale-95 transition-all"
-            >
+            <button onClick={() => setShowWithdrawDialog(true)} className="w-full h-20 bg-gray-50 border border-gray-100 rounded-[2rem] flex items-center px-6 gap-4 active:scale-95 transition-all">
               <div className="w-12 h-12 bg-green-500/10 rounded-2xl flex items-center justify-center text-green-600"><Wallet className="w-6 h-6" /></div>
               <div className="flex-1 text-left"><span className="text-[10px] font-black uppercase text-gray-400 block tracking-widest">Withdrawal</span><span className="text-sm font-black">Request Agency Payout</span></div>
               <ArrowRight className="w-5 h-5 text-gray-300" />
             </button>
 
-            <button 
-              onClick={handleLeaveAgency}
-              disabled={isSubmitting}
-              className="w-full h-20 bg-red-50 border border-red-100 rounded-[2rem] flex items-center px-6 gap-4 active:scale-95 transition-all text-red-600"
-            >
+            <button onClick={handleLeaveAgency} disabled={isSubmitting} className="w-full h-20 bg-red-50 border border-red-100 rounded-[2rem] flex items-center px-6 gap-4 active:scale-95 transition-all text-red-600">
               <div className="w-12 h-12 bg-red-500/10 rounded-2xl flex items-center justify-center"><LogOut className="w-6 h-6" /></div>
               <div className="flex-1 text-left"><span className="text-[10px] font-black uppercase text-red-400/60 block tracking-widest">Membership</span><span className="text-sm font-black">Leave Agency Anchor</span></div>
             </button>
@@ -200,7 +185,7 @@ export default function JoinAgencyPage() {
           <div className="space-y-2">
             <h2 className="text-3xl font-black font-headline text-gray-900">Pending Review</h2>
             <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px]">
-              The agent is currently reviewing your request to join. You'll be notified once approved.
+              The agent is reviewing your request. You'll be notified once approved.
             </p>
           </div>
         </main>
@@ -220,9 +205,9 @@ export default function JoinAgencyPage() {
           <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center"><Building2 className="w-8 h-8 text-primary" /></div>
           <h2 className="text-3xl font-black font-headline text-gray-900 tracking-tight">Agency ID</h2>
           <div className="relative"><Input placeholder="Please enter the agency ID" value={agencyId} onChange={(e) => setAgencyId(e.target.value)} className="h-14 bg-transparent border-0 border-b-2 border-gray-100 rounded-none px-0 text-lg font-medium focus-visible:ring-0 focus-visible:border-primary placeholder:text-gray-300" /></div>
-          <p className="text-[13px] text-gray-400 font-medium leading-relaxed max-w-[300px]">After the agency owner approves your application, you will join the official team.</p>
+          <p className="text-[13px] text-gray-400 font-medium leading-relaxed max-w-[300px]">After approval, you will join the official team.</p>
         </div>
-        <div className="pt-20"><Button onClick={handleSubmit} disabled={isSubmitting || !agencyId.trim()} className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl active:scale-95 transition-all">{isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : "Applications for Membership"}</Button></div>
+        <div className="pt-20"><Button onClick={handleSubmit} disabled={isSubmitting || !agencyId.trim()} className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl active:scale-95 transition-all">{isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : "Apply for Membership"}</Button></div>
       </main>
     </div>
   )

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -16,7 +17,6 @@ export default function WelcomePage() {
 
   useEffect(() => {
     if (user && !isUserLoading && firestore) {
-      // Check if user has a profile in Firestore
       getDoc(doc(firestore, "userProfiles", user.uid)).then(snap => {
         if (snap.exists()) {
           router.replace("/discover")
@@ -69,36 +69,17 @@ export default function WelcomePage() {
         </div>
 
         <h1 className="text-5xl font-logo text-primary mb-2 drop-shadow-md">MatchFlow</h1>
-
-        <p className="text-[#5A1010]/80 text-[15px] font-black uppercase tracking-[0.1em] leading-relaxed max-w-[240px] mb-12">
-          Connect with Heart
-        </p>
+        <p className="text-[#5A1010]/80 text-[15px] font-black uppercase tracking-[0.1em] leading-relaxed max-w-[240px] mb-12">Connect with Heart</p>
 
         <div className="w-full space-y-4 max-w-xs">
-          <Button 
-            className="w-full h-16 rounded-full bg-[#5A1010] text-white hover:bg-[#5A1010]/90 text-lg font-black gap-3 shadow-[0_15px_40px_rgba(0,0,0,0.2)] transition-all active:scale-95"
-            onClick={() => router.push("/login")}
-          >
-            <Mail className="w-6 h-6" />
-            Continue with Email
+          <Button className="w-full h-16 rounded-full bg-[#5A1010] text-white hover:bg-[#5A1010]/90 text-lg font-black gap-3 shadow-[0_15px_40px_rgba(0,0,0,0.2)] transition-all active:scale-95" onClick={() => router.push("/login")}>
+            <Mail className="w-6 h-6" /> Continue with Email
           </Button>
-
-          <Button 
-            variant="ghost"
-            className="w-full h-16 rounded-full bg-white/40 text-gray-900 border border-white/30 hover:bg-white/60 text-lg font-black gap-3 transition-all active:scale-95 backdrop-blur-md shadow-sm"
-            onClick={handleFastLogin}
-            disabled={isLoggingIn}
-          >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-primary" />}
-            Fast Login
+          <Button variant="ghost" className="w-full h-16 rounded-full bg-white/40 text-gray-900 border border-white/30 hover:bg-white/60 text-lg font-black gap-3 transition-all active:scale-95 backdrop-blur-md shadow-sm" onClick={handleFastLogin} disabled={isLoggingIn}>
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-primary" />} Fast Login
           </Button>
         </div>
-
-        <footer className="mt-12">
-          <p className="text-[10px] text-gray-900 font-black uppercase tracking-[0.25em] leading-normal max-w-[200px] opacity-40">
-            SECURE ACCESS • PRIVATE DATA
-          </p>
-        </footer>
+        <footer className="mt-12"><p className="text-[10px] text-gray-900 font-black uppercase tracking-[0.25em] leading-normal max-w-[200px] opacity-40">SECURE ACCESS • PRIVATE DATA</p></footer>
       </main>
     </div>
   )

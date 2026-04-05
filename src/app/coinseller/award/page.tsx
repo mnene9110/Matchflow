@@ -7,16 +7,24 @@ import { ChevronLeft, Search, Loader2, Coins, Award, UserCheck, ArrowRight } fro
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useFirestore, useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
-import { doc, query, collection, where, getDocs, updateDoc, increment as firestoreIncrement, setDoc } from "firebase/firestore"
-import { ref, get, runTransaction as runRtdbTransaction } from "firebase/database"
+import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
+import { 
+  doc, 
+  query, 
+  collection, 
+  where, 
+  getDocs, 
+  updateDoc, 
+  increment, 
+  setDoc,
+  runTransaction 
+} from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
-import { cn } from "@/lib/utils"
 
 export default function AwardCoinsPage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
-  const { firestore, database } = useFirebase()
+  const { firestore } = useFirebase()
   const { toast } = useToast()
 
   const [targetNumericId, setTargetNumericId] = useState("")
@@ -25,8 +33,8 @@ export default function AwardCoinsPage() {
   const [isAwarding, setIsAwarding] = useState(false)
   const [foundUser, setFoundUser] = useState<any>(null)
 
-  const currentUserRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile } = useDoc(currentUserRef)
+  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const { data: profile } = useDoc(meRef)
 
   const isEligible = profile?.isCoinseller || profile?.isAdmin;
 
@@ -35,7 +43,7 @@ export default function AwardCoinsPage() {
   }
 
   const handleSearch = async () => {
-    if (!targetNumericId.trim()) return
+    if (!targetNumericId.trim() || !firestore) return
     setIsSearching(true)
     setFoundUser(null)
     
@@ -44,12 +52,12 @@ export default function AwardCoinsPage() {
       const snap = await getDocs(q)
       
       if (snap.empty) {
-        toast({ variant: "destructive", title: "User not found", description: "Check the numeric ID and try again." })
+        toast({ variant: "destructive", title: "User not found" })
       } else {
         setFoundUser({ ...snap.docs[0].data(), docId: snap.docs[0].id })
       }
     } catch (error) {
-      toast({ variant: "destructive", title: "Search failed", description: "Could not connect to database." })
+      toast({ variant: "destructive", title: "Search failed" })
     } finally {
       setIsSearching(false)
     }
@@ -57,62 +65,47 @@ export default function AwardCoinsPage() {
 
   const handleAward = async () => {
     const amount = Number(awardAmount)
-    if (!foundUser || !amount || amount <= 0 || isAwarding || !currentUser || !profile) return
+    if (!foundUser || !amount || amount <= 0 || isAwarding || !currentUser || !profile || !firestore) return
 
     setIsAwarding(true)
     try {
-      // 1. RTDB Atomic Transaction
-      const senderCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
-      const receiverCoinRef = ref(database, `users/${foundUser.id}/coinBalance`);
+      await runTransaction(firestore, async (transaction) => {
+        const targetRef = doc(firestore, "userProfiles", foundUser.docId);
+        
+        if (profile.isCoinseller && !profile.isAdmin) {
+          const myProfileSnap = await transaction.get(meRef!);
+          const myBalance = myProfileSnap.data()?.coinBalance || 0;
+          if (myBalance < amount) throw new Error("INSUFFICIENT_COINS");
+          
+          transaction.update(meRef!, { coinBalance: increment(-amount) });
+          
+          const myTxRef = doc(collection(meRef!, "transactions"));
+          transaction.set(myTxRef, {
+            id: myTxRef.id,
+            type: "deduction",
+            amount: -amount,
+            transactionDate: new Date().toISOString(),
+            description: `Awarded coins to ID: ${foundUser.numericId}`
+          });
+        }
 
-      if (profile.isCoinseller && !profile.isAdmin) {
-        const result = await runRtdbTransaction(senderCoinRef, (current) => {
-          if (current === null) return 0;
-          if (current < amount) return undefined;
-          return current - amount;
-        });
-        if (!result.committed) throw new Error("INSUFFICIENT_COINS");
-      }
-
-      await runRtdbTransaction(receiverCoinRef, (current) => (current || 0) + amount);
-
-      // 2. Firestore Backup Sync
-      const senderRef = doc(firestore, "userProfiles", currentUser.uid);
-      const targetRef = doc(firestore, "userProfiles", foundUser.id);
-
-      if (profile.isCoinseller && !profile.isAdmin) {
-        updateDoc(senderRef, {
-          coinBalance: firestoreIncrement(-amount),
-          updatedAt: new Date().toISOString()
-        });
-        const senderTxRef = doc(collection(senderRef, "transactions"));
-        setDoc(senderTxRef, {
-          id: senderTxRef.id,
-          type: "deduction",
-          amount: -amount,
+        transaction.update(targetRef, { coinBalance: increment(amount) });
+        
+        const targetTxRef = doc(collection(targetRef, "transactions"));
+        transaction.set(targetTxRef, {
+          id: targetTxRef.id,
+          type: "award",
+          amount: amount,
           transactionDate: new Date().toISOString(),
-          description: `Awarded coins to ID: ${foundUser.numericId}`
+          description: `Received coins from ${profile.isAdmin ? 'Admin' : 'Coinseller'}`
         });
-      }
-
-      updateDoc(targetRef, {
-        coinBalance: firestoreIncrement(amount),
-        updatedAt: new Date().toISOString()
-      });
-
-      const targetTxRef = doc(collection(targetRef, "transactions"));
-      setDoc(targetTxRef, {
-        id: targetTxRef.id,
-        type: "award",
-        amount: amount,
-        transactionDate: new Date().toISOString(),
-        description: `Received coins from ${profile.isAdmin ? 'Admin' : 'Coinseller'}`
       });
 
       toast({ title: "Award Successful", description: `${amount} coins have been sent.` })
       router.back()
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Award failed", description: error.message || "An error occurred." })
+      const msg = error.message === "INSUFFICIENT_COINS" ? "Insufficient coins in your wallet." : "An error occurred.";
+      toast({ variant: "destructive", title: "Award failed", description: msg })
     } finally {
       setIsAwarding(false)
     }
@@ -121,14 +114,7 @@ export default function AwardCoinsPage() {
   return (
     <div className="flex flex-col min-h-svh bg-transparent text-gray-900">
       <header className="px-4 py-6 flex items-center sticky top-0 bg-transparent z-10">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => router.back()} 
-          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"><ChevronLeft className="w-6 h-6" /></Button>
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Award Coins</h1>
       </header>
 
@@ -150,30 +136,16 @@ export default function AwardCoinsPage() {
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-              <Input 
-                placeholder="Enter ID" 
-                value={targetNumericId}
-                onChange={(e) => setTargetNumericId(e.target.value)}
-                className="h-14 pl-12 rounded-2xl bg-white/40 border-white/40 text-sm font-bold shadow-sm"
-                type="number"
-              />
+              <Input placeholder="Enter ID" value={targetNumericId} onChange={(e) => setTargetNumericId(e.target.value)} className="h-14 pl-12 rounded-2xl bg-white/40 border-white/40 text-sm font-bold shadow-sm" type="number" />
             </div>
-            <Button 
-              onClick={handleSearch} 
-              disabled={isSearching || !targetNumericId}
-              className="h-14 w-14 rounded-2xl bg-zinc-900"
-            >
-              {isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}
-            </Button>
+            <Button onClick={handleSearch} disabled={isSearching || !targetNumericId} className="h-14 w-14 rounded-2xl bg-zinc-900">{isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}</Button>
           </div>
         </section>
 
         {foundUser && (
           <section className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
             <div className="p-6 bg-white/60 backdrop-blur-xl border border-white rounded-[2.5rem] shadow-xl flex items-center gap-4">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                 <UserCheck className="w-8 h-8 text-primary" />
-              </div>
+              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center"><UserCheck className="w-8 h-8 text-primary" /></div>
               <div className="flex-1">
                 <h3 className="font-black text-lg text-gray-900 leading-tight">{foundUser.username}</h3>
                 <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest">ID: {foundUser.numericId}</p>
@@ -185,27 +157,12 @@ export default function AwardCoinsPage() {
               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Award Amount</Label>
               <div className="relative">
                  <Award className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" />
-                 <Input 
-                   type="number"
-                   placeholder="0"
-                   value={awardAmount}
-                   onChange={(e) => setAwardAmount(e.target.value)}
-                   className="h-16 pl-14 rounded-3xl bg-white border-2 border-amber-500/20 text-2xl font-black focus-visible:ring-amber-500/10"
-                 />
+                 <Input type="number" placeholder="0" value={awardAmount} onChange={(e) => setAwardAmount(e.target.value)} className="h-16 pl-14 rounded-3xl bg-white border-2 border-amber-500/20 text-2xl font-black focus-visible:ring-amber-500/10" />
               </div>
             </div>
 
-            <Button 
-              className="w-full h-16 rounded-full bg-zinc-900 text-white font-black text-lg shadow-2xl active:scale-95 transition-all gap-3"
-              onClick={handleAward}
-              disabled={isAwarding || !awardAmount || Number(awardAmount) <= 0}
-            >
-              {isAwarding ? <Loader2 className="w-6 h-6 animate-spin" /> : (
-                <>
-                  Grant Coins
-                  <ArrowRight className="w-5 h-5" />
-                </>
-              )}
+            <Button className="w-full h-16 rounded-full bg-zinc-900 text-white font-black text-lg shadow-2xl active:scale-95 transition-all gap-3" onClick={handleAward} disabled={isAwarding || !awardAmount || Number(awardAmount) <= 0}>
+              {isAwarding ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span className="text-sm font-black uppercase tracking-widest">Grant Coins</span><ArrowRight className="w-5 h-5" /></>}
             </Button>
           </section>
         )}

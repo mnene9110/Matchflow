@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -8,8 +9,24 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useFirebase, useUser } from "@/firebase"
-import { ref, push, onValue, serverTimestamp as rtdbTimestamp, update, set, increment, runTransaction as runRtdbTransaction, query, limitToLast, get } from "firebase/database"
+import { useFirebase, useUser, useDoc, useMemoFirebase, useCollection } from "@/firebase"
+import { 
+  collection, 
+  doc, 
+  addDoc, 
+  updateDoc, 
+  query, 
+  orderBy, 
+  limit, 
+  onSnapshot, 
+  serverTimestamp, 
+  increment, 
+  runTransaction,
+  where,
+  getDoc,
+  getDocs,
+  setDoc
+} from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
@@ -35,7 +52,7 @@ function ChatDetailContent() {
   const initialMsg = searchParams?.get('msg')
   
   const { user: currentUser } = useUser()
-  const { database } = useFirebase()
+  const { firestore } = useFirebase()
   const router = useRouter()
   const { toast } = useToast()
   
@@ -44,11 +61,6 @@ function ChatDetailContent() {
   const [inputText, setInputText] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
-  const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
-  const [userCoins, setUserCoins] = useState(0)
-  const [otherUser, setOtherUser] = useState<any>(null)
-  const [currentUserProfile, setCurrentUserProfile] = useState<any>(null)
-  const [isOtherUserLoading, setIsOtherUserLoading] = useState(true)
   
   // PAGINATION
   const [msgLimit, setMsgLimit] = useState(30)
@@ -58,28 +70,35 @@ function ChatDetailContent() {
   const [selectedGift, setSelectedGift] = useState<typeof GIFTS[0] | null>(null)
   const [isSendingGift, setIsSendingGift] = useState(false)
 
-  const chatId = currentUser && otherUserId ? [currentUser.uid, otherUserId].sort().join("_") : ""
+  const chatId = useMemo(() => {
+    if (!currentUser || !otherUserId) return ""
+    return [currentUser.uid, otherUserId].sort().join("_")
+  }, [currentUser?.uid, otherUserId])
+
+  const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "userProfiles", otherUserId) : null, [firestore, otherUserId])
+  const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
+
+  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
+  const { data: currentUserProfile } = useDoc(meRef)
 
   useEffect(() => {
-    if (!database || !otherUserId) return;
-    const userRef = ref(database, `users/${otherUserId}`);
-    return onValue(userRef, (snap) => {
-      setOtherUser(snap.val());
-      setIsOtherUserLoading(false);
-    });
-  }, [database, otherUserId]);
+    if (!firestore || !chatId) return
+    const msgQuery = query(
+      collection(firestore, "chats", chatId, "messages"),
+      orderBy("sentAt", "desc"),
+      limit(msgLimit)
+    )
+
+    return onSnapshot(msgQuery, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      list.sort((a: any, b: any) => (a.sentAt?.seconds || 0) - (b.sentAt?.seconds || 0))
+      setMessages(list)
+      setHasMore(snapshot.docs.length >= msgLimit)
+    })
+  }, [firestore, chatId, msgLimit])
 
   useEffect(() => {
-    if (!database || !currentUser) return;
-    const meRef = ref(database, `users/${currentUser.uid}`);
-    return onValue(meRef, (snap) => {
-      setCurrentUserProfile(snap.val());
-      setUserCoins(snap.val()?.coinBalance || 0);
-    });
-  }, [database, currentUser]);
-
-  useEffect(() => {
-    if (initialMsg && currentUser && otherUserId && database && otherUser && !isSending) {
+    if (initialMsg && currentUser && otherUserId && otherUser && !isSending) {
       const timer = setTimeout(() => {
         handleSendMessage(initialMsg);
         const newUrl = window.location.pathname;
@@ -87,56 +106,32 @@ function ChatDetailContent() {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [initialMsg, currentUser, otherUserId, database, !!otherUser]);
+  }, [initialMsg, !!currentUser, otherUserId, !!otherUser]);
 
   useEffect(() => {
-    if (!database || !currentUser || !otherUserId) return
-    const unreadRef = ref(database, `users/${currentUser.uid}/chats/${otherUserId}/unreadCount`)
-    // Only reset if the node already exists to avoid creating empty "ghost" chats in the list
-    get(unreadRef).then(snap => {
-      if (snap.exists() && snap.val() !== 0) {
-        set(unreadRef, 0)
-      }
-    })
-  }, [database, currentUser, otherUserId])
+    if (!firestore || !currentUser || !chatId) return
+    const chatRef = doc(firestore, "chats", chatId)
+    updateDoc(chatRef, { [`unreadCount_${currentUser.uid}`]: 0 }).catch(() => {})
+  }, [firestore, currentUser, chatId, messages.length])
 
-  useEffect(() => {
-    if (!database || !chatId || !currentUser || !messages.length) return
-    const unreadMsgs = messages.filter(m => m.senderId !== currentUser.uid && m.status === 'sent')
-    if (unreadMsgs.length > 0) {
-      const updates: any = {}
-      unreadMsgs.forEach(m => {
-        updates[`/chats/${chatId}/messages/${m.id}/status`] = 'seen'
-      })
-      update(ref(database), updates)
-    }
-  }, [database, chatId, currentUser, messages])
-
-  const presenceText = useMemo(() => {
-    if (presence.online) return "Online";
-    if (!presence.lastSeen) return "Offline";
-    const date = new Date(presence.lastSeen);
-    return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }, [presence]);
+  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
-    if (!database || !chatId || !currentUser || !currentUserProfile || !otherUser) return
+    if (!firestore || !chatId || !currentUser || !currentUserProfile || !otherUser) return
 
-    const otherStatusSnap = await get(ref(database, `users/${otherUserId}`));
-    const otherStatus = otherStatusSnap.val();
-
-    if (otherStatus?.inCall) {
+    if (otherUser.inCall) {
       toast({ variant: "destructive", title: "User Busy", description: "This user is currently on another call." });
       return;
     }
 
     const dndKey = type === 'video' ? 'dndVideo' : 'dndVoice';
-    if (otherStatus?.settings?.[dndKey]) {
+    if (otherUser.settings?.[dndKey]) {
       toast({ variant: "destructive", title: "Do Not Disturb", description: `This user has enabled DND for ${type} calls.` });
       return;
     }
 
     const costPerMin = type === 'video' ? 160 : 80;
+    const userCoins = currentUserProfile.coinBalance || 0;
     const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.isCoinseller || otherUser.isSupport || otherUser.isCoinseller;
 
     if (!isFree && userCoins < costPerMin) {
@@ -149,8 +144,8 @@ function ChatDetailContent() {
       return;
     }
 
-    const callRef = ref(database, `calls/${chatId}`);
-    await set(callRef, { 
+    const callRef = doc(firestore, "calls", chatId);
+    await setDoc(callRef, { 
       callerId: currentUser.uid, 
       receiverId: otherUserId, 
       status: 'ringing', 
@@ -161,92 +156,67 @@ function ChatDetailContent() {
       isFree: isFree
     });
 
-    const updates: any = {}
-    updates[`users/${otherUserId}/incomingCallId`] = chatId;
-    updates[`users/${currentUser.uid}/incomingCallId`] = chatId;
-    await update(ref(database), updates);
+    await updateDoc(doc(firestore, "userProfiles", otherUserId), { incomingCallId: chatId });
+    await updateDoc(doc(firestore, "userProfiles", currentUser.uid), { incomingCallId: chatId });
   }
-
-  useEffect(() => {
-    if (!database || !otherUserId) return
-    return onValue(ref(database, `users/${otherUserId}/presence`), (snap) => setPresence(snap.val() || { online: false }))
-  }, [database, otherUserId])
-
-  useEffect(() => {
-    if (!database || !chatId) return
-    const msgQuery = query(ref(database, `chats/${chatId}/messages`), limitToLast(msgLimit))
-    return onValue(msgQuery, (snapshot) => {
-      const data = snapshot.val()
-      if (data) {
-        const msgList = Object.entries(data).map(([key, val]: [string, any]) => ({ id: key, ...val }))
-        msgList.sort((a, b) => (a.sentAt || 0) - (b.sentAt || 0))
-        setMessages(msgList)
-        setHasMore(msgList.length >= msgLimit)
-      } else { 
-        setMessages([]) 
-        setHasMore(false)
-      }
-    })
-  }, [database, chatId, msgLimit])
-
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const handleSendMessage = async (textOverride?: string) => {
     const textToUse = textOverride || inputText;
-    if (!textToUse.trim() || !currentUser || !chatId || !database || !otherUserId || !otherUser || isSending || !currentUserProfile) return
+    if (!textToUse.trim() || !currentUser || !chatId || !firestore || !otherUserId || !otherUser || isSending || !currentUserProfile) return
     
     const isMemberOfMyAgency = currentUserProfile.agencyId && otherUser.memberOfAgencyId === currentUserProfile.agencyId;
     const isMyAgent = currentUserProfile.memberOfAgencyId && otherUser.agencyId === currentUserProfile.memberOfAgencyId;
-    const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.isCoinseller || otherUser.isSupport || otherUser.isCoinseller || currentUserProfile.gender?.toLowerCase() === 'female' || isMemberOfMyAgency || isMyAgent;
+    
+    // Messaging is free for females, or between agents and their members
+    const isFree = currentUserProfile.isAdmin || 
+                   currentUserProfile.isSupport || 
+                   currentUserProfile.isCoinseller || 
+                   otherUser.isSupport || 
+                   otherUser.isCoinseller || 
+                   currentUserProfile.gender?.toLowerCase() === 'female' || 
+                   isMemberOfMyAgency || 
+                   isMyAgent;
 
     const messageCost = isFree ? 0 : 15;
     
     setIsSending(true)
     try {
-      if (messageCost > 0) {
-        const userCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
-        const result = await runRtdbTransaction(userCoinRef, (current) => {
-          if (current === null) return current; 
-          if (current < messageCost) return undefined;
-          return current - messageCost;
-        });
-        if (!result.committed) throw new Error("INSUFFICIENT_COINS");
+      await runTransaction(firestore, async (transaction) => {
+        if (messageCost > 0) {
+          const myProfileSnap = await transaction.get(meRef!);
+          const myBalance = myProfileSnap.data()?.coinBalance || 0;
+          if (myBalance < messageCost) throw new Error("INSUFFICIENT_COINS");
+          
+          transaction.update(meRef!, { coinBalance: increment(-messageCost) });
+          
+          const logRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
+          transaction.set(logRef, {
+            id: logRef.id,
+            type: "deduction",
+            amount: -messageCost,
+            transactionDate: new Date().toISOString(),
+            description: `Message to ${otherUser.username}`
+          });
+        }
 
-        // Record log
-        const logRef = push(ref(database, `userTransactions/${currentUser.uid}`));
-        await set(logRef, {
-          id: logRef.key,
-          type: "deduction",
-          amount: -messageCost,
-          transactionDate: Date.now(),
-          description: `Message sent to ${otherUser?.username || 'user'}`
+        const msgRef = doc(collection(firestore, "chats", chatId, "messages"));
+        transaction.set(msgRef, {
+          messageText: textToUse,
+          senderId: currentUser.uid,
+          sentAt: serverTimestamp(),
+          status: 'sent'
         });
-      }
 
-      const updates: any = {}
-      const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-      const msgData = { messageText: textToUse, senderId: currentUser.uid, sentAt: rtdbTimestamp(), status: 'sent' }
-      
-      updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { 
-        lastMessage: textToUse, 
-        timestamp: rtdbTimestamp(), 
-        otherUserId, 
-        chatId, 
-        unreadCount: 0, 
-        hidden: false,
-        userHasSent: true // Mark that current user has texted this person
-      }
-      
-      // Separate updates for the other user to match strict security rules
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = textToUse
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/otherUserId`] = currentUser.uid
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/chatId`] = chatId
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
-      
-      await update(ref(database), updates)
+        const chatMetaRef = doc(firestore, "chats", chatId);
+        transaction.set(chatMetaRef, {
+          lastMessage: textToUse,
+          timestamp: serverTimestamp(),
+          participants: [currentUser.uid, otherUserId],
+          [`unreadCount_${otherUserId}`]: increment(1),
+          [`userHasSent_${currentUser.uid}`]: true
+        }, { merge: true });
+      });
+
       if (!textOverride) setInputText("")
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
@@ -259,55 +229,41 @@ function ChatDetailContent() {
 
   const handleSendGift = async (giftOverride?: typeof GIFTS[0]) => {
     const gift = giftOverride || selectedGift;
-    if (!gift || !currentUser || !otherUserId || isSendingGift || !currentUserProfile || !database || !otherUser) return;
+    if (!gift || !currentUser || !otherUserId || isSendingGift || !currentUserProfile || !firestore || !otherUser) return;
     
     setIsSendingGift(true);
     const giftPrice = gift.price;
     const diamondGain = Math.floor(giftPrice * 0.6);
 
     try {
-      const senderCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
-      const coinResult = await runRtdbTransaction(senderCoinRef, (current) => {
-        if (current === null) return current;
-        if (current < giftPrice) return undefined;
-        return current - giftPrice;
+      await runTransaction(firestore, async (transaction) => {
+        const myProfileSnap = await transaction.get(meRef!);
+        const myBalance = myProfileSnap.data()?.coinBalance || 0;
+        if (myBalance < giftPrice) throw new Error("INSUFFICIENT_COINS");
+
+        transaction.update(meRef!, { coinBalance: increment(-giftPrice) });
+        transaction.update(otherUserRef!, { diamondBalance: increment(diamondGain) });
+
+        const senderLogRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
+        transaction.set(senderLogRef, { id: senderLogRef.id, type: "gift_sent", amount: -giftPrice, transactionDate: new Date().toISOString(), description: `Sent ${gift.name} to ${otherUser.username}` });
+
+        const receiverLogRef = doc(collection(firestore, "userProfiles", otherUserId, "transactions"));
+        transaction.set(receiverLogRef, { id: receiverLogRef.id, type: "gift_received", amount: diamondGain, transactionDate: new Date().toISOString(), description: `Received ${gift.name} from ${currentUserProfile.username}` });
+
+        const giftMessage = `🎁 Sent a gift: ${gift.name}`;
+        const msgRef = doc(collection(firestore, "chats", chatId, "messages"));
+        transaction.set(msgRef, { messageText: giftMessage, senderId: currentUser.uid, sentAt: serverTimestamp(), isGift: true, giftId: gift.id, status: 'sent' });
+
+        const chatMetaRef = doc(firestore, "chats", chatId);
+        transaction.set(chatMetaRef, {
+          lastMessage: giftMessage,
+          timestamp: serverTimestamp(),
+          participants: [currentUser.uid, otherUserId],
+          [`unreadCount_${otherUserId}`]: increment(1),
+          [`userHasSent_${currentUser.uid}`]: true
+        }, { merge: true });
       });
-      if (!coinResult.committed) throw new Error("INSUFFICIENT_COINS");
 
-      const receiverDiamondRef = ref(database, `users/${otherUserId}/diamondBalance`);
-      await runRtdbTransaction(receiverDiamondRef, (current) => (current || 0) + diamondGain);
-
-      // Logs
-      const senderLogRef = push(ref(database, `userTransactions/${currentUser.uid}`));
-      await set(senderLogRef, { id: senderLogRef.key, type: "gift_sent", amount: -giftPrice, transactionDate: Date.now(), description: `Sent a ${gift.name} to ${otherUser?.username}` });
-
-      const receiverLogRef = push(ref(database, `userTransactions/${otherUserId}`));
-      await set(receiverLogRef, { id: receiverLogRef.key, type: "gift_received", amount: diamondGain, transactionDate: Date.now(), description: `Received ${gift.name} from ${currentUserProfile.username}` });
-
-      const giftMessage = `🎁 Sent a gift: ${gift.name}`;
-      const updates: any = {}
-      const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-      const msgData = { messageText: giftMessage, senderId: currentUser.uid, sentAt: rtdbTimestamp(), isGift: true, giftId: gift.id, status: 'sent' }
-      
-      updates[`/chats/${chatId}/messages/${msgKey}`] = msgData
-      updates[`/users/${currentUser.uid}/chats/${otherUserId}`] = { 
-        lastMessage: giftMessage, 
-        timestamp: rtdbTimestamp(), 
-        otherUserId, 
-        chatId, 
-        unreadCount: 0, 
-        hidden: false,
-        userHasSent: true // Sending a gift counts as interaction
-      }
-      
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/lastMessage`] = giftMessage
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/otherUserId`] = currentUser.uid
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/chatId`] = chatId
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/unreadCount`] = increment(1)
-      updates[`/users/${otherUserId}/chats/${currentUser.uid}/hidden`] = false
-      
-      await update(ref(database), updates)
       toast({ title: "Gift Sent!", description: `You sent a ${gift.name}.` });
       setIsGiftSheetOpen(false);
       setSelectedGift(null);
@@ -339,23 +295,22 @@ function ChatDetailContent() {
     )
   }
 
-  const isOtherUserSupport = otherUser?.isSupport === true
-  const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUserId}/200/200`
-  const otherUserName = isOtherUserSupport ? "Customer Support" : (otherUser?.username || "User")
-  const isOtherUserVerified = !!otherUser?.isVerified
+  const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUserId}/200/200`
+  const otherUserName = otherUser.isSupport ? "Customer Support" : (otherUser.username || "User")
+  const presenceText = otherUser.isOnline ? "Online" : "Offline"
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       <header className="px-5 pt-8 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-full bg-gray-50 text-gray-500"><ChevronLeft className="w-5 h-5" /></Button>
-        <div className={cn("flex items-center gap-3 transition-opacity flex-1 justify-center mr-10", isOtherUserSupport ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => !isOtherUserSupport && router.push(`/profile/${otherUserId}`)}>
+        <div className={cn("flex items-center gap-3 transition-opacity flex-1 justify-center mr-10", otherUser.isSupport ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => !otherUser.isSupport && router.push(`/profile/${otherUserId}`)}>
           <Avatar className="w-9 h-9 border border-gray-100 shadow-sm"><AvatarImage src={otherUserImage} className="object-cover" /><AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback></Avatar>
           <div className="flex flex-col text-center">
             <div className="flex items-center justify-center gap-1 mb-1">
-              <h3 className={cn("font-bold text-[13px] leading-none h-3.5", otherUserName === "User logged out" ? "text-gray-400 font-medium italic" : "text-gray-900")}>{otherUserName}</h3>
-              {isOtherUserVerified && <CheckCircle className="w-3 h-3 text-blue-500 fill-blue-500/10" />}
+              <h3 className="font-bold text-[13px] leading-none h-3.5">{otherUserName}</h3>
+              {otherUser.isVerified && <CheckCircle className="w-3 h-3 text-blue-500 fill-blue-500/10" />}
             </div>
-            <span className={cn("text-[9px] font-black uppercase tracking-widest", presence.online ? "text-green-500" : "text-gray-400")}>{presenceText}</span>
+            <span className={cn("text-[9px] font-black uppercase tracking-widest", otherUser.isOnline ? "text-green-500" : "text-gray-400")}>{presenceText}</span>
           </div>
         </div>
         <div className="w-10" />
@@ -421,7 +376,7 @@ function ChatDetailContent() {
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
-        {!isOtherUserSupport && (
+        {!otherUser.isSupport && (
           <div className="grid grid-cols-3 gap-2">
             <button onClick={() => handleInitiateCall('audio')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Phone className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span></button>
             <button onClick={() => handleInitiateCall('video')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Video className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span></button>
@@ -448,7 +403,7 @@ function ChatDetailContent() {
                   </div>
                 </div>
                 <footer className="absolute bottom-0 left-0 right-0 p-6 bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-800 flex items-center justify-between z-50">
-                  <div className="flex items-center gap-3"><div className="flex items-center gap-1.5 bg-zinc-800 px-3 py-2 rounded-full border border-zinc-700"><div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[8px] font-black text-zinc-900 italic">S</div><span className="text-xs font-black">{userCoins.toLocaleString()}</span></div></div>
+                  <div className="flex items-center gap-3"><div className="flex items-center gap-1.5 bg-zinc-800 px-3 py-2 rounded-full border border-zinc-700"><div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[8px] font-black text-zinc-900 italic">S</div><span className="text-xs font-black">{(currentUserProfile?.coinBalance || 0).toLocaleString()}</span></div></div>
                   <Button onClick={() => handleSendGift()} disabled={!selectedGift || isSendingGift} className="h-12 px-10 rounded-full bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all">
                     {isSendingGift ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
                   </Button>

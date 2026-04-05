@@ -1,23 +1,21 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
 import { RotateCcw, Globe, Loader2, CheckCircle, Sparkles, ClipboardList } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { ref, onValue, get } from "firebase/database"
-import { collection, query, where, limit, getDocs, doc } from "firebase/firestore"
+import { collection, query, where, limit, getDocs, doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 
 let cachedUsers: any[] = []
 let cachedInitialLoaded: boolean = false
-let cachedPresenceMap: Record<string, boolean> = {}
 
 export function clearDiscoverCache() {
   cachedUsers = []
   cachedInitialLoaded = false
-  cachedPresenceMap = {}
 }
 
 function shuffleArray<T>(array: T[]): T[] {
@@ -31,13 +29,12 @@ function shuffleArray<T>(array: T[]): T[] {
 
 export default function DiscoverPage() {
   const [activeTab, setActiveTab] = useState<'recommend' | 'nearby'>('recommend')
-  const { database, firestore } = useFirebase()
+  const { firestore } = useFirebase()
   const { user: currentUser } = useUser()
   const router = useRouter()
 
   const [users, setUsers] = useState<any[]>(cachedUsers)
   const [isInitialLoading, setIsInitialLoading] = useState(!cachedInitialLoaded)
-  const [userPresenceMap, setUserPresenceMap] = useState<Record<string, boolean>>(cachedPresenceMap)
   
   const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile } = useDoc(userProfileRef)
@@ -56,7 +53,6 @@ export default function DiscoverPage() {
       const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
       const targetGender = currentGender === 'male' ? 'female' : 'male'
 
-      // Firestore Query: Fetch 50 users of opposite gender
       const usersQuery = query(
         collection(firestore, "userProfiles"),
         where("gender", "==", targetGender),
@@ -73,18 +69,8 @@ export default function DiscoverPage() {
 
       const allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       
-      // Fetch presence from RTDB for these users
-      const currentMap: Record<string, boolean> = { ...userPresenceMap };
-      await Promise.all(allUsers.map(async (u: any) => {
-        const pSnap = await get(ref(database, `users/${u.id}/presence/online`));
-        currentMap[u.id] = pSnap.val() === true;
-      }));
-
-      setUserPresenceMap(currentMap);
-      cachedPresenceMap = currentMap;
-
-      const onlineUsers = allUsers.filter((u: any) => currentMap[u.id]);
-      const offlineUsers = allUsers.filter((u: any) => !currentMap[u.id]);
+      const onlineUsers = allUsers.filter((u: any) => u.isOnline === true);
+      const offlineUsers = allUsers.filter((u: any) => u.isOnline !== true);
 
       const sorted = [...shuffleArray(onlineUsers), ...shuffleArray(offlineUsers)];
       
@@ -112,7 +98,7 @@ export default function DiscoverPage() {
     name: u.username || "Match",
     location: u.location || "Kenya",
     isVerified: !!u.isVerified,
-    isOnline: !!userPresenceMap[u.id],
+    isOnline: !!u.isOnline,
     image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/400/600`
   }))
 

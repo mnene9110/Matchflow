@@ -4,7 +4,19 @@
 import { useState, useEffect, useRef } from "react"
 import { Phone, PhoneOff, Loader2 } from "lucide-react"
 import { useFirebase, useUser } from "@/firebase"
-import { ref, onValue, remove, update, push, serverTimestamp as rtdbTimestamp, off, runTransaction as runRtdbTransaction } from "firebase/database"
+import { 
+  collection, 
+  doc, 
+  onSnapshot, 
+  deleteDoc, 
+  updateDoc, 
+  addDoc, 
+  serverTimestamp, 
+  increment, 
+  runTransaction,
+  query,
+  where
+} from "firebase/firestore"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { getAgoraToken } from "@/app/actions/agora"
@@ -13,7 +25,7 @@ let AgoraRTC: any = null;
 
 export function GlobalCallOverlay() {
   const { user: currentUser } = useUser()
-  const { database } = useFirebase()
+  const { firestore } = useFirebase()
   
   const [callData, setCallData] = useState<any>(null)
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
@@ -61,13 +73,13 @@ export function GlobalCallOverlay() {
   }, []);
 
   useEffect(() => {
-    if (!database || !currentUser) return;
+    if (!firestore || !currentUser) return;
 
-    let callDetailsUnsubscribe: (() => void) | null = null;
-
-    const incomingCallRef = ref(database, `users/${currentUser.uid}/incomingCallId`);
-    const unsubscribeIncomingId = onValue(incomingCallRef, (snap) => {
-      const chatId = snap.val();
+    // Listen for incoming call notifications on the user profile
+    const userRef = doc(firestore, "userProfiles", currentUser.uid);
+    const unsubscribeUser = onSnapshot(userRef, (snap) => {
+      const data = snap.data();
+      const chatId = data?.incomingCallId;
       
       if (!chatId) {
         if (!joiningRef.current && statusRef.current !== 'idle') {
@@ -77,16 +89,12 @@ export function GlobalCallOverlay() {
       }
 
       if (chatId !== activeChatIdRef.current) {
-        if (callDetailsUnsubscribe) {
-          callDetailsUnsubscribe();
-        }
-        
         activeChatIdRef.current = chatId;
-        const callDetailsRef = ref(database, `calls/${chatId}`);
+        const callDocRef = doc(firestore, "calls", chatId);
         
-        const unsubscribeDetails = onValue(callDetailsRef, (detailsSnap) => {
-          const data = detailsSnap.val();
-          if (!data) {
+        onSnapshot(callDocRef, (detailsSnap) => {
+          const callData = detailsSnap.data();
+          if (!callData) {
             if (!joiningRef.current && statusRef.current !== 'idle') {
               handleCleanup();
             }
@@ -94,26 +102,23 @@ export function GlobalCallOverlay() {
           }
 
           const now = Date.now();
-          const callAge = now - (data.timestamp || 0);
-          if (data.status === 'ringing' && callAge > 60000) {
-            remove(ref(database, `users/${currentUser.uid}/incomingCallId`));
+          const callAge = now - (callData.timestamp || 0);
+          if (callData.status === 'ringing' && callAge > 60000) {
+            updateDoc(userRef, { incomingCallId: null });
             handleCleanup();
             return;
           }
 
-          setCallData(data);
-          updateCallState(data);
+          setCallData(callData);
+          updateCallState(callData);
         });
-        
-        callDetailsUnsubscribe = () => off(callDetailsRef, "value", unsubscribeDetails);
       }
     });
 
     return () => {
-      unsubscribeIncomingId();
-      if (callDetailsUnsubscribe) callDetailsUnsubscribe();
+      unsubscribeUser();
     };
-  }, [database, currentUser]);
+  }, [firestore, currentUser]);
 
   const updateCallState = (data: any) => {
     if (!data || !currentUser) return;
@@ -153,7 +158,7 @@ export function GlobalCallOverlay() {
         setCallStatus('ongoing');
         setIsConnecting(true);
         initiateAgoraConnection(activeChatIdRef.current!, data.callType);
-        update(ref(database, `users/${currentUser.uid}`), { inCall: true });
+        updateDoc(doc(firestore, "userProfiles", currentUser.uid), { inCall: true });
       }
     }
   };
@@ -183,28 +188,26 @@ export function GlobalCallOverlay() {
   };
 
   const deductCoins = async (amount: number) => {
-    if (!database || !currentUser || !activeChatIdRef.current) return;
+    if (!firestore || !currentUser || !activeChatIdRef.current) return;
     
-    const userCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
     try {
-      const result = await runRtdbTransaction(userCoinRef, (current) => {
-        if (current === null) return current;
-        if (current < amount) return undefined;
-        return current - amount;
-      });
-
-      if (!result.committed) {
-        handleEndCall();
-        return;
-      }
-
-      const logRef = push(ref(database, `userTransactions/${currentUser.uid}`));
-      await set(logRef, {
-        id: logRef.key,
-        type: "deduction",
-        amount: -amount,
-        transactionDate: Date.now(),
-        description: `Call charge (${callData?.callType})`
+      await runTransaction(firestore, async (transaction) => {
+        const userRef = doc(firestore, "userProfiles", currentUser.uid);
+        const userSnap = await transaction.get(userRef);
+        const currentBalance = userSnap.data()?.coinBalance || 0;
+        
+        if (currentBalance < amount) throw new Error("INSUFFICIENT_COINS");
+        
+        transaction.update(userRef, { coinBalance: increment(-amount) });
+        
+        const logRef = doc(collection(userRef, "transactions"));
+        transaction.set(logRef, {
+          id: logRef.id,
+          type: "deduction",
+          amount: -amount,
+          transactionDate: new Date().toISOString(),
+          description: `Call charge (${callData?.callType})`
+        });
       });
     } catch (error) {
       console.error("Billing failed:", error);
@@ -303,8 +306,8 @@ export function GlobalCallOverlay() {
       logCallInChat(activeChatIdRef.current, callDurationRef.current, `[${mins}:${secs.toString().padStart(2, '0')}]`);
     }
 
-    if (currentUser && database) {
-      update(ref(database, `users/${currentUser.uid}`), { inCall: false });
+    if (currentUser && firestore) {
+      updateDoc(doc(firestore, "userProfiles", currentUser.uid), { inCall: false, incomingCallId: null });
     }
 
     setCallStatus('idle');
@@ -320,16 +323,16 @@ export function GlobalCallOverlay() {
   };
 
   const handleAcceptCall = async () => {
-    if (!database || !activeChatIdRef.current || !callData) return;
+    if (!firestore || !activeChatIdRef.current || !callData) return;
     if (ringtoneRef.current) {
       ringtoneRef.current.pause();
       ringtoneRef.current.currentTime = 0;
     }
-    await update(ref(database, `calls/${activeChatIdRef.current}`), { status: 'accepted' });
+    await updateDoc(doc(firestore, "calls", activeChatIdRef.current), { status: 'accepted' });
   }
 
   const handleEndCall = async () => {
-    if (!database || !activeChatIdRef.current || !currentUser) {
+    if (!firestore || !activeChatIdRef.current || !currentUser) {
       handleCleanup(); 
       return;
     }
@@ -348,27 +351,27 @@ export function GlobalCallOverlay() {
     const receiverId = callData?.receiverId;
     const callerId = callData?.callerId;
 
-    await remove(ref(database, `calls/${cid}`));
-    if (receiverId) await remove(ref(database, `users/${receiverId}/incomingCallId`));
-    if (callerId) await remove(ref(database, `users/${callerId}/incomingCallId`));
+    await deleteDoc(doc(firestore, "calls", cid));
+    if (receiverId) await updateDoc(doc(firestore, "userProfiles", receiverId), { incomingCallId: null });
+    if (callerId) await updateDoc(doc(firestore, "userProfiles", callerId), { incomingCallId: null });
     handleCleanup();
   }
 
   const logCallInChat = async (chatId: string, duration: number, label: string) => {
-    if (!database || !currentUser || logRecordedRef.current) return;
+    if (!firestore || !currentUser || logRecordedRef.current) return;
     
     logRecordedRef.current = true;
     const otherId = callData?.receiverId === currentUser.uid ? callData?.callerId : callData?.receiverId;
     if (!otherId) return;
     
-    const updates: any = {}
-    const msgKey = push(ref(database, `chats/${chatId}/messages`)).key
-    updates[`/chats/${chatId}/messages/${msgKey}`] = { messageText: label, senderId: currentUser.uid, sentAt: rtdbTimestamp(), isCallLog: true }
-    updates[`/users/${currentUser.uid}/chats/${otherId}/lastMessage`] = label
-    updates[`/users/${currentUser.uid}/chats/${otherId}/timestamp`] = rtdbTimestamp()
-    updates[`/users/${otherId}/chats/${currentUser.uid}/lastMessage`] = label
-    updates[`/users/${otherId}/chats/${currentUser.uid}/timestamp`] = rtdbTimestamp()
-    await update(ref(database), updates);
+    const chatRef = doc(firestore, "chats", chatId);
+    const msgRef = doc(collection(chatRef, "messages"));
+    
+    await setDoc(msgRef, { messageText: label, senderId: currentUser.uid, sentAt: serverTimestamp(), isCallLog: true });
+    await updateDoc(chatRef, {
+      lastMessage: label,
+      timestamp: serverTimestamp()
+    });
   };
 
   useEffect(() => {
