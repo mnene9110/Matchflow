@@ -154,12 +154,12 @@ export default function DiscoverPage() {
 
       <div className="sticky top-0 z-30 px-4 py-2 shrink-0">
         <div className="flex items-center gap-3">
-          <div className="flex-1 h-16 bg-white/30 backdrop-blur-xl border border-white/20 rounded-full p-1.5 flex items-center shadow-lg">
+          <div className="flex-1 h-16 bg-transparent rounded-full p-1.5 flex items-center">
             <button 
               onClick={() => setActiveTab('recommend')}
               className={cn(
                 "flex-1 h-full rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all",
-                activeTab === 'recommend' ? "bg-[#8B0000] text-white shadow-lg" : "text-[#6B7280]"
+                activeTab === 'recommend' ? "bg-[#8B0000] text-white shadow-lg" : "text-white/60"
               )}
             >
               Recommend
@@ -168,7 +168,7 @@ export default function DiscoverPage() {
               onClick={() => setActiveTab('nearby')}
               className={cn(
                 "flex-1 h-full rounded-full text-[10px] font-black uppercase tracking-[0.2em] transition-all",
-                activeTab === 'nearby' ? "bg-[#8B0000] text-white shadow-lg" : "text-[#6B7280]"
+                activeTab === 'nearby' ? "bg-[#8B0000] text-white shadow-lg" : "text-white/60"
               )}
             >
               Nearby
@@ -177,12 +177,12 @@ export default function DiscoverPage() {
           
           <button 
             onClick={handleRefresh} 
-            className="w-16 h-16 rounded-full bg-white/30 backdrop-blur-xl border border-white/20 flex items-center justify-center active:rotate-180 transition-all duration-700 shadow-lg"
+            className="w-16 h-16 rounded-full bg-white/10 backdrop-blur-md border border-white/10 flex items-center justify-center active:rotate-180 transition-all duration-700 shadow-lg"
           >
             {isInitialLoading ? (
-              <Loader2 className="w-5 h-5 animate-spin text-[#8B0000]" />
+              <Loader2 className="w-5 h-5 animate-spin text-white" />
             ) : (
-              <RotateCcw className="w-5 h-5 text-[#6B7280]" />
+              <RotateCcw className="w-5 h-5 text-white" />
             )}
           </button>
         </div>
