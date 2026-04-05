@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -6,8 +5,9 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft, Search, Loader2, ShieldCheck, UserCheck, ShieldAlert, Coins, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { useFirestore, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { useFirestore, useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
 import { doc, query, collection, where, getDocs, updateDoc } from "firebase/firestore"
+import { ref, update as updateRtdb } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label"
 export default function ManageRolesPage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
-  const firestore = useFirestore()
+  const { firestore, database } = useFirebase()
   const { toast } = useToast()
 
   const [targetNumericId, setTargetNumericId] = useState("")
@@ -73,18 +73,33 @@ export default function ManageRolesPage() {
     setIsUpdating(true)
 
     try {
+      const isSupport = selectedRole === "support"
+      const isCoinseller = selectedRole === "coinseller"
+      const isAgent = selectedRole === "agent"
+
+      // 1. Update Firestore
       const userRef = doc(firestore, "userProfiles", foundUser.docId)
       await updateDoc(userRef, {
-        isSupport: selectedRole === "support",
-        isCoinseller: selectedRole === "coinseller",
-        isAgent: selectedRole === "agent",
+        isSupport,
+        isCoinseller,
+        isAgent,
         updatedAt: new Date().toISOString()
       })
-      toast({ title: "Role Updated", description: "User privileges have been saved." })
+
+      // 2. Mirror to RTDB for immediate security rule authorization
+      const rtdbUserRef = ref(database, `users/${foundUser.id}`)
+      await updateRtdb(rtdbUserRef, {
+        isSupport,
+        isCoinseller,
+        isAgent
+      })
+
+      toast({ title: "Role Updated", description: "User privileges have been saved to both databases." })
       setFoundUser(null)
       setTargetNumericId("")
     } catch (error) {
-      toast({ variant: "destructive", title: "Update failed", description: "Could not save changes." })
+      console.error(error)
+      toast({ variant: "destructive", title: "Update failed", description: "Could not save changes. Check console for details." })
     } finally {
       setIsUpdating(false)
     }
