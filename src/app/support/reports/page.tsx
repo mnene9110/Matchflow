@@ -4,77 +4,72 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, CheckCircle, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser } from "@/firebase"
-import { ref, onValue, remove, set, push, serverTimestamp as rtdbTimestamp, get, update } from "firebase/database"
+import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { doc, collection, query, where, onSnapshot, updateDoc, serverTimestamp, increment as firestoreIncrement, setDoc } from "firebase/firestore"
 import { format } from "date-fns"
 
 export default function ReviewReportsPage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
-  const { database } = useFirebase()
+  const { firestore } = useFirebase()
+  
   const [reports, setReports] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [supportProfile, setSupportProfile] = useState<any>(null)
   const [processingId, setProcessingId] = useState<string | null>(null)
 
+  const userRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const { data: supportProfile } = useDoc(userRef)
+
   useEffect(() => {
-    if (!database || !currentUser) return
-    get(ref(database, `users/${currentUser.uid}`)).then(snap => setSupportProfile(snap.val()));
+    if (!firestore || !currentUser) return
     
-    return onValue(ref(database, 'reports'), (snap) => {
-      const data = snap.val()
-      if (data) {
-        const list = Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })).filter(r => r.status === 'pending')
-        setReports(list)
-      } else {
-        setReports([])
-      }
+    const q = query(collection(firestore, "reports"), where("status", "==", "pending"))
+    
+    return onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      setReports(list)
+      setIsLoading(false)
+    }, (error) => {
+      console.error("Reports fetch error:", error)
       setIsLoading(false)
     })
-  }, [database, currentUser])
+  }, [firestore, currentUser])
 
   if (supportProfile && !supportProfile.isSupport && !supportProfile.isAdmin) {
     return <div className="flex h-svh items-center justify-center bg-white text-zinc-400 font-black uppercase text-xs tracking-widest">Access Denied</div>
   }
 
   const handleReviewed = async (report: any) => {
-    if (!database || processingId || !supportProfile) return
+    if (!firestore || processingId || !supportProfile) return
     setProcessingId(report.id)
 
     try {
       const chatId = [report.reporterId, supportProfile.id].sort().join("_")
-      const msgRef = push(ref(database, `chats/${chatId}/messages`))
-      const feedbackText = "Your complaint is being reviewed by our team. Thank you for your feedback."
+      const chatRef = doc(firestore, "chats", chatId)
+      const msgRef = doc(collection(chatRef, "messages"))
+      const feedbackText = "✅ Your complaint has been reviewed by our safety team. Thank you for helping keep MatchFlow safe."
       
-      const updates: any = {}
-      updates[`/reports/${report.id}`] = null // Delete report
-      updates[`/chats/${chatId}/messages/${msgRef.key}`] = {
+      // 1. Update Report status
+      await updateDoc(doc(firestore, "reports", report.id), { status: 'reviewed', reviewedAt: serverTimestamp() })
+      
+      // 2. Send feedback message
+      await setDoc(msgRef, {
         messageText: feedbackText,
         senderId: supportProfile.id,
-        sentAt: rtdbTimestamp()
-      }
-      
-      // Update metadata for both so it shows in chat lists correctly
-      updates[`/users/${report.reporterId}/chats/${supportProfile.id}`] = {
-        lastMessage: feedbackText,
-        timestamp: rtdbTimestamp(),
-        otherUserId: supportProfile.id,
-        chatId,
-        unreadCount: increment(1),
-        hidden: false
-      }
+        sentAt: serverTimestamp(),
+        status: 'sent'
+      })
 
-      updates[`/users/${supportProfile.id}/chats/${report.reporterId}`] = {
+      // 3. Update chat metadata
+      await setDoc(chatRef, {
         lastMessage: feedbackText,
-        timestamp: rtdbTimestamp(),
-        otherUserId: report.reporterId,
-        chatId,
-        unreadCount: 0,
-        hidden: false,
-        userHasSent: true // Agent texted the user
-      }
-      
-      await update(ref(database), updates)
+        timestamp: serverTimestamp(),
+        participants: [supportProfile.id, report.reporterId],
+        [`unreadCount_${report.reporterId}`]: firestoreIncrement(1),
+        [`userHasSent_${supportProfile.id}`]: true
+      }, { merge: true })
+
+      toast({ title: "Report Processed" })
     } catch (error) {
       console.error(error)
     } finally {
@@ -101,7 +96,7 @@ export default function ReviewReportsPage() {
                       <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center"><ShieldAlert className="w-5 h-5 text-red-500" /></div>
                       <div><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reported User</p><p className="text-xs font-bold text-gray-900">ID: {report.reportedUserId}</p></div>
                    </div>
-                   <p className="text-[9px] font-bold text-gray-300 uppercase">{report.timestamp ? format(new Date(report.timestamp), "MMM d, HH:mm") : ""}</p>
+                   <p className="text-[9px] font-bold text-gray-300 uppercase">{report.timestamp ? format(report.timestamp.toDate ? report.timestamp.toDate() : new Date(report.timestamp), "MMM d, HH:mm") : ""}</p>
                 </div>
                 <p className="text-sm font-bold text-gray-900 bg-white/40 p-4 rounded-2xl border border-white/60">{report.details}</p>
                 <Button className="w-full h-12 rounded-full bg-zinc-900 text-white font-black text-xs uppercase" onClick={() => handleReviewed(report)} disabled={!!processingId}>{processingId === report.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reviewed & Dismiss"}</Button>

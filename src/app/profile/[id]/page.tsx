@@ -25,8 +25,7 @@ import {
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { ref, onValue, push, set, serverTimestamp as rtdbTimestamp } from "firebase/database"
-import { doc } from "firebase/firestore"
+import { doc, collection, addDoc, serverTimestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -48,28 +47,18 @@ import { useToast } from "@/hooks/use-toast"
 export default function ProfileDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-  const { database, firestore } = useFirebase()
+  const { firestore } = useFirebase()
   const { user: currentUser } = useUser()
   const { toast } = useToast()
   
   const targetDocRef = useMemoFirebase(() => id ? doc(firestore, "userProfiles", id as string) : null, [firestore, id])
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(targetDocRef)
   
-  const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportDetails, setReportDetails] = useState("")
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
   
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null)
-
-  useEffect(() => {
-    if (!database || !id) return
-    const presenceRef = ref(database, `users/${id}/presence`)
-    return onValue(presenceRef, (snap) => {
-      const val = snap.val()
-      setPresence(val || { online: false })
-    })
-  }, [database, id])
 
   useEffect(() => {
     const handlePopState = () => {
@@ -96,20 +85,21 @@ export default function ProfileDetailPage() {
   }, [userProfile?.dateOfBirth]);
 
   const presenceText = useMemo(() => {
-    if (presence.online) return "Online";
-    if (!presence.lastSeen) return "Offline";
-    const date = new Date(presence.lastSeen);
+    if (userProfile?.isOnline) return "Online";
+    if (!userProfile?.lastActiveAt) return "Offline";
+    const date = userProfile.lastActiveAt.toDate ? userProfile.lastActiveAt.toDate() : new Date(userProfile.lastActiveAt);
     return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }, [presence]);
+  }, [userProfile]);
 
   const handleBlock = async () => {
-    if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin || !database) return
+    if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin || !firestore) return
     try {
-      await set(ref(database, `users/${currentUser.uid}/blockedUsers/${id}`), {
+      const blockRef = doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", id as string);
+      await addDoc(collection(firestore, "userProfiles", currentUser.uid, "blockedUsers"), {
         blockedUserId: id,
         username: userProfile?.username || "Unknown",
-        blockedAt: Date.now()
-      })
+        blockedAt: serverTimestamp()
+      });
       toast({ title: "User Blocked", description: `${userProfile?.username} has been blocked.` })
       router.push('/discover')
     } catch (error) {
@@ -118,16 +108,14 @@ export default function ProfileDetailPage() {
   }
 
   const handleReport = async () => {
-    if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport || !database) return
+    if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport || !firestore) return
     setIsSubmittingReport(true)
     try {
-      const reportRef = push(ref(database, "reports"))
-      await set(reportRef, {
-        id: reportRef.key,
+      await addDoc(collection(firestore, "reports"), {
         reporterId: currentUser.uid,
         reportedUserId: id,
         details: reportDetails,
-        timestamp: rtdbTimestamp(),
+        timestamp: serverTimestamp(),
         status: "pending"
       })
       toast({ title: "Report Submitted", description: "Our team will review this profile." })
@@ -199,8 +187,8 @@ export default function ProfileDetailPage() {
           )}
         </div>
         <div className="absolute bottom-20 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 z-30">
-          <div className={cn("w-2.5 h-2.5 rounded-full", presence.online ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
-          <span className={cn("text-[10px] font-black uppercase tracking-tight", presence.online ? "text-white" : "text-white/60")}>{presenceText}</span>
+          <div className={cn("w-2.5 h-2.5 rounded-full", userProfile?.isOnline ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
+          <span className={cn("text-[10px] font-black uppercase tracking-tight", userProfile?.isOnline ? "text-white" : "text-white/60")}>{presenceText}</span>
         </div>
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
       </div>

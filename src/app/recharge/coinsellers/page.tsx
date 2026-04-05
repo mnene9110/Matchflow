@@ -1,4 +1,3 @@
-
 "use client"
 
 import { Suspense, useState, useEffect } from "react"
@@ -7,13 +6,13 @@ import { ChevronLeft, MessageCircle, Users, Loader2, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirebase } from "@/firebase"
-import { ref, query, orderByChild, equalTo, onValue } from "firebase/database"
+import { collection, query, where, onSnapshot } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 
 function CoinsellersContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { database } = useFirebase()
+  const { firestore } = useFirebase()
   const { toast } = useToast()
 
   const selectedAmount = searchParams?.get('amount')
@@ -21,18 +20,18 @@ function CoinsellersContent() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (!database) return
-    const sellersRef = query(ref(database, 'users'), orderByChild('isCoinseller'), equalTo(true))
-    return onValue(sellersRef, (snap) => {
-      const data = snap.val()
-      if (data) {
-        setCoinsellers(Object.values(data))
-      } else {
-        setCoinsellers([])
-      }
+    if (!firestore) return
+    const q = query(collection(firestore, "userProfiles"), where("isCoinseller", "==", true))
+    
+    return onSnapshot(q, (snapshot) => {
+      const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      setCoinsellers(data)
+      setIsLoading(false)
+    }, (error) => {
+      console.error("Coinsellers fetch error:", error)
       setIsLoading(false)
     })
-  }, [database])
+  }, [firestore])
 
   const handleChatWithSeller = (sellerId: string) => {
     const message = selectedAmount 

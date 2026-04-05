@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useCallback } from "react"
@@ -9,8 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
-import { doc, collection, writeBatch, increment as firestoreIncrement } from "firebase/firestore"
-import { ref, update, runTransaction as runRtdbTransaction, serverTimestamp as rtdbTimestamp } from "firebase/database"
+import { doc, collection, runTransaction, serverTimestamp, setDoc, increment as firestoreIncrement } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
@@ -23,7 +21,7 @@ const ROOM_CREATION_COST = 4000
 export default function CreatePartyPage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
-  const { firestore, database } = useFirebase()
+  const { firestore } = useFirebase()
   const { toast } = useToast()
 
   const [isCreating, setIsCreating] = useState(false)
@@ -89,55 +87,54 @@ export default function CreatePartyPage() {
   }
 
   const handleCreate = async () => {
-    if (!currentUser || !profile || !formData.title.trim() || isCreating || !database) return
+    if (!currentUser || !profile || !formData.title.trim() || isCreating || !firestore) return
 
     setIsCreating(true)
     try {
-      const userCoinRef = ref(database, `users/${currentUser.uid}/coinBalance`)
-      const balanceResult = await runRtdbTransaction(userCoinRef, (current) => {
-        if (current === null) return current
-        if (current < ROOM_CREATION_COST) return undefined
-        return current - ROOM_CREATION_COST
-      })
+      await runTransaction(firestore, async (transaction) => {
+        const profileSnap = await transaction.get(userProfileRef!);
+        const currentBalance = profileSnap.data()?.coinBalance || 0;
 
-      if (!balanceResult.committed) throw new Error("INSUFFICIENT_COINS")
+        if (currentBalance < ROOM_CREATION_COST) {
+          throw new Error("INSUFFICIENT_COINS");
+        }
 
-      const roomKey = `${formData.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}_${Date.now()}`
-      const roomData = {
-        id: roomKey,
-        title: formData.title,
-        tags: formData.tags,
-        announcement: formData.announcement,
-        coverPhoto: formData.coverPhoto,
-        maxSeats: Number(formData.maxSeats),
-        hostId: currentUser.uid,
-        hostName: profile.username || "User",
-        hostPhoto: (profile.profilePhotoUrls && profile.profilePhotoUrls[0]) || "",
-        memberCount: 0,
-        createdAt: rtdbTimestamp(),
-        status: "active",
-        isLocked: false
-      }
+        const roomKey = `${formData.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}_${Date.now()}`;
+        const roomDocRef = doc(firestore, "partyRooms", roomKey);
+        
+        transaction.set(roomDocRef, {
+          id: roomKey,
+          title: formData.title,
+          tags: formData.tags,
+          announcement: formData.announcement,
+          coverPhoto: formData.coverPhoto,
+          maxSeats: Number(formData.maxSeats),
+          hostId: currentUser.uid,
+          hostName: profile.username || "User",
+          hostPhoto: (profile.profilePhotoUrls && profile.profilePhotoUrls[0]) || "",
+          memberCount: 0,
+          createdAt: serverTimestamp(),
+          status: "active",
+          isLocked: false
+        });
 
-      await update(ref(database), { [`partyRooms/${roomKey}`]: roomData })
+        transaction.update(userProfileRef!, {
+          coinBalance: firestoreIncrement(-ROOM_CREATION_COST),
+          updatedAt: new Date().toISOString()
+        });
 
-      const batch = writeBatch(firestore)
-      const txRef = doc(collection(userProfileRef!, "transactions"))
-      batch.set(txRef, {
-        id: txRef.id,
-        type: "party_creation",
-        amount: -ROOM_CREATION_COST,
-        transactionDate: new Date().toISOString(),
-        description: `Created Party Room: ${formData.title}`
-      })
-      batch.update(userProfileRef!, {
-        coinBalance: firestoreIncrement(-ROOM_CREATION_COST),
-        updatedAt: new Date().toISOString()
-      })
-      await batch.commit()
+        const txRef = doc(collection(userProfileRef!, "transactions"));
+        transaction.set(txRef, {
+          id: txRef.id,
+          type: "party_creation",
+          amount: -ROOM_CREATION_COST,
+          transactionDate: new Date().toISOString(),
+          description: `Created Party Room: ${formData.title}`
+        });
+      });
 
       toast({ title: "Party Live!", description: "Room created successfully." })
-      router.push(`/party/${roomKey}`)
+      router.push(`/party`)
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({ variant: "destructive", title: "Insufficient Coins", description: `You need ${ROOM_CREATION_COST} coins.` })

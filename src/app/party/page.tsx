@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -7,8 +6,7 @@ import { Music, Plus, Users, Loader2, X, ArrowRight, Lock, Key } from "lucide-re
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
-import { doc } from "firebase/firestore"
-import { ref, onValue, off } from "firebase/database"
+import { collection, query, where, onSnapshot, orderBy, doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -18,7 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 export default function PartyListPage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
-  const { firestore, database } = useFirebase()
+  const { firestore } = useFirebase()
   const { toast } = useToast()
 
   const [parties, setParties] = useState<any[]>([])
@@ -33,26 +31,28 @@ export default function PartyListPage() {
   const { data: profile } = useDoc(userProfileRef)
 
   useEffect(() => {
-    if (!database || !currentUser) return
+    if (!firestore || !currentUser) return
 
-    const partiesRef = ref(database, 'partyRooms')
-    const unsubscribe = onValue(partiesRef, (snapshot) => {
-      const data = snapshot.val()
-      if (data) {
-        const list = Object.entries(data).map(([id, val]: [string, any]) => ({
-          id,
-          ...val
-        })).filter(p => p.status === 'active')
-        list.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
-        setParties(list)
-      } else {
-        setParties([])
-      }
+    const q = query(
+      collection(firestore, "partyRooms"),
+      where("status", "==", "active"),
+      orderBy("createdAt", "desc")
+    )
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(d => ({
+        id: d.id,
+        ...d.data()
+      }))
+      setParties(list)
+      setIsPartiesLoading(false)
+    }, (error) => {
+      console.error("Party list snapshot error:", error)
       setIsPartiesLoading(false)
     })
 
-    return () => off(partiesRef, "value", unsubscribe)
-  }, [database, currentUser])
+    return () => unsubscribe()
+  }, [firestore, currentUser])
 
   const handleHostClick = () => {
     if (!profile?.isPartyAdmin && !profile?.isAdmin) {

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -7,19 +6,16 @@ import { ChevronLeft, Trash2, Loader2, AlertTriangle, ShieldAlert } from "lucide
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth, useFirestore, useUser, deleteDocumentNonBlocking, useDoc, useMemoFirebase, useDatabase } from "@/firebase"
-import { doc } from "firebase/firestore"
-import { ref, remove } from "firebase/database"
+import { useAuth, useFirestore, useUser, deleteDocumentNonBlocking, useDoc, useMemoFirebase } from "@/firebase"
+import { doc, deleteDoc } from "firebase/firestore"
 import { deleteUser } from "firebase/auth"
 import { useToast } from "@/hooks/use-toast"
 import { clearDiscoverCache } from "@/app/discover/page"
-import { clearChatCache } from "@/app/chat/page"
 
 export default function DeleteAccountPage() {
   const router = useRouter()
   const auth = useAuth()
   const firestore = useFirestore()
-  const database = useDatabase()
   const { user } = useUser()
   const { toast } = useToast()
 
@@ -40,20 +36,15 @@ export default function DeleteAccountPage() {
     try {
       // 1. Clear ECONOMICAL caches immediately
       clearDiscoverCache();
-      clearChatCache();
 
       // 2. Delete Firestore Profile Data
       const firestoreDocRef = doc(firestore, "userProfiles", user.uid)
-      deleteDocumentNonBlocking(firestoreDocRef)
+      await deleteDoc(firestoreDocRef)
 
-      // 3. Delete Realtime Database User Node (Coins, Presence, etc.)
-      const rtdbUserRef = ref(database, `users/${user.uid}`)
-      await remove(rtdbUserRef)
-
-      // 4. Clear local storage
+      // 3. Clear local storage
       localStorage.removeItem('mf_guest_recovery')
 
-      // 5. Delete from Firebase Auth
+      // 4. Delete from Firebase Auth
       await deleteUser(user)
 
       toast({

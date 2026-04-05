@@ -1,12 +1,10 @@
-
 "use client"
 
 import { useEffect, useRef, use, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
-import { doc, runTransaction as runFirestoreTransaction, collection, getDocs, query, where, increment as firestoreIncrement } from "firebase/firestore"
-import { ref, runTransaction as runRtdbTransaction } from "firebase/database"
+import { doc, runTransaction, collection, getDocs, query, where, increment as firestoreIncrement } from "firebase/firestore"
 import { getPesaPalTransactionStatus } from "@/app/actions/pesapal"
 import { useToast } from "@/hooks/use-toast"
 
@@ -14,7 +12,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
   const params = use(searchParams)
   const router = useRouter()
   const { user: currentUser } = useUser()
-  const { firestore, database } = useFirebase()
+  const { firestore } = useFirebase()
   const { toast } = useToast()
   const processedRef = useRef(false)
 
@@ -26,7 +24,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
   }, [firestore, currentUser]);
 
   useEffect(() => {
-    if (!orderTrackingId || !currentUser || !firestore || !database || !userProfileDocRef || processedRef.current) return;
+    if (!orderTrackingId || !currentUser || !firestore || !userProfileDocRef || processedRef.current) return;
 
     const handleVerification = async () => {
       processedRef.current = true;
@@ -37,12 +35,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
           const amount = result.amount;
           const coinsToGain = Math.round((amount / 120) * 1000);
 
-          // 1. RTDB Primary Update
-          const coinRef = ref(database, `users/${currentUser.uid}/coinBalance`);
-          await runRtdbTransaction(coinRef, (current) => (current || 0) + coinsToGain);
-
-          // 2. Firestore Backup Sync & Log
-          await runFirestoreTransaction(firestore, async (transaction) => {
+          await runTransaction(firestore, async (transaction) => {
             const txQuery = query(collection(userProfileDocRef, "transactions"), where("orderTrackingId", "==", orderTrackingId));
             const existingTx = await getDocs(txQuery);
             if (!existingTx.empty) return;
@@ -75,7 +68,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     };
 
     handleVerification();
-  }, [orderTrackingId, currentUser, firestore, database, userProfileDocRef, router, toast]);
+  }, [orderTrackingId, currentUser, firestore, userProfileDocRef, router, toast]);
 
   return (
     <div className="min-h-svh bg-slate-50 flex flex-col items-center justify-center p-8 text-center">

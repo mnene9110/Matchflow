@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -20,8 +19,7 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useUser, useDoc, useFirestore, useMemoFirebase, useFirebase } from "@/firebase"
-import { doc, query, collection, where, getDocs, updateDoc } from "firebase/firestore"
-import { ref, onValue, update, remove } from "firebase/database"
+import { doc, query, collection, where, getDocs, updateDoc, onSnapshot, deleteDoc } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
@@ -49,7 +47,7 @@ import { useToast } from "@/hooks/use-toast"
 export default function HostCenterPage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
-  const { firestore, database } = useFirebase()
+  const { firestore } = useFirebase()
   const { toast } = useToast()
 
   const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
@@ -67,20 +65,20 @@ export default function HostCenterPage() {
   const [newCapacity, setNewCapacity] = useState<string>("")
 
   useEffect(() => {
-    if (!database || !currentUser) return
+    if (!firestore || !currentUser) return
 
-    const roomsRef = ref(database, 'partyRooms')
-    return onValue(roomsRef, (snap) => {
-      const data = snap.val()
-      if (data) {
-        const list = Object.entries(data)
-          .map(([id, val]: [string, any]) => ({ id, ...val }))
-          .filter(r => r.hostId === currentUser.uid && r.status === 'active')
-        setActiveRooms(list)
-      }
+    const q = query(
+      collection(firestore, "partyRooms"),
+      where("hostId", "==", currentUser.uid),
+      where("status", "==", "active")
+    )
+
+    return onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
+      setActiveRooms(list)
       setIsRoomsLoading(false)
     })
-  }, [database, currentUser?.uid])
+  }, [firestore, currentUser?.uid])
 
   const handleSearchAssistant = async () => {
     if (!assistantId.trim() || !firestore) return
@@ -140,16 +138,21 @@ export default function HostCenterPage() {
   }
 
   const handleUpdateRoom = async () => {
-    if (!editingRoom || !database) return
-    const roomRef = ref(database, `partyRooms/${editingRoom.id}`)
-    await update(roomRef, { maxSeats: Number(newCapacity) })
-    setEditingRoom(null)
+    if (!editingRoom || !firestore) return
+    try {
+      const roomRef = doc(firestore, "partyRooms", editingRoom.id)
+      await updateDoc(roomRef, { maxSeats: Number(newCapacity) })
+      setEditingRoom(null)
+      toast({ title: "Room Updated" })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Update Failed" })
+    }
   }
 
   const handleDeleteRoom = async (roomId: string) => {
-    if (!database) return
+    if (!firestore) return
     try {
-      await remove(ref(database, `partyRooms/${roomId}`))
+      await deleteDoc(doc(firestore, "partyRooms", roomId))
       toast({ title: "Room Deleted", description: "The room has been removed permanently." })
     } catch (error) {
       toast({ variant: "destructive", title: "Delete Failed", description: "Could not remove the room." })

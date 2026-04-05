@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -6,44 +5,32 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft, BellOff, Phone, Video, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
-import { useFirebase, useUser } from "@/firebase"
-import { ref, onValue, update } from "firebase/database"
+import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
+import { doc, updateDoc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 
 export default function CallSettingsPage() {
   const router = useRouter()
   const { user } = useUser()
-  const { database } = useFirebase()
+  const { firestore } = useFirebase()
   const { toast } = useToast()
 
-  const [settings, setSettings] = useState({
-    dndVoice: false,
-    dndVideo: false
-  })
-  const [isLoading, setIsLoading] = useState(true)
+  const userRef = useMemoFirebase(() => user ? doc(firestore, "userProfiles", user.uid) : null, [firestore, user])
+  const { data: profile, isLoading } = useDoc(userRef)
 
-  useEffect(() => {
-    if (!database || !user) return
-    const settingsRef = ref(database, `users/${user.uid}/settings`)
-    return onValue(settingsRef, (snap) => {
-      const data = snap.val()
-      if (data) {
-        setSettings({
-          dndVoice: !!data.dndVoice,
-          dndVideo: !!data.dndVideo
-        })
-      }
-      setIsLoading(false)
-    })
-  }, [database, user])
+  const settings = {
+    dndVoice: !!profile?.settings?.dndVoice,
+    dndVideo: !!profile?.settings?.dndVideo
+  }
 
   const toggleDND = async (type: 'dndVoice' | 'dndVideo') => {
-    if (!database || !user) return
+    if (!firestore || !user) return
     const newStatus = !settings[type]
     
     try {
-      await update(ref(database, `users/${user.uid}/settings`), {
-        [type]: newStatus
+      await updateDoc(doc(firestore, "userProfiles", user.uid), {
+        [`settings.${type}`]: newStatus,
+        updatedAt: new Date().toISOString()
       })
       toast({
         title: "Settings Updated",
