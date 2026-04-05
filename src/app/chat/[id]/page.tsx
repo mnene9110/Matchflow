@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, Gift, CheckCircle, UserX, ArrowUp } from "lucide-react"
+import { ChevronLeft, Video, Send, Phone, Loader2, Gift, CheckCircle, UserX, ArrowUp, Zap } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -227,6 +227,11 @@ function ChatDetailContent() {
     } finally { setIsSending(false) }
   }
 
+  const handleSendPackages = () => {
+    const packageMsg = `Hello! Here are our available coin packages:\n\n• 500 Coins\n- 1,000 Coins\n- 2,000 Coins\n- 5,000 Coins\n- 10,000 Coins\n- 12,500 Coins\n\nPlease let me know which one you would like to purchase!`;
+    handleSendMessage(packageMsg);
+  }
+
   const handleSendGift = async (giftOverride?: typeof GIFTS[0]) => {
     const gift = giftOverride || selectedGift;
     if (!gift || !currentUser || !otherUserId || isSendingGift || !currentUserProfile || !firestore || !otherUser) return;
@@ -303,7 +308,7 @@ function ChatDetailContent() {
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       <header className="px-5 pt-8 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-full bg-gray-50 text-gray-500"><ChevronLeft className="w-5 h-5" /></Button>
-        <div className={cn("flex items-center gap-3 transition-opacity flex-1 justify-center mr-10", otherUser.isSupport ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => !otherUser.isSupport && router.push(`/profile/${otherUserId}`)}>
+        <div className={cn("flex items-center gap-3 transition-opacity flex-1 justify-center", otherUser.isSupport ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => !otherUser.isSupport && router.push(`/profile/${otherUserId}`)}>
           <Avatar className="w-9 h-9 border border-gray-100 shadow-sm"><AvatarImage src={otherUserImage} className="object-cover" /><AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback></Avatar>
           <div className="flex flex-col text-center">
             <div className="flex items-center justify-center gap-1 mb-1">
@@ -313,7 +318,14 @@ function ChatDetailContent() {
             <span className={cn("text-[9px] font-black uppercase tracking-widest", otherUser.isOnline ? "text-green-500" : "text-gray-400")}>{presenceText}</span>
           </div>
         </div>
-        <div className="w-10" />
+        <div className="flex items-center">
+          {currentUserProfile?.isCoinseller && (
+            <Button variant="ghost" size="icon" onClick={handleSendPackages} className="h-10 w-10 rounded-full bg-amber-50 text-amber-600 border border-amber-100 shadow-sm animate-in fade-in zoom-in">
+              <Zap className="w-5 h-5 fill-current" />
+            </Button>
+          )}
+          <div className={cn(!currentUserProfile?.isCoinseller && "w-10")} />
+        </div>
       </header>
 
       <ScrollArea className="flex-1 px-4 py-4 bg-white">

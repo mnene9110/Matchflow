@@ -1,3 +1,4 @@
+
 "use client"
 
 import { 
@@ -104,7 +105,6 @@ export default function ProfilePage() {
           <div className="bg-white/40 backdrop-blur-md border border-white/40 rounded-[2.5rem] p-6 flex flex-col items-center gap-2 shadow-sm text-center">
             <div className="flex items-center gap-2"><div className="w-5 h-5 rounded-full bg-primary/10 flex items-center justify-center"><Coins className="w-3 h-3 text-primary" /></div><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Coins</span></div>
             <span className="text-2xl font-black text-gray-900 font-headline">{(userProfile?.coinBalance || 0).toLocaleString()}</span>
-            <Button onClick={() => router.push('/recharge')} className={cn("w-full h-10 rounded-full text-white font-black uppercase tracking-widest text-[8px] shadow-lg", darkMaroon)}>Recharge</Button>
           </div>
 
           <div className="bg-white/40 backdrop-blur-md border border-white/40 rounded-[2.5rem] p-6 flex flex-col items-center gap-2 shadow-sm text-center">

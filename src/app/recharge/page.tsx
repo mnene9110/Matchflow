@@ -21,16 +21,6 @@ const STANDARD_PACKAGES = [
   { amount: 12500, priceKes: 1500 },
 ]
 
-// Wholesale Pricing (Coinsellers)
-const COINSELLER_PACKAGES = [
-  { amount: 500, priceKes: 40 },
-  { amount: 1000, priceKes: 75 },
-  { amount: 2000, priceKes: 140 },
-  { amount: 5000, priceKes: 350 },
-  { amount: 10000, priceKes: 680 },
-  { amount: 12500, priceKes: 850 },
-]
-
 export const COUNTRY_CURRENCIES: Record<string, { code: string; symbol: string; rate: number }> = {
   "Burundi": { code: "BIF", symbol: "FBu", rate: 22.1 },
   "Comoros": { code: "KMF", symbol: "CF", rate: 3.5 },
@@ -65,8 +55,7 @@ function RechargeContent() {
   const meRef = useMemoFirebase(() => user ? doc(firestore, "userProfiles", user.uid) : null, [firestore, user])
   const { data: profile } = useDoc(meRef)
 
-  const isCoinseller = profile?.isCoinseller === true;
-  const packages = isCoinseller ? COINSELLER_PACKAGES : STANDARD_PACKAGES;
+  const packages = STANDARD_PACKAGES;
   const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
 
   useEffect(() => {
@@ -108,16 +97,6 @@ function RechargeContent() {
           </div>
         </section>
 
-        {isCoinseller && (
-          <div className="mx-2 mb-6 p-4 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex items-center gap-3">
-            <Zap className="w-5 h-5 text-amber-600 fill-current" />
-            <div className="flex-1">
-              <p className="text-[10px] font-black text-amber-700 uppercase tracking-widest leading-none">Coinseller Wholesale Access</p>
-              <p className="text-[8px] font-bold text-amber-600 uppercase tracking-tighter mt-1">Special bulk rates applied automatically</p>
-            </div>
-          </div>
-        )}
-
         <section className="space-y-4">
           <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-3 ml-2 drop-shadow-sm">Select Package</h2>
           <div className="grid grid-cols-3 gap-3">
@@ -141,11 +120,9 @@ function RechargeContent() {
           </div>
         </section>
 
-        {!isCoinseller && (
-          <section className="mt-12 flex flex-col items-center pb-10">
-            <button onClick={() => router.push(`/recharge/coinsellers`)} className="text-[10px] font-black text-white uppercase tracking-[0.3em] border-b border-white/30 pb-1.5 active:opacity-50">Contact Coinsellers</button>
-          </section>
-        )}
+        <section className="mt-12 flex flex-col items-center pb-10">
+          <button onClick={() => router.push(`/recharge/coinsellers`)} className="text-[10px] font-black text-white uppercase tracking-[0.3em] border-b border-white/30 pb-1.5 active:opacity-50">Contact Coinsellers</button>
+        </section>
       </main>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50">
