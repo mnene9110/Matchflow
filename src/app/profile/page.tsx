@@ -139,7 +139,7 @@ export default function ProfilePage() {
               <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Coins</span>
             </div>
             <span className="text-2xl font-black text-gray-900 font-headline">{wallet.coins.toLocaleString()}</span>
-            <Button onClick={() => router.push('/recharge')} className={cn("w-full h-10 rounded-full text-white font-black uppercase tracking-widest text-[8px] shadow-lg", darkMaroon)}>Buy</Button>
+            <Button onClick={() => router.push('/recharge')} className={cn("w-full h-10 rounded-full text-white font-black uppercase tracking-widest text-[8px] shadow-lg", darkMaroon)}>Recharge</Button>
           </div>
 
           <div className="bg-white/40 backdrop-blur-md border border-white/40 rounded-[2.5rem] p-6 flex flex-col items-center gap-2 shadow-sm text-center">

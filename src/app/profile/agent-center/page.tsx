@@ -1,33 +1,38 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { 
   ChevronLeft, 
   Building2, 
-  Plus, 
   Loader2, 
   Users, 
   CheckCircle2, 
   XCircle, 
   Copy,
   LayoutGrid,
-  History
+  CreditCard,
+  CheckCircle
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useUser, useDoc, useFirestore, useMemoFirebase, useCollection } from "@/firebase"
-import { doc, setDoc, updateDoc, collection, query, where, getDocs } from "firebase/firestore"
+import { useUser, useDoc, useFirestore, useMemoFirebase, useFirebase } from "@/firebase"
+import { doc, setDoc as setFirestoreDoc, updateDoc as updateFirestoreDoc } from "firebase/firestore"
+import { ref, set, update, onValue, push } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
+// Session-based caching
+let sessionCache: Record<string, any[]> = {}
 
 export default function AgentCenterPage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
-  const firestore = useFirestore()
+  const { database, firestore } = useFirebase()
   const { toast } = useToast()
 
   const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
@@ -37,33 +42,69 @@ export default function AgentCenterPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [processingId, setProcessingId] = useState<string | null>(null)
 
-  // Fetch pending members
-  const requestsQuery = useMemoFirebase(() => {
-    if (!firestore || !profile?.agencyId) return null
-    return query(
-      collection(firestore, "userProfiles"), 
-      where("memberOfAgencyId", "==", profile.agencyId),
-      where("agencyJoinStatus", "==", "pending")
-    )
-  }, [firestore, profile?.agencyId])
+  const [pendingRequests, setPendingRequests] = useState<any[]>(sessionCache.pending || [])
+  const [members, setMembers] = useState<any[]>(sessionCache.members || [])
+  const [withdrawals, setWithdrawals] = useState<any[]>(sessionCache.withdrawals || [])
+  
+  const [isLoadingData, setIsLoadingData] = useState(false)
 
-  const { data: pendingUsers, isLoading: isRequestsLoading } = useCollection(requestsQuery)
+  useEffect(() => {
+    if (!database || !profile?.agencyId) return
+
+    setIsLoadingData(true)
+    
+    // Listen for requests
+    const requestsRef = ref(database, `agencyRequests/${profile.agencyId}`)
+    const unsubscribeRequests = onValue(requestsRef, (snap) => {
+      const data = snap.val()
+      const list = data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []
+      setPendingRequests(list)
+      sessionCache.pending = list
+    })
+
+    // Listen for members
+    const membersRef = ref(database, `agencyMembers/${profile.agencyId}`)
+    const unsubscribeMembers = onValue(membersRef, (snap) => {
+      const data = snap.val()
+      const list = data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []
+      setMembers(list)
+      sessionCache.members = list
+    })
+
+    // Listen for withdrawals
+    const withdrawalsRef = ref(database, `agencyWithdrawals/${profile.agencyId}`)
+    const unsubscribeWithdrawals = onValue(withdrawalsRef, (snap) => {
+      const data = snap.val()
+      const list = data ? Object.entries(data).map(([id, val]: [string, any]) => ({ id, ...val })) : []
+      setWithdrawals(list)
+      sessionCache.withdrawals = list
+    })
+
+    setIsLoadingData(false)
+
+    return () => {
+      unsubscribeRequests()
+      unsubscribeMembers()
+      unsubscribeWithdrawals()
+    }
+  }, [database, profile?.agencyId])
 
   const handleCreateAgency = async () => {
-    if (!agencyName.trim() || !currentUser) return
+    if (!agencyName.trim() || !currentUser || !database) return
     setIsCreating(true)
     try {
       const generatedId = Math.random().toString(36).substring(2, 8).toUpperCase()
-      const agencyRef = doc(firestore, "agencies", generatedId)
       
-      await setDoc(agencyRef, {
+      // 1. RTDB Setup
+      await set(ref(database, `agencies/${generatedId}`), {
         id: generatedId,
         name: agencyName,
         agentId: currentUser.uid,
-        createdAt: new Date().toISOString()
+        createdAt: Date.now()
       })
 
-      await updateDoc(doc(firestore, "userProfiles", currentUser.uid), {
+      // 2. Firestore Sync
+      await updateFirestoreDoc(doc(firestore, "userProfiles", currentUser.uid), {
         agencyId: generatedId,
         updatedAt: new Date().toISOString()
       })
@@ -76,21 +117,62 @@ export default function AgentCenterPage() {
     }
   }
 
-  const handleAction = async (userId: string, action: 'approved' | 'none') => {
-    if (processingId) return
+  const handleRequestAction = async (userId: string, action: 'approved' | 'rejected', userData: any) => {
+    if (!database || !profile?.agencyId || processingId) return
     setProcessingId(userId)
     try {
-      await updateDoc(doc(firestore, "userProfiles", userId), {
-        agencyJoinStatus: action,
-        memberOfAgencyId: action === 'approved' ? profile?.agencyId : null,
-        updatedAt: new Date().toISOString()
-      })
-      toast({ 
-        title: action === 'approved' ? "User Approved" : "User Rejected", 
-        description: action === 'approved' ? "They are now part of your agency." : "Application dismissed."
-      })
+      const updates: any = {}
+      if (action === 'approved') {
+        updates[`agencyMembers/${profile.agencyId}/${userId}`] = { 
+          ...userData, 
+          joinedAt: Date.now() 
+        }
+        // Update user's profile in Firestore
+        await updateFirestoreDoc(doc(firestore, "userProfiles", userId), {
+          agencyJoinStatus: 'approved',
+          memberOfAgencyId: profile.agencyId,
+          updatedAt: new Date().toISOString()
+        })
+      } else {
+        await updateFirestoreDoc(doc(firestore, "userProfiles", userId), {
+          agencyJoinStatus: 'none',
+          memberOfAgencyId: null,
+          updatedAt: new Date().toISOString()
+        })
+      }
+      updates[`agencyRequests/${profile.agencyId}/${userId}`] = null
+      await update(ref(database), updates)
+      toast({ title: action === 'approved' ? "User Approved" : "User Rejected" })
     } catch (e) {
-      toast({ variant: "destructive", title: "Error", description: "Action failed." })
+      toast({ variant: "destructive", title: "Action failed" })
+    } finally {
+      setProcessingId(null)
+    }
+  }
+
+  const handleMarkAsPaid = async (withdrawal: any) => {
+    if (!database || !profile?.agencyId || !profile || processingId) return
+    setProcessingId(withdrawal.id)
+    try {
+      // 1. Update status in RTDB
+      await update(ref(database, `agencyWithdrawals/${profile.agencyId}/${withdrawal.id}`), {
+        status: 'paid',
+        paidAt: Date.now()
+      })
+
+      // 2. Send system message via RTDB
+      const chatId = [withdrawal.userId, currentUser?.uid].sort().join("_")
+      const msgRef = push(ref(database, `chats/${chatId}/messages`))
+      await set(msgRef, {
+        messageText: "✅ Your withdrawal request has been paid through the agency anchor. Please check your account.",
+        senderId: currentUser?.uid,
+        sentAt: Date.now(),
+        status: 'sent'
+      })
+
+      toast({ title: "Paid", description: "Message sent to member." })
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error" })
     } finally {
       setProcessingId(null)
     }
@@ -99,7 +181,7 @@ export default function AgentCenterPage() {
   const copyId = () => {
     if (profile?.agencyId) {
       navigator.clipboard.writeText(profile.agencyId)
-      toast({ title: "Copied!", description: "Agency ID copied to clipboard." })
+      toast({ title: "Copied!", description: "Agency ID copied." })
     }
   }
 
@@ -148,7 +230,7 @@ export default function AgentCenterPage() {
             </Button>
           </section>
         ) : (
-          <>
+          <div className="space-y-8">
             <section className="bg-zinc-950 rounded-[2.5rem] p-8 text-white shadow-2xl space-y-6 relative overflow-hidden">
               <div className="absolute top-0 right-0 p-6 opacity-10"><Building2 className="w-32 h-32" /></div>
               <div className="relative z-10 space-y-4">
@@ -168,66 +250,95 @@ export default function AgentCenterPage() {
               </div>
             </section>
 
-            <section className="space-y-4">
-              <div className="flex items-center justify-between px-2">
-                <div className="flex items-center gap-2">
-                  <LayoutGrid className="w-4 h-4 text-purple-500/40" />
-                  <h3 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Join Requests</h3>
-                </div>
-                <span className="text-[9px] font-black bg-purple-50 text-purple-600 px-2 py-0.5 rounded-full uppercase">
-                  {pendingUsers?.length || 0} New
-                </span>
-              </div>
+            <Tabs defaultValue="requests" className="w-full">
+              <TabsList className="w-full bg-gray-100 p-1.5 h-14 rounded-full mb-6">
+                <TabsTrigger value="requests" className="flex-1 rounded-full text-[10px] font-black uppercase tracking-widest h-full">Requests</TabsTrigger>
+                <TabsTrigger value="members" className="flex-1 rounded-full text-[10px] font-black uppercase tracking-widest h-full">Members</TabsTrigger>
+                <TabsTrigger value="withdrawals" className="flex-1 rounded-full text-[10px] font-black uppercase tracking-widest h-full">Payouts</TabsTrigger>
+              </TabsList>
 
-              {isRequestsLoading ? (
-                <div className="flex justify-center py-10"><Loader2 className="w-6 h-6 animate-spin text-purple-200" /></div>
-              ) : pendingUsers && pendingUsers.length > 0 ? (
-                <div className="space-y-3">
-                  {pendingUsers.map((user: any) => (
-                    <div 
-                      key={user.id}
-                      className="bg-gray-50/50 border border-gray-100 p-4 rounded-[2rem] flex items-center justify-between shadow-sm"
-                    >
+              <TabsContent value="requests" className="space-y-4">
+                {pendingRequests.length > 0 ? (
+                  pendingRequests.map(req => (
+                    <div key={req.id} className="bg-gray-50 p-4 rounded-[2rem] flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <Avatar className="w-12 h-12 border-2 border-white shadow-md">
-                          <AvatarImage src={user.profilePhotoUrls?.[0]} className="object-cover" />
-                          <AvatarFallback>{user.username?.[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex flex-col">
-                          <span className="text-sm font-black text-gray-900 leading-none">{user.username}</span>
-                          <span className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-1">ID: {user.numericId}</span>
+                        <Avatar className="w-12 h-12"><AvatarImage src={req.photo} /><AvatarFallback>{req.username?.[0]}</AvatarFallback></Avatar>
+                        <div>
+                          <p className="text-sm font-black">{req.username}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase">ID: {req.numericId}</p>
                         </div>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button 
-                          size="icon" 
-                          variant="ghost" 
-                          onClick={() => handleAction(user.id, 'none')}
-                          disabled={!!processingId}
-                          className="w-10 h-10 rounded-full bg-red-50 text-red-500 hover:bg-red-100"
-                        >
-                          <XCircle className="w-5 h-5" />
-                        </Button>
-                        <Button 
-                          size="icon" 
-                          onClick={() => handleAction(user.id, 'approved')}
-                          disabled={!!processingId}
-                          className="w-10 h-10 rounded-full bg-green-500 text-white shadow-lg shadow-green-500/20 active:scale-90"
-                        >
-                          {processingId === user.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle2 className="w-5 h-5" />}
-                        </Button>
+                      <div className="flex gap-2">
+                        <Button size="icon" variant="ghost" onClick={() => handleRequestAction(req.id, 'rejected', req)} disabled={!!processingId} className="w-10 h-10 rounded-full bg-red-50 text-red-500"><XCircle className="w-5 h-5" /></Button>
+                        <Button size="icon" onClick={() => handleRequestAction(req.id, 'approved', req)} disabled={!!processingId} className="w-10 h-10 rounded-full bg-green-500 text-white"><CheckCircle2 className="w-5 h-5" /></Button>
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-20 text-center space-y-4 opacity-20">
-                  <Users className="w-12 h-12" />
-                  <p className="text-[10px] font-black uppercase tracking-widest">No pending requests</p>
-                </div>
-              )}
-            </section>
-          </>
+                  ))
+                ) : (
+                  <div className="py-20 text-center opacity-20 flex flex-col items-center gap-2">
+                    <Users className="w-10 h-10" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">No pending applications</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="members" className="space-y-4">
+                {members.length > 0 ? (
+                  members.map(member => (
+                    <div key={member.id} className="bg-white border border-gray-100 p-4 rounded-[2rem] flex items-center justify-between shadow-sm">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="w-12 h-12 border-2 border-white shadow-md"><AvatarImage src={member.photo} /><AvatarFallback>{member.username?.[0]}</AvatarFallback></Avatar>
+                        <div>
+                          <p className="text-sm font-black">{member.username}</p>
+                          <p className="text-[9px] font-bold text-gray-400 uppercase">Joined: {new Date(member.joinedAt).toLocaleDateString()}</p>
+                        </div>
+                      </div>
+                      <Button size="sm" variant="ghost" onClick={() => router.push(`/chat/${member.id}`)} className="h-10 px-4 rounded-full bg-primary/5 text-primary font-black text-[9px] uppercase tracking-widest">Chat</Button>
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-20 text-center opacity-20 flex flex-col items-center gap-2">
+                    <Users className="w-10 h-10" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">No members yet</p>
+                  </div>
+                )}
+              </TabsContent>
+
+              <TabsContent value="withdrawals" className="space-y-4">
+                {withdrawals.length > 0 ? (
+                  withdrawals.map(w => (
+                    <div key={w.id} className="bg-white border border-gray-100 p-5 rounded-[2.25rem] space-y-4 shadow-sm">
+                      <div className="flex justify-between items-center">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="w-10 h-10"><AvatarImage src={w.photo} /><AvatarFallback>{w.username?.[0]}</AvatarFallback></Avatar>
+                          <div><p className="text-xs font-black">{w.username}</p><p className="text-[8px] font-bold text-gray-400 uppercase">{new Date(w.timestamp).toLocaleString()}</p></div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-sm font-black text-green-600">{w.amount} KES</p>
+                          <span className={cn("text-[8px] font-black uppercase px-2 py-0.5 rounded-full", w.status === 'paid' ? "bg-green-50 text-green-500" : "bg-amber-50 text-amber-500")}>{w.status}</span>
+                        </div>
+                      </div>
+                      {w.status !== 'paid' && (
+                        <Button 
+                          onClick={() => handleMarkAsPaid(w)} 
+                          disabled={!!processingId} 
+                          className="w-full h-12 rounded-full bg-zinc-900 text-white font-black text-xs uppercase tracking-widest gap-2"
+                        >
+                          {processingId === w.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
+                          Confirm Paid
+                        </Button>
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  <div className="py-20 text-center opacity-20 flex flex-col items-center gap-2">
+                    <CreditCard className="w-10 h-10" />
+                    <p className="text-[10px] font-black uppercase tracking-widest">No payout requests</p>
+                  </div>
+                )}
+              </TabsContent>
+            </Tabs>
+          </div>
         )}
       </main>
     </div>

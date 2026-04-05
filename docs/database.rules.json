@@ -1,3 +1,4 @@
+
 {
   "rules": {
     "users": {
@@ -12,7 +13,6 @@
         },
         "chats": {
           "$otherId": {
-            // Allow the other participant to update my inbox metadata for our shared chat (e.g. unread count)
             ".write": "auth != null && $otherId === auth.uid",
             ".read": "auth != null && (auth.uid === $uid || $otherId === auth.uid)"
           }
@@ -21,14 +21,12 @@
     },
     "chats": {
       "$chatId": {
-        // Only members whose UID is in the chatId can read/write the messages
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)"
       }
     },
     "calls": {
       "$chatId": {
-        // Only members whose UID is in the chatId can manage the call state
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)"
       }
@@ -41,6 +39,36 @@
           "$userId": {
             ".write": "auth != null && $userId === auth.uid"
           }
+        }
+      }
+    },
+    "agencies": {
+      ".read": "auth != null",
+      "$agencyId": {
+        ".write": "auth != null && (!data.exists() || data.child('agentId').val() === auth.uid)"
+      }
+    },
+    "agencyRequests": {
+      "$agencyId": {
+        ".read": "auth != null && root.child('agencies').child($agencyId).child('agentId').val() === auth.uid",
+        "$userId": {
+          ".write": "auth != null && (auth.uid === $userId || root.child('agencies').child($agencyId).child('agentId').val() === auth.uid)"
+        }
+      }
+    },
+    "agencyMembers": {
+      "$agencyId": {
+        ".read": "auth != null",
+        "$userId": {
+          ".write": "auth != null && (auth.uid === $userId || root.child('agencies').child($agencyId).child('agentId').val() === auth.uid)"
+        }
+      }
+    },
+    "agencyWithdrawals": {
+      "$agencyId": {
+        ".read": "auth != null && root.child('agencies').child($agencyId).child('agentId').val() === auth.uid",
+        "$requestId": {
+          ".write": "auth != null"
         }
       }
     }

@@ -147,8 +147,7 @@ function ChatDetailContent() {
 
     const costPerMin = type === 'video' ? 160 : 80;
     
-    // UPDATED CALL ECONOMY: Everyone pays for calls EXCEPT Admin/Support/Coinseller
-    // Female users ALSO pay for calls now.
+    // CALL ECONOMY: Female users ALSO pay for calls now.
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
                    currentUserProfile.isCoinseller ||
@@ -223,13 +222,18 @@ function ChatDetailContent() {
       return;
     }
 
-    // UPDATED CHAT ECONOMY: Female users chat for FREE
+    // ECONOMY: Free chat for female users OR Agency Agent & Member free communication
+    const isMemberOfMyAgency = currentUserProfile.agencyId && otherUser.memberOfAgencyId === currentUserProfile.agencyId;
+    const isMyAgent = currentUserProfile.memberOfAgencyId && otherUser.agencyId === currentUserProfile.memberOfAgencyId;
+
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
                    currentUserProfile.isCoinseller || 
                    otherUser.isSupport || 
                    otherUser.isCoinseller ||
-                   currentUserProfile.gender?.toLowerCase() === 'female';
+                   currentUserProfile.gender?.toLowerCase() === 'female' ||
+                   isMemberOfMyAgency ||
+                   isMyAgent;
 
     const messageCost = isFree ? 0 : 15;
     
