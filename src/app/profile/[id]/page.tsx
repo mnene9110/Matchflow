@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -24,9 +25,8 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
-import { useDoc, useFirestore, useFirebase, useMemoFirebase, useUser, setDocumentNonBlocking } from "@/firebase"
-import { doc, collection, addDoc } from "firebase/firestore"
-import { ref, onValue } from "firebase/database"
+import { useFirebase, useUser } from "@/firebase"
+import { ref, onValue, push, set, serverTimestamp as rtdbTimestamp } from "firebase/database"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -48,21 +48,28 @@ import { useToast } from "@/hooks/use-toast"
 export default function ProfileDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-  const firestore = useFirestore()
   const { database } = useFirebase()
   const { user: currentUser } = useUser()
   const { toast } = useToast()
   
-  // Guard: Only fetch profile if currentUser is ready to prevent Firestore permission errors
-  const docRef = useMemoFirebase(() => currentUser && id ? doc(firestore, "userProfiles", id as string) : null, [firestore, id, !!currentUser])
-  const { data: userProfile, isLoading } = useDoc(docRef)
-
+  const [userProfile, setUserProfile] = useState<any>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportDetails, setReportDetails] = useState("")
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
   
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null)
+
+  useEffect(() => {
+    if (!database || !id) return
+    const profileRef = ref(database, `users/${id}`)
+    const unsub = onValue(profileRef, (snap) => {
+      setUserProfile(snap.val())
+      setIsLoading(false)
+    })
+    return () => unsub()
+  }, [database, id])
 
   useEffect(() => {
     if (!database || !id) return
@@ -105,14 +112,13 @@ export default function ProfileDetailPage() {
   }, [presence]);
 
   const handleBlock = async () => {
-    if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin) return
+    if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin || !database) return
     try {
-      const blockRef = doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", id as string)
-      await setDocumentNonBlocking(blockRef, {
+      await set(ref(database, `users/${currentUser.uid}/blockedUsers/${id}`), {
         blockedUserId: id,
         username: userProfile?.username || "Unknown",
-        blockedAt: new Date().toISOString()
-      }, { merge: true })
+        blockedAt: Date.now()
+      })
       toast({ title: "User Blocked", description: `${userProfile?.username} has been blocked.` })
       router.push('/discover')
     } catch (error) {
@@ -121,15 +127,16 @@ export default function ProfileDetailPage() {
   }
 
   const handleReport = async () => {
-    if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport) return
+    if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport || !database) return
     setIsSubmittingReport(true)
     try {
-      const reportsCol = collection(firestore, "reports")
-      await addDoc(reportsCol, {
+      const reportRef = push(ref(database, "reports"))
+      await set(reportRef, {
+        id: reportRef.key,
         reporterId: currentUser.uid,
         reportedUserId: id,
         details: reportDetails,
-        createdAt: new Date().toISOString(),
+        timestamp: rtdbTimestamp(),
         status: "pending"
       })
       toast({ title: "Report Submitted", description: "Our team will review this profile." })

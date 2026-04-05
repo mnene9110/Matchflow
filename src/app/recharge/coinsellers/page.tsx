@@ -1,28 +1,38 @@
+
 "use client"
 
-import { Suspense, use } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, MessageCircle, Users, Loader2, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useFirestore, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, where } from "firebase/firestore"
+import { useFirebase } from "@/firebase"
+import { ref, query, orderByChild, equalTo, onValue } from "firebase/database"
 import { useToast } from "@/hooks/use-toast"
 
 function CoinsellersContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const firestore = useFirestore()
+  const { database } = useFirebase()
   const { toast } = useToast()
 
   const selectedAmount = searchParams?.get('amount')
+  const [coinsellers, setCoinsellers] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const coinsellersQuery = useMemoFirebase(() => {
-    if (!firestore) return null
-    return query(collection(firestore, "userProfiles"), where("isCoinseller", "==", true))
-  }, [firestore])
-
-  const { data: coinsellers, isLoading } = useCollection(coinsellersQuery)
+  useEffect(() => {
+    if (!database) return
+    const sellersRef = query(ref(database, 'users'), orderByChild('isCoinseller'), equalTo(true))
+    return onValue(sellersRef, (snap) => {
+      const data = snap.val()
+      if (data) {
+        setCoinsellers(Object.values(data))
+      } else {
+        setCoinsellers([])
+      }
+      setIsLoading(false)
+    })
+  }, [database])
 
   const handleChatWithSeller = (sellerId: string) => {
     const message = selectedAmount 

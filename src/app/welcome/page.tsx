@@ -1,39 +1,44 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
-import { Mail, Zap } from "lucide-react"
+import { Mail, Zap, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, initiateAnonymousSignIn } from "@/firebase"
+import { useAuth, useUser, initiateAnonymousSignIn, useFirebase } from "@/firebase"
+import { ref, get } from "firebase/database"
 
-/**
- * @fileOverview Refined landing page with rounded-corner branding.
- */
 export default function WelcomePage() {
   const router = useRouter()
   const auth = useAuth()
+  const { database } = useFirebase()
   const { user, isUserLoading } = useUser()
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
   useEffect(() => {
-    if (user && !isUserLoading) {
-      // Logic handled in handleFastLogin for redirects, 
-      // but this catch-all ensures signed-in users go somewhere valid.
-      // If anonymous and has no profile, the Navbar/Discover logic will usually bounce them back 
-      // or we handle it here.
+    if (user && !isUserLoading && database) {
+      // Check if user has a profile in RTDB
+      get(ref(database, `users/${user.uid}`)).then(snap => {
+        if (snap.exists()) {
+          router.replace("/discover")
+        } else {
+          router.replace("/onboarding/fast")
+        }
+      })
     }
-  }, [user, isUserLoading, router])
+  }, [user, isUserLoading, database, router])
 
   const handleFastLogin = () => {
     setIsLoggingIn(true)
     initiateAnonymousSignIn(auth)
-      .then((cred) => {
-        const isNew = cred.user.metadata.creationTime === cred.user.metadata.lastSignInTime;
-        if (isNew) {
-          // New users go to the simplified fast onboarding
-          router.push("/onboarding/fast")
-        } else {
-          router.push("/discover")
+      .then(async (cred) => {
+        if (database) {
+          const snap = await get(ref(database, `users/${cred.user.uid}`))
+          if (snap.exists()) {
+            router.push("/discover")
+          } else {
+            router.push("/onboarding/fast")
+          }
         }
       })
       .catch((error) => {
@@ -52,7 +57,6 @@ export default function WelcomePage() {
     <div className="flex flex-col h-svh bg-transparent relative overflow-hidden">
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
         <div className="mb-10 relative">
-          {/* Iconic rounded-corner branding with black background and golden glow */}
           <div className="w-48 h-48 bg-zinc-950 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center border border-white/10 animate-float overflow-hidden relative">
             <div className="relative w-24 h-24 mb-2 flex items-center justify-center">
               <svg viewBox="0 0 24 24" className="w-full h-full text-primary fill-current filter drop-shadow-[0_0_15px_rgba(179,102,102,0.9)]" xmlns="http://www.w3.org/2000/svg">
@@ -86,7 +90,7 @@ export default function WelcomePage() {
             onClick={handleFastLogin}
             disabled={isLoggingIn}
           >
-            <Zap className="w-6 h-6 fill-current text-primary" />
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-primary" />}
             Fast Login
           </Button>
         </div>

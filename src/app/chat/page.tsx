@@ -1,12 +1,12 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
 import { MessageSquare, ChevronRight, CheckCircle, Ban, EyeOff, Loader2, Trash2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
-import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { ref, onValue, update, query, orderByChild, limitToLast } from "firebase/database"
-import { doc, getDoc, collection } from "firebase/firestore"
+import { useFirebase, useUser } from "@/firebase"
+import { ref, onValue, update, query, orderByChild, limitToLast, get } from "firebase/database"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -30,7 +30,7 @@ export function clearProfileCache() {
 }
 
 function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: (id: string) => void }) {
-  const { firestore, database } = useFirebase()
+  const { database } = useFirebase()
   const router = useRouter()
   const [otherUserData, setOtherUserData] = useState<any>(profileCache[session.otherUserId] || null)
   const [presence, setPresence] = useState<{ online: boolean; lastSeen?: number }>({ online: false })
@@ -40,7 +40,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
 
   useEffect(() => {
     async function fetchUser() {
-      if (!firestore || !session.otherUserId) return
+      if (!database || !session.otherUserId) return
       if (profileCache[session.otherUserId]) {
         setOtherUserData(profileCache[session.otherUserId])
         setIsDataLoaded(true)
@@ -48,9 +48,10 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
       }
 
       try {
-        const userDoc = await getDoc(doc(firestore, "userProfiles", session.otherUserId))
-        if (userDoc.exists()) {
-          const data = userDoc.data()
+        const userRef = ref(database, `users/${session.otherUserId}`)
+        const snap = await get(userRef)
+        if (snap.exists()) {
+          const data = snap.val()
           profileCache[session.otherUserId] = data
           setOtherUserData(data)
         } else {
@@ -65,7 +66,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
       }
     }
     fetchUser()
-  }, [firestore, session.otherUserId])
+  }, [database, session.otherUserId])
 
   useEffect(() => {
     if (!database || !session.otherUserId) return
@@ -169,15 +170,23 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
 }
 
 export default function ChatListPage() {
-  const { database, firestore } = useFirebase()
+  const { database } = useFirebase()
   const { user: currentUser } = useUser()
   const [sessions, setSessions] = useState<any[]>(cachedSessions)
   const [hasFetched, setHasFetched] = useState(cachedLoaded)
   const [hidingTarget, setHidingTarget] = useState<string | null>(null)
   const [isHiding, setIsHiding] = useState(false)
 
-  const blockedQuery = useMemoFirebase(() => currentUser ? collection(firestore, 'userProfiles', currentUser.uid, 'blockedUsers') : null, [firestore, currentUser])
-  const { data: blockedUsers } = useCollection(blockedQuery)
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set())
+
+  useEffect(() => {
+    if (!database || !currentUser) return
+    const blockedRef = ref(database, `users/${currentUser.uid}/blockedUsers`)
+    return onValue(blockedRef, (snap) => {
+      const data = snap.val() || {}
+      setBlockedIds(new Set(Object.keys(data)))
+    })
+  }, [database, currentUser])
 
   useEffect(() => {
     if (!database || !currentUser) return
@@ -220,7 +229,6 @@ export default function ChatListPage() {
     }
   }
 
-  const blockedIds = new Set(blockedUsers?.map(b => b.id) || [])
   const filteredSessions = sessions.filter(s => !blockedIds.has(s.otherUserId) && !s.hidden)
 
   return (
