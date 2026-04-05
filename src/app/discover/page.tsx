@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -93,7 +92,7 @@ export default function DiscoverPage() {
     const onlineUsers = fetchedUsers.filter(u => currentMap[u.id]);
     const offlineUsers = fetchedUsers.filter(u => !currentMap[u.id]);
 
-    // Shuffle within groups to keep feed interesting, but maintain strict status ordering
+    // ONLINE USERS FIRST, then offline. Shuffle within groups for variety.
     return [...shuffleArray(onlineUsers), ...shuffleArray(offlineUsers)];
   }
 
@@ -226,7 +225,7 @@ export default function DiscoverPage() {
   return (
     <div className="flex flex-col h-svh bg-transparent overflow-y-auto pb-32">
       <div className="sticky top-0 z-30 px-4 py-8 bg-transparent shrink-0 space-y-6">
-        {/* Mystery Note and Task Center Row - Reduced Height */}
+        {/* Mystery Note and Task Center Row */}
         <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-700">
           <button 
             onClick={() => router.push('/mystery-note')}
@@ -305,9 +304,9 @@ export default function DiscoverPage() {
                 e.stopPropagation(); 
                 router.push(`/chat/${user.id}`); 
               }}
-              className="absolute top-3 right-3 h-8 px-4 bg-white/20 backdrop-blur-md border border-white/30 rounded-full flex items-center justify-center z-10 active:bg-white active:scale-90 transition-all"
+              className="absolute top-3 right-3 h-8 px-4 bg-white border border-white shadow-lg rounded-full flex items-center justify-center z-10 active:scale-90 transition-all"
             >
-              <span className="text-[8px] font-black text-white group-active:text-primary uppercase tracking-[0.1em]">Chat</span>
+              <span className="text-[8px] font-black text-[#8B0000] uppercase tracking-[0.1em]">Chat</span>
             </button>
 
             <div className="absolute inset-x-0 bottom-0 p-4 z-10 pointer-events-none">
@@ -328,13 +327,6 @@ export default function DiscoverPage() {
         {(isInitialLoading || isProfileLoading) && Array.from({ length: 4 }).map((_, i) => (
           <div key={i} className="aspect-[3/4.2] rounded-[2.5rem] bg-white/20 animate-pulse" />
         ))}
-
-        {!(isInitialLoading || isProfileLoading) && displayUsers.length === 0 && (
-          <div className="col-span-2 flex flex-col items-center justify-center py-20 text-center opacity-40">
-            <Globe className="w-12 h-12 text-white mb-4" />
-            <p className="text-[10px] font-black text-white uppercase tracking-[0.2em]">No users {activeTab === 'nearby' ? 'in your country' : ''} found</p>
-          </div>
-        )}
 
         {hasMore && !(isInitialLoading || isProfileLoading) && (
           <div className="col-span-2 flex justify-center py-8">

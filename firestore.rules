@@ -1,10 +1,31 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    // Allow authenticated users to read/write all documents and subcollections
+    // User Profile Rules
+    match /userProfiles/{userId} {
+      // Authenticated users can browse profiles
+      allow read: if request.auth != null;
+      // Users can only create or edit their own profile
+      allow write: if request.auth != null && request.auth.uid == userId;
+      
+      // Sub-collections: Only the owner can manage their own data
+      match /transactions/{transactionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+      match /blockedUsers/{blockedId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+
+    // Reports: Any user can report another, but only staff should handle them (simplified for prototype)
+    match /reports/{reportId} {
+      allow create: if request.auth != null;
+      allow read, update, delete: if request.auth != null;
+    }
+
+    // Global list permissions for queries
     match /{path=**} {
-      allow read, write: if request.auth != null;
+      allow list: if request.auth != null;
     }
   }
 }

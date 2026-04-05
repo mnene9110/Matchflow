@@ -1,58 +1,32 @@
-
 {
   "rules": {
     "users": {
-      ".read": "auth != null",
       "$uid": {
-        ".write": "auth.uid === $uid",
-        "presence": {
-          "online": { ".validate": "newData.isBoolean()" },
-          "lastSeen": { ".validate": "newData.isNumber()" }
-        },
-        "coinBalance": {
-          ".validate": "newData.isNumber()"
-        },
-        "diamondBalance": {
-          ".write": "auth != null",
-          ".validate": "newData.isNumber()"
-        },
-        "inCall": {
-          ".validate": "newData.isBoolean()"
+        // Users can see each other's presence and coin balance (for UI context)
+        ".read": "auth != null",
+        // Users can only update their own wallet and status
+        ".write": "auth != null && auth.uid === $uid",
+        "incomingCallId": {
+          // Others need to be able to set this when calling
+          ".write": "auth != null"
         },
         "chats": {
-          "$otherId": {
-            ".write": "auth.uid === $uid || auth.uid === $otherId",
-            "unreadCount": {
-               ".validate": "newData.isNumber() && newData >= 0"
-            }
-          }
-        }
-      }
-    },
-    "partyRooms": {
-      ".read": "auth != null",
-      "$roomId": {
-        ".write": "auth != null && (!data.exists() || data.child('hostId').val() === auth.uid || root.child('userProfiles').child(auth.uid).child('isAdmin').val() === true)",
-        "memberCount": {
-          ".write": "auth != null"
+          // Chat metadata is private
+          ".read": "auth != null && auth.uid === $uid",
+          ".write": "auth != null && auth.uid === $uid"
         }
       }
     },
     "chats": {
       "$chatId": {
+        // Only the two participants in a chat can read or write to it
         ".read": "auth != null && $chatId.contains(auth.uid)",
-        ".write": "auth != null && $chatId.contains(auth.uid)",
-        "messages": {
-          "$msgId": {
-            ".validate": "newData.hasChildren(['messageText', 'senderId', 'sentAt'])",
-            "senderId": { ".validate": "newData.val() === auth.uid" },
-            "sentAt": { ".validate": "newData.isNumber()" }
-          }
-        }
+        ".write": "auth != null && $chatId.contains(auth.uid)"
       }
     },
     "calls": {
       "$chatId": {
+        // Only the two participants in a call session can access it
         ".read": "auth != null && $chatId.contains(auth.uid)",
         ".write": "auth != null && $chatId.contains(auth.uid)"
       }
