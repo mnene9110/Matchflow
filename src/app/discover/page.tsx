@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -54,20 +55,21 @@ export default function DiscoverPage() {
   useEffect(() => {
     if (!database || !currentUser || isProfileLoading || !currentUserProfile) return;
 
-    const syncBalanceIfMissing = async () => {
+    const syncBalanceAndRoles = async () => {
       const rtdbRef = ref(database, `users/${currentUser.uid}`);
-      const snap = await get(rtdbRef);
-      const data = snap.val();
-
-      if (!data || data.coinBalance === undefined) {
-        update(rtdbRef, {
-          coinBalance: currentUserProfile.coinBalance || 0,
-          diamondBalance: currentUserProfile.diamondBalance || 0,
-          inCall: false
-        });
-      }
+      
+      // Mirror roles to RTDB so security rules can verify status immediately
+      await update(rtdbRef, {
+        coinBalance: currentUserProfile.coinBalance || 0,
+        diamondBalance: currentUserProfile.diamondBalance || 0,
+        isAdmin: !!currentUserProfile.isAdmin,
+        isCoinseller: !!currentUserProfile.isCoinseller,
+        isAgent: !!currentUserProfile.isAgent,
+        isSupport: !!currentUserProfile.isSupport,
+        inCall: false
+      });
     }
-    syncBalanceIfMissing();
+    syncBalanceAndRoles();
   }, [database, currentUser, isProfileLoading, !!currentUserProfile]);
 
   const processAndSortUsers = async (fetchedUsers: any[]) => {
@@ -222,7 +224,6 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex flex-col h-svh bg-transparent overflow-y-auto pb-32 relative">
-      {/* 1. Action Buttons - Scrolls away */}
       <div className="px-4 pt-8 pb-4 shrink-0 space-y-6">
         <div className="grid grid-cols-2 gap-4 animate-in fade-in slide-in-from-top-4 duration-700">
           <button 
@@ -247,9 +248,7 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* 2. Navigation Row - Sticky pinned to top */}
       <div className="sticky top-0 z-30 px-4 py-2 shrink-0">
-        {/* Background removed to use screen background */}
         <div className="flex items-center gap-3">
           <div className="flex-1 h-16 bg-white/30 backdrop-blur-xl border border-white/20 rounded-full p-1.5 flex items-center shadow-lg">
             <button 
@@ -285,7 +284,6 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* 3. Main Content - Profiles scroll behind nav */}
       <main className="px-4 grid grid-cols-2 gap-3 pb-8 flex-1 mt-2">
         {displayUsers.map((user) => (
           <div key={user.id} className="group relative aspect-[3/4.2] rounded-[2.5rem] overflow-hidden bg-white/20 shadow-md transition-transform active:scale-95" onClick={() => router.push(`/profile/${user.id}`)}>
