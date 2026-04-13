@@ -1,14 +1,16 @@
+
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Check, History, Loader2, Zap } from "lucide-react"
+import { ChevronLeft, Check, History, Loader2, Users } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useFirebase, useDoc, useUser, useMemoFirebase } from "@/firebase"
 import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { initializePesaPalTransaction } from "@/app/actions/pesapal"
 
 // Standard Pricing (Normal Users)
 export const STANDARD_PACKAGES = [
@@ -50,6 +52,7 @@ function RechargeContent() {
   const { toast } = useToast()
   
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null)
+  const [isProcessing, setIsProcessing] = useState(false)
 
   const meRef = useMemoFirebase(() => user ? doc(firestore, "userProfiles", user.uid) : null, [firestore, user])
   const { data: profile } = useDoc(meRef)
@@ -67,10 +70,32 @@ function RechargeContent() {
     }
   }, [searchParams, toast])
 
-  const handleNext = () => {
-    if (!selectedPackage) return;
-    const localPrice = Math.round(selectedPackage.priceKes * currencyInfo.rate);
-    router.push(`/recharge/payment-method?amount=${selectedPackage.amount}&price=${localPrice}&currency=${currencyInfo.code}`);
+  const handlePay = async () => {
+    if (!selectedPackage || !user || isProcessing) return;
+    
+    setIsProcessing(true);
+    try {
+      // PesaPal typically expects the base price in KES
+      const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
+      const result = await initializePesaPalTransaction(email, selectedPackage.priceKes, {
+        userId: user.uid,
+        packageAmount: selectedPackage.amount
+      })
+
+      if (result.error) {
+        toast({ variant: "destructive", title: "Payment Error", description: result.error })
+        setIsProcessing(false)
+        return
+      }
+
+      if (result.redirect_url) {
+        window.location.href = result.redirect_url
+      }
+    } catch (error) {
+      console.error("Payment initialization failed:", error)
+      toast({ variant: "destructive", title: "Error", description: "Failed to connect to payment gateway." })
+      setIsProcessing(false)
+    }
   }
 
   const darkMaroon = "bg-[#5A1010]";
@@ -121,15 +146,35 @@ function RechargeContent() {
         </section>
 
         {isKenyan && (
-          <section className="mt-12 flex flex-col items-center pb-10">
-            <button onClick={() => router.push(`/recharge/coinsellers`)} className="text-[10px] font-black text-white uppercase tracking-[0.3em] border-b border-white/30 pb-1.5 active:opacity-50">Contact Coinsellers</button>
+          <section className="mt-8 space-y-4 pb-10">
+            <div className="flex items-center gap-2 px-2">
+              <Users className="w-4 h-4 text-white/40" />
+              <h3 className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">P2P Coinsellers</h3>
+            </div>
+            <button 
+              onClick={() => router.push(`/recharge/coinsellers?amount=${selectedPackage?.amount || ''}`)} 
+              className="w-full h-16 rounded-[2rem] bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center gap-3 text-white active:scale-95 transition-all shadow-lg"
+            >
+              <Users className="w-5 h-5 opacity-60" />
+              <span className="text-[11px] font-black uppercase tracking-widest">Contact Official Sellers</span>
+            </button>
           </section>
         )}
       </main>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50">
-        <Button className={cn("w-full h-16 rounded-full text-white font-black text-lg shadow-2xl transition-all", darkMaroon)} onClick={handleNext} disabled={!selectedPackage}>
-          {selectedPackage ? `Pay ${currencyInfo.symbol} ${Math.round(selectedPackage.priceKes * currencyInfo.rate).toLocaleString()}` : "Select a Package"}
+        <Button 
+          className={cn("w-full h-16 rounded-full text-white font-black text-lg shadow-2xl transition-all", darkMaroon)} 
+          onClick={handlePay} 
+          disabled={!selectedPackage || isProcessing}
+        >
+          {isProcessing ? (
+            <Loader2 className="w-6 h-6 animate-spin" />
+          ) : selectedPackage ? (
+            `Pay ${currencyInfo.symbol} ${Math.round(selectedPackage.priceKes * currencyInfo.rate).toLocaleString()}`
+          ) : (
+            "Select a Package"
+          )}
         </Button>
       </footer>
     </div>
