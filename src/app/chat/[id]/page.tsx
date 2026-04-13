@@ -3,7 +3,8 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Video, Send, Phone, Loader2, Gift, CheckCircle, UserX, ArrowUp, Zap } from "lucide-react"
+import { ChevronLeft, Send, Loader2, CheckCircle, UserX, ArrowUp, Zap } from "lucide-react"
+import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -390,12 +391,24 @@ function ChatDetailContent() {
         </div>
         {!otherUser.isSupport && (
           <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => handleInitiateCall('audio')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Phone className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span></button>
-            <button onClick={() => handleInitiateCall('video')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm"><Video className="w-4 h-4 text-gray-500" /><span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span></button>
+            <button onClick={() => handleInitiateCall('audio')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
+              <div className="relative w-5 h-5">
+                <Image src="/voice.png" alt="Voice" fill className="object-contain opacity-60" />
+              </div>
+              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span>
+            </button>
+            <button onClick={() => handleInitiateCall('video')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
+              <div className="relative w-5 h-5">
+                <Image src="/video.png" alt="Video" fill className="object-contain opacity-60" />
+              </div>
+              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span>
+            </button>
             <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
               <SheetTrigger asChild>
                 <button className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
-                  <Gift className="w-4 h-4 text-primary" />
+                  <div className="relative w-5 h-5">
+                    <Image src="/gift.png" alt="Gift" fill className="object-contain" />
+                  </div>
                   <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Gift</span>
                 </button>
               </SheetTrigger>
