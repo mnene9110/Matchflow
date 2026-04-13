@@ -112,8 +112,8 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
-      {/* Red Header Section - Straight edges */}
-      <div className="bg-[#FF3737] px-6 pt-12 pb-10 space-y-10">
+      {/* Red Header Section - Straighter spacing */}
+      <div className="bg-[#FF3737] px-6 pt-6 pb-8 space-y-8">
         <div className="grid grid-cols-2 gap-4">
           <button 
             onClick={() => router.push('/mystery-note')}
@@ -148,7 +148,7 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Grid Section - Reduced gap and inner spacing */}
+      {/* Grid Section */}
       <main className="px-2 grid grid-cols-2 gap-2 mt-4">
         {mappedUsers.map((user) => (
           <div 
