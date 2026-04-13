@@ -75,7 +75,8 @@
 
 .app-container {
   @apply relative h-full w-full flex flex-col overflow-y-auto;
-  padding-top: env(safe-area-inset-top, 0px);
+  /* Removed top padding to allow header to bleed into status bar, hiding the "line" */
+  padding-top: 0px;
   -webkit-overflow-scrolling: touch;
 }
 

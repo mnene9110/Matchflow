@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation"
 import { useUser } from "@/firebase"
 
 /**
- * @fileOverview Branded splash screen using hardcoded brand hex #FF3737.
+ * @fileOverview This is the code responsible for the Splash Screen.
+ * It displays the MatchFlow logo and name using the brand color (#FF3737)
+ * and the Pacifico font while checking auth state.
  */
 export default function Home() {
   const { user, isUserLoading } = useUser()
