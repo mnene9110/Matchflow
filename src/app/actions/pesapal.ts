@@ -3,7 +3,7 @@
 /**
  * @fileOverview Server actions for PesaPal V3 integration.
  * Handles authentication, IPN registration, and order submission.
- * Updated to include mandatory billing fields for higher transaction amounts.
+ * Optimized to handle existing IPN registrations to prevent "could not register IPN" errors.
  */
 
 const PESAPAL_URL = 'https://pay.pesapal.com/v3';
@@ -35,25 +35,61 @@ async function getAuthToken() {
   return data.token;
 }
 
+/**
+ * Checks for existing IPNs or registers a new one.
+ * PesaPal V3 returns an error if you try to register an identical URL that already exists.
+ */
 async function registerIPN(token: string) {
   const ipnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`;
   
-  const response = await fetch(`${PESAPAL_URL}/api/URLSetup/RegisterIPN`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Content-Type': 'application/json',
-      'Accept': 'application/json',
-    },
-    body: JSON.stringify({
-      url: ipnUrl,
-      ipn_notification_type: 'GET',
-    }),
-    cache: 'no-store',
-  });
+  try {
+    // 1. Check existing IPNs first to avoid "Duplicate" errors
+    const listResponse = await fetch(`${PESAPAL_URL}/api/URLSetup/GetIpnList`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/json',
+      },
+      cache: 'no-store',
+    });
 
-  const data = await response.json();
-  return data.ipn_id;
+    const ipns = await listResponse.json();
+    
+    // Search for an existing registration with the same URL
+    if (Array.isArray(ipns)) {
+      const existing = ipns.find((item: any) => item.url === ipnUrl);
+      if (existing && existing.ipn_id) {
+        console.log('Using existing PesaPal IPN ID:', existing.ipn_id);
+        return existing.ipn_id;
+      }
+    }
+
+    // 2. If not found, register new
+    const response = await fetch(`${PESAPAL_URL}/api/URLSetup/RegisterIPN`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/json',
+      },
+      body: JSON.stringify({
+        url: ipnUrl,
+        ipn_notification_type: 'GET',
+      }),
+      cache: 'no-store',
+    });
+
+    const data = await response.json();
+    
+    if (data.ipn_id) return data.ipn_id;
+    
+    // Handle cases where registration fails but didn't throw
+    console.error('PesaPal IPN Registration Response:', data);
+    return null;
+  } catch (error) {
+    console.error('Error in registerIPN:', error);
+    return null;
+  }
 }
 
 export async function initializePesaPalTransaction(email: string, amount: number, metadata: any) {
@@ -61,7 +97,9 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const token = await getAuthToken();
     const ipnId = await registerIPN(token);
 
-    if (!ipnId) throw new Error('Could not register IPN ID');
+    if (!ipnId) {
+      return { error: 'Failed to secure a payment notification ID from PesaPal. Please try again or contact support.' };
+    }
 
     // Use a unique but shorter reference ID
     const shortId = Date.now().toString().slice(-10);
@@ -74,7 +112,6 @@ export async function initializePesaPalTransaction(email: string, amount: number
       notification_id: ipnId,
       billing_address: {
         email_address: email,
-        // Mandatory for many gateways on higher amounts
         first_name: "MatchFlow",
         last_name: "Customer",
         line_1: "Nairobi",
@@ -99,7 +136,6 @@ export async function initializePesaPalTransaction(email: string, amount: number
     if (result.redirect_url) {
       return { redirect_url: result.redirect_url, order_tracking_id: result.order_tracking_id };
     } else {
-      // Return specific error from PesaPal if available
       const errorMessage = result.message || (result.error ? result.error.message : 'Failed to submit order to PesaPal');
       return { error: errorMessage };
     }
