@@ -59,6 +59,15 @@ function RechargeContent() {
   const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
   const isKenyan = profile?.location === "Kenya";
 
+  // Reset loading state when page gains focus (user returned from external payment site)
+  useEffect(() => {
+    const handleFocus = () => {
+      setIsProcessing(false);
+    };
+    window.addEventListener("focus", handleFocus);
+    return () => window.removeEventListener("focus", handleFocus);
+  }, []);
+
   useEffect(() => {
     const status = searchParams?.get('status')
     if (status === 'success') {
@@ -87,6 +96,8 @@ function RechargeContent() {
 
       if (result.redirect_url) {
         window.location.href = result.redirect_url
+      } else {
+        setIsProcessing(false)
       }
     } catch (error) {
       console.error("Payment initialization failed:", error)
@@ -164,7 +175,10 @@ function RechargeContent() {
           disabled={!selectedPackage || isProcessing}
         >
           {isProcessing ? (
-            <Loader2 className="w-5 h-5 animate-spin" />
+            <div className="flex items-center gap-2">
+              <Loader2 className="w-5 h-5 animate-spin" />
+              <span>Redirecting...</span>
+            </div>
           ) : selectedPackage ? (
             `Pay ${currencyInfo.symbol} ${Math.round(selectedPackage.priceKes * currencyInfo.rate).toLocaleString()}`
           ) : (

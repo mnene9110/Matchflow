@@ -1,7 +1,7 @@
 'use server';
 
 /**
- * @fileOverview Server actions for PesaPal V3 integration.
+ * @fileOverview Optimized Server actions for PesaPal V3 integration.
  * Handles authentication, IPN registration, and order submission.
  * Saves a 'pending' record to Firestore before redirecting.
  */
@@ -44,6 +44,7 @@ async function registerIPN(token: string) {
   const ipnUrl = `${baseUrl}/api/pesapal-ipn`;
   
   try {
+    // 1. Optimization: Check if IPN is already registered to avoid redundant work
     const listResponse = await fetch(`${PESAPAL_URL}/api/URLSetup/GetIpnList`, {
       method: 'GET',
       headers: {
@@ -63,6 +64,7 @@ async function registerIPN(token: string) {
       }
     }
 
+    // 2. If not found, register it
     const response = await fetch(`${PESAPAL_URL}/api/URLSetup/RegisterIPN`, {
       method: 'POST',
       headers: {
