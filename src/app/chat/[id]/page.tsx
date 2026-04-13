@@ -3,7 +3,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Send, Loader2, CheckCircle, UserX, ArrowUp, Zap } from "lucide-react"
+import { ChevronLeft, Send, Loader2, CheckCircle, UserX, ArrowUp, Zap, Headset } from "lucide-react"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -22,7 +22,9 @@ import {
   serverTimestamp, 
   increment, 
   runTransaction,
-  setDoc
+  setDoc,
+  where,
+  getDocs
 } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -68,12 +70,32 @@ function ChatDetailContent() {
   const [selectedGift, setSelectedGift] = useState<typeof GIFTS[0] | null>(null)
   const [isSendingGift, setIsSendingGift] = useState(false)
 
-  const chatId = useMemo(() => {
-    if (!currentUser || !otherUserId) return ""
-    return [currentUser.uid, otherUserId].sort().join("_")
-  }, [currentUser?.uid, otherUserId])
+  const [resolvedOtherUserId, setResolvedOtherUserId] = useState<string | null>(null)
+  const [isResolvingId, setIsResolvingId] = useState(false)
 
-  const otherUserRef = useMemoFirebase(() => otherUserId ? doc(firestore, "userProfiles", otherUserId) : null, [firestore, otherUserId])
+  // Robust handling for 'customer_support' ID
+  useEffect(() => {
+    if (otherUserId === 'customer_support' || otherUserId === 'support_agent') {
+      setIsResolvingId(true)
+      const q = query(collection(firestore, "userProfiles"), where("isSupport", "==", true), limit(1));
+      getDocs(q).then(snap => {
+        if (!snap.empty) {
+          setResolvedOtherUserId(snap.docs[0].id)
+        } else {
+          setResolvedOtherUserId(otherUserId) // Fallback to current string
+        }
+      }).finally(() => setIsResolvingId(false))
+    } else {
+      setResolvedOtherUserId(otherUserId)
+    }
+  }, [otherUserId, firestore])
+
+  const chatId = useMemo(() => {
+    if (!currentUser || !resolvedOtherUserId) return ""
+    return [currentUser.uid, resolvedOtherUserId].sort().join("_")
+  }, [currentUser?.uid, resolvedOtherUserId])
+
+  const otherUserRef = useMemoFirebase(() => resolvedOtherUserId ? doc(firestore, "userProfiles", resolvedOtherUserId) : null, [firestore, resolvedOtherUserId])
   const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
 
   const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
@@ -105,7 +127,7 @@ function ChatDetailContent() {
   }, [firestore, chatId, msgLimit])
 
   useEffect(() => {
-    if (initialMsg && currentUser && otherUserId && otherUser && !isSending) {
+    if (initialMsg && currentUser && resolvedOtherUserId && otherUser && !isSending) {
       const timer = setTimeout(() => {
         handleSendMessage(initialMsg);
         const newUrl = window.location.pathname;
@@ -113,7 +135,7 @@ function ChatDetailContent() {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [initialMsg, !!currentUser, otherUserId, !!otherUser]);
+  }, [initialMsg, !!currentUser, resolvedOtherUserId, !!otherUser]);
 
   useEffect(() => {
     if (!firestore || !currentUser || !chatId) return
@@ -163,7 +185,7 @@ function ChatDetailContent() {
     const callRef = doc(firestore, "calls", chatId);
     const callData = { 
       callerId: currentUser.uid, 
-      receiverId: otherUserId, 
+      receiverId: resolvedOtherUserId, 
       status: 'ringing', 
       callType: type, 
       timestamp: Date.now(),
@@ -182,7 +204,7 @@ function ChatDetailContent() {
       }
     });
 
-    const otherUserDocRef = doc(firestore, "userProfiles", otherUserId);
+    const otherUserDocRef = doc(firestore, "userProfiles", resolvedOtherUserId!);
     updateDoc(otherUserDocRef, { incomingCallId: chatId }).catch(async (error) => {
       if (error.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -207,7 +229,7 @@ function ChatDetailContent() {
 
   const handleSendMessage = async (textOverride?: string) => {
     const textToUse = textOverride || inputText;
-    if (!textToUse.trim() || !currentUser || !chatId || !firestore || !otherUserId || !otherUser || isSending || !currentUserProfile) return
+    if (!textToUse.trim() || !currentUser || !chatId || !firestore || !resolvedOtherUserId || !otherUser || isSending || !currentUserProfile) return
     
     const isMemberOfMyAgency = currentUserProfile.agencyId && otherUser.memberOfAgencyId === currentUserProfile.agencyId;
     const isMyAgent = currentUserProfile.memberOfAgencyId && otherUser.agencyId === currentUserProfile.memberOfAgencyId;
@@ -255,8 +277,8 @@ function ChatDetailContent() {
         transaction.set(chatMetaRef, {
           lastMessage: textToUse,
           timestamp: serverTimestamp(),
-          participants: [currentUser.uid, otherUserId],
-          [`unreadCount_${otherUserId}`]: increment(1),
+          participants: [currentUser.uid, resolvedOtherUserId],
+          [`unreadCount_${resolvedOtherUserId}`]: increment(1),
           [`userHasSent_${currentUser.uid}`]: true
         }, { merge: true });
       });
@@ -283,7 +305,7 @@ function ChatDetailContent() {
 
   const handleSendGift = async (giftOverride?: typeof GIFTS[0]) => {
     const gift = giftOverride || selectedGift;
-    if (!gift || !currentUser || !otherUserId || isSendingGift || !currentUserProfile || !firestore || !otherUser) return;
+    if (!gift || !currentUser || !resolvedOtherUserId || isSendingGift || !currentUserProfile || !firestore || !otherUser) return;
     
     setIsSendingGift(true);
     const giftPrice = gift.price;
@@ -301,7 +323,7 @@ function ChatDetailContent() {
         const senderLogRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
         transaction.set(senderLogRef, { id: senderLogRef.id, type: "gift_sent", amount: -giftPrice, transactionDate: new Date().toISOString(), description: `Sent ${gift.name} to ${otherUser.username}` });
 
-        const receiverLogRef = doc(collection(firestore, "userProfiles", otherUserId, "transactions"));
+        const receiverLogRef = doc(collection(firestore, "userProfiles", resolvedOtherUserId, "transactions"));
         transaction.set(receiverLogRef, { id: receiverLogRef.id, type: "gift_received", amount: diamondGain, transactionDate: new Date().toISOString(), description: `Received ${gift.name} from ${currentUserProfile.username}` });
 
         const giftMessage = `🎁 Sent a gift: ${gift.name}`;
@@ -312,8 +334,8 @@ function ChatDetailContent() {
         transaction.set(chatMetaRef, {
           lastMessage: giftMessage,
           timestamp: serverTimestamp(),
-          participants: [currentUser.uid, otherUserId],
-          [`unreadCount_${otherUserId}`]: increment(1),
+          participants: [currentUser.uid, resolvedOtherUserId],
+          [`unreadCount_${resolvedOtherUserId}`]: increment(1),
           [`userHasSent_${currentUser.uid}`]: true
         }, { merge: true });
       });
@@ -335,11 +357,11 @@ function ChatDetailContent() {
     } finally { setIsSendingGift(false) }
   }
 
-  if (isOtherUserLoading) {
+  if (isOtherUserLoading || isResolvingId) {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
 
-  if (!otherUser) {
+  if (!otherUser && resolvedOtherUserId !== 'customer_support' && resolvedOtherUserId !== 'support_agent') {
     return (
       <div className="flex flex-col items-center justify-center h-svh bg-white p-6 text-center space-y-6">
         <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100">
@@ -354,22 +376,33 @@ function ChatDetailContent() {
     )
   }
 
-  const otherUserImage = (otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${otherUserId}/200/200`
-  const otherUserName = otherUser.isSupport ? "Customer Support" : (otherUser.username || "User")
-  const presenceText = otherUser.isOnline ? "Online" : "Offline"
+  // Handle support agents who might not have a profile yet but are assigned by role
+  const isGenericSupport = !otherUser && (resolvedOtherUserId === 'customer_support' || resolvedOtherUserId === 'support_agent');
+  const otherUserImage = isGenericSupport ? "" : ((otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${resolvedOtherUserId}/200/200`)
+  const otherUserName = isGenericSupport ? "Customer Support" : (otherUser.isSupport ? "Customer Support" : (otherUser.username || "User"))
+  const presenceText = otherUser?.isOnline ? "Online" : "Offline"
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       <header className="px-5 pt-8 pb-4 bg-[#FF3737] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
-        <div className={cn("flex items-center gap-2.5 transition-opacity flex-1 justify-center", otherUser.isSupport ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => !otherUser.isSupport && router.push(`/profile/${otherUserId}`)}>
-          <Avatar className="w-8 h-8 border border-white/20 shadow-sm"><AvatarImage src={otherUserImage} className="object-cover" /><AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback></Avatar>
+        <div className={cn("flex items-center gap-2.5 transition-opacity flex-1 justify-center", (otherUser?.isSupport || isGenericSupport) ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => (!otherUser?.isSupport && !isGenericSupport) && router.push(`/profile/${resolvedOtherUserId}`)}>
+          <Avatar className="w-8 h-8 border border-white/20 shadow-sm">
+            {isGenericSupport ? (
+              <AvatarFallback className="bg-white/20 text-white"><Headset className="w-4 h-4" /></AvatarFallback>
+            ) : (
+              <>
+                <AvatarImage src={otherUserImage} className="object-cover" />
+                <AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback>
+              </>
+            )}
+          </Avatar>
           <div className="flex flex-col text-center">
             <div className="flex items-center justify-center gap-1">
               <h3 className="font-bold text-[12px] leading-tight">{otherUserName}</h3>
-              {otherUser.isVerified && <CheckCircle className="w-2.5 h-2.5 text-white fill-white/10" />}
+              {otherUser?.isVerified && <CheckCircle className="w-2.5 h-2.5 text-white fill-white/10" />}
             </div>
-            <span className={cn("text-[8px] font-black uppercase tracking-widest", otherUser.isOnline ? "text-green-300" : "text-white/40")}>{presenceText}</span>
+            <span className={cn("text-[8px] font-black uppercase tracking-widest", otherUser?.isOnline ? "text-green-300" : "text-white/40")}>{presenceText}</span>
           </div>
         </div>
         <div className="flex items-center">
@@ -389,6 +422,13 @@ function ChatDetailContent() {
               <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors"><ArrowUp className="w-4 h-4 text-gray-400" /></div>
               <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Load Earlier</span>
             </button>
+          )}
+
+          {isGenericSupport && messages.length === 0 && (
+            <div className="py-10 flex flex-col items-center text-center opacity-40">
+              <Headset className="w-12 h-12 mb-2 text-gray-300" />
+              <p className="text-[10px] font-black uppercase tracking-widest max-w-[200px]">Connecting you to an agent... Send a message to begin.</p>
+            </div>
           )}
 
           {messages.map((msg) => {
@@ -442,7 +482,7 @@ function ChatDetailContent() {
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
-        {!otherUser.isSupport && (
+        {!otherUser?.isSupport && !isGenericSupport && (
           <div className="grid grid-cols-3 gap-2">
             <button onClick={() => handleInitiateCall('audio')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
               <div className="relative w-5 h-5">

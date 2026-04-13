@@ -66,20 +66,21 @@ export default function ProfilePage() {
 
   const userImage = (userProfile?.profilePhotoUrls && userProfile?.profilePhotoUrls[0]) || ""
   const isVerified = !!userProfile?.isVerified
+  const isFemale = userProfile?.gender?.toLowerCase() === 'female'
 
   // Logic to determine if management section should show
-  const hasManagementRole = userProfile?.isAdmin || userProfile?.isSupport || userProfile?.isCoinseller || userProfile?.isAgent;
+  const hasManagementRole = userProfile?.isAdmin || userProfile?.isSupport || userProfile?.isCoinseller || (userProfile?.isAgent && isFemale);
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#FF3737]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
 
   return (
     <div className="flex flex-col h-svh w-full bg-white text-gray-900 overflow-y-auto scroll-smooth">
-      {/* Brand Red Header - Simplified to solid color */}
-      <header className="flex flex-col items-center pt-8 pb-10 px-6 shrink-0 relative bg-[#FF3737] shadow-lg">
+      {/* Brand Red Header - Solid color with padding for overlap */}
+      <header className="flex flex-col items-center pt-8 pb-16 px-6 shrink-0 relative bg-[#FF3737] shadow-lg">
         <div className="relative mb-4">
-          <Avatar className="w-28 h-28 shadow-2xl bg-white/10">
+          <Avatar className="w-28 h-28 shadow-2xl bg-white/10 border-none">
             {userImage && <AvatarImage src={userImage} className="object-cover" />}
-            <AvatarFallback className="bg-white/20 text-white font-black text-2xl uppercase">{userProfile?.username?.[0]}</AvatarFallback>
+            <AvatarFallback className="bg-white/20 text-white font-black text-2xl uppercase border-none">{userProfile?.username?.[0]}</AvatarFallback>
           </Avatar>
           <button 
             onClick={() => router.push('/profile/edit')} 
@@ -108,10 +109,10 @@ export default function ProfilePage() {
         )}
       </header>
 
-      <main className="flex-1 px-6 space-y-8 pb-44 -mt-6">
-        {/* Wallet Cards - Standardized to white bg */}
+      <main className="flex-1 px-6 space-y-8 pb-44 -mt-10 relative z-10">
+        {/* Wallet Cards - Overlapping the red header */}
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white rounded-[2rem] p-4 flex flex-col items-center gap-3 shadow-[0_15px_45px_rgba(0,0,0,0.06)] border border-gray-50 text-center transition-transform active:scale-[0.98]">
+          <div className="bg-white rounded-[2.25rem] p-5 flex flex-col items-center gap-3 shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-50 text-center transition-transform active:scale-[0.98]">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
               <Coins className="w-5 h-5 text-primary" />
             </div>
@@ -127,7 +128,7 @@ export default function ProfilePage() {
             </Button>
           </div>
 
-          <div className="bg-white rounded-[2rem] p-4 flex flex-col items-center gap-3 shadow-[0_15px_45px_rgba(0,0,0,0.06)] border border-gray-50 text-center transition-transform active:scale-[0.98]">
+          <div className="bg-white rounded-[2.25rem] p-5 flex flex-col items-center gap-3 shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-50 text-center transition-transform active:scale-[0.98]">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
               <Gem className="w-5 h-5 text-blue-500" />
             </div>
@@ -204,7 +205,8 @@ export default function ProfilePage() {
                 </button>
               )}
 
-              {(userProfile?.isAgent || userProfile?.isAdmin) && (
+              {/* Agency Button restricted to Female accounts */}
+              {isFemale && (userProfile?.isAgent || userProfile?.isAdmin) && (
                 <button 
                   onClick={() => router.push('/profile/agent-center')} 
                   className="w-full h-16 rounded-[1.5rem] bg-white border border-purple-50 flex items-center px-5 gap-4 shadow-sm active:scale-[0.98] transition-all"
@@ -247,8 +249,9 @@ export default function ProfilePage() {
               </button>
             )}
 
+            {/* Special handling for Customer Support button to avoid 'User Logged Out' screen */}
             <button 
-              onClick={() => router.push('/chat/support_agent')} 
+              onClick={() => router.push('/chat/customer_support')} 
               className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-sm"
             >
               <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center border border-green-100">
@@ -260,6 +263,23 @@ export default function ProfilePage() {
               </div>
               <ChevronRight className="w-4 h-4 text-gray-200" />
             </button>
+
+            {/* Join Agency Button restricted to Female accounts */}
+            {isFemale && (
+              <button 
+                onClick={() => router.push('/profile/agency')} 
+                className="w-full h-16 rounded-[1.5rem] bg-white border border-purple-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-sm"
+              >
+                <div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center border border-purple-100">
+                  <Building2 className="w-5 h-5 text-purple-600" />
+                </div>
+                <div className="flex-1 text-left">
+                  <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block leading-none">Agency Anchor</span>
+                  <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Join official host team</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-gray-200" />
+              </button>
+            )}
 
             <button 
               onClick={() => router.push('/games')} 
