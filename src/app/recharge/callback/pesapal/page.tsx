@@ -31,11 +31,14 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
       try {
         const result = await getPesaPalTransactionStatus(orderTrackingId);
         
+        // PesaPal V3: status_code 1 means Completed
         if (result.status_code === 1 || result.payment_status_description === 'Completed') {
           const amount = result.amount;
+          // Calculate coins based on 120 KES = 1000 coins (approximate rate used in standard packages)
           const coinsToGain = Math.round((amount / 120) * 1000);
 
           await runTransaction(firestore, async (transaction) => {
+            // Check if this transaction was already processed
             const txQuery = query(collection(userProfileDocRef, "transactions"), where("orderTrackingId", "==", orderTrackingId));
             const existingTx = await getDocs(txQuery);
             if (!existingTx.empty) return;
@@ -59,6 +62,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
           toast({ title: "Payment Verified", description: "Wallet updated successfully." });
           router.replace("/recharge?status=success");
         } else {
+          toast({ variant: "destructive", title: "Payment Pending", description: "Your payment is being processed or was cancelled." });
           router.replace("/recharge?status=error");
         }
       } catch (error) {

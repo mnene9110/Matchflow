@@ -42,7 +42,8 @@ function PaymentMethodContent() {
     if (!user || !amount || !localPrice) return
     setIsProcessing('pesapal')
 
-    // PesaPal typically requires KES or USD base.
+    // Convert local price back to KES for PesaPal if needed, 
+    // but typically we send the package price in KES base.
     const priceKes = Math.round(localPrice / currencyInfo.rate);
 
     const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
@@ -58,6 +59,7 @@ function PaymentMethodContent() {
     }
 
     if (result.redirect_url) {
+      // Redirect to PesaPal payment page
       window.location.href = result.redirect_url
     }
   }

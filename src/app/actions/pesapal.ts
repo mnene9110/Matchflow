@@ -40,11 +40,7 @@ async function getAuthToken() {
  * PesaPal V3 returns an error if you try to register an identical URL that already exists.
  */
 async function registerIPN(token: string) {
-  // Use NEXT_PUBLIC_APP_URL, or the user's provided vercel link, or VERCEL_URL as fallback.
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
-                  'https://matchflow-12.vercel.app' ||
-                  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
-  
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-12.vercel.app';
   const ipnUrl = `${baseUrl}/api/pesapal/ipn`;
   
   try {
@@ -60,7 +56,6 @@ async function registerIPN(token: string) {
 
     if (listResponse.ok) {
       const ipns = await listResponse.json();
-      // Search for an existing registration with the same URL
       if (Array.isArray(ipns)) {
         const existing = ipns.find((item: any) => item.url === ipnUrl);
         if (existing && existing.ipn_id) {
@@ -70,7 +65,7 @@ async function registerIPN(token: string) {
       }
     }
 
-    // 2. If not found or list failed, attempt to register new
+    // 2. If not found, register new
     const response = await fetch(`${PESAPAL_URL}/api/URLSetup/RegisterIPN`, {
       method: 'POST',
       headers: {
@@ -86,28 +81,9 @@ async function registerIPN(token: string) {
     });
 
     const data = await response.json();
-    
-    if (data.ipn_id) return data.ipn_id;
-    
-    // 3. If registration failed because it's a duplicate but list didn't find it
-    // Some PesaPal environments behave differently. We'll try to fetch the list one last time.
-    if (data.error && (data.error.message?.includes('Duplicate') || data.message?.includes('Duplicate'))) {
-       const retryListResponse = await fetch(`${PESAPAL_URL}/api/URLSetup/GetIpnList`, {
-        method: 'GET',
-        headers: { 'Authorization': `Bearer ${token}`, 'Accept': 'application/json' },
-        cache: 'no-store',
-      });
-      if (retryListResponse.ok) {
-        const retryIpns = await retryListResponse.json();
-        const found = Array.isArray(retryIpns) && retryIpns.find((item: any) => item.url === ipnUrl);
-        if (found && found.ipn_id) return found.ipn_id;
-      }
-    }
-
-    console.error('PesaPal IPN Registration Error:', data);
-    return null;
+    return data.ipn_id || null;
   } catch (error) {
-    console.error('Critical failure in registerIPN:', error);
+    console.error('PesaPal IPN Registration Error:', error);
     return null;
   }
 }
@@ -122,7 +98,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const ipnId = await registerIPN(token);
 
     if (!ipnId) {
-      return { error: 'PesaPal could not provide a Notification ID. This usually means the callback URL is invalid or already in use. Please check your Vercel logs.' };
+      return { error: 'PesaPal could not provide a Notification ID. Please check your Consumer Key and Secret.' };
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-12.vercel.app';
@@ -161,8 +137,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
     if (result.redirect_url) {
       return { redirect_url: result.redirect_url, order_tracking_id: result.order_tracking_id };
     } else {
-      const errorMessage = result.message || (result.error ? result.error.message : 'Failed to submit order to PesaPal');
-      return { error: errorMessage };
+      return { error: result.message || 'Failed to submit order to PesaPal' };
     }
   } catch (error: any) {
     console.error('PesaPal Transaction Error:', error);
