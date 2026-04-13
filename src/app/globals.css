@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -54,7 +55,7 @@
   
   html, body {
     @apply m-0 p-0 overflow-x-hidden min-h-svh;
-    background-color: #FF3737; /* Matches brand color to hide loading lines */
+    background-color: #FF3737; /* DEFINITIVE BRAND COLOR */
     overscroll-behavior-y: none; 
     overscroll-behavior-x: none;
     touch-action: manipulation;
@@ -75,6 +76,7 @@
 
 .app-container {
   @apply relative h-full w-full flex flex-col overflow-y-auto;
+  /* Removed padding-top safe-area to hide the white line gap */
   padding-top: 0px;
   -webkit-overflow-scrolling: touch;
 }
