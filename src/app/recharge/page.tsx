@@ -58,13 +58,21 @@ function RechargeContent() {
   const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
   const isKenyan = profile?.location === "Kenya";
 
-  // Reset loading state when the user returns to the app window
+  // CRITICAL FIX: Reset loading state when the user returns to the app
   useEffect(() => {
-    const handleFocus = () => {
+    const resetLoading = () => {
       setIsProcessing(false);
     };
-    window.addEventListener("focus", handleFocus);
-    return () => window.removeEventListener("focus", handleFocus);
+    
+    window.addEventListener("focus", resetLoading);
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") resetLoading();
+    });
+
+    return () => {
+      window.removeEventListener("focus", resetLoading);
+      document.removeEventListener("visibilitychange", resetLoading);
+    };
   }, []);
 
   useEffect(() => {
