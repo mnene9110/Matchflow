@@ -112,7 +112,7 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
-      {/* Red Header Section - Straighter spacing */}
+      {/* Red Header Section */}
       <div className="bg-[#FF3737] px-6 pt-6 pb-8 space-y-8">
         <div className="grid grid-cols-2 gap-4">
           <button 
@@ -120,7 +120,7 @@ export default function DiscoverPage() {
             className="flex flex-col items-center justify-center gap-3 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
           >
             <div className="w-16 h-16 relative">
-              <Image src="https://placehold.co/100x100/transparent/white?text=❓" alt="Mystery" fill className="object-contain" />
+              <Image src="/mystery.png" alt="Mystery" fill className="object-contain" />
             </div>
             <span className="text-[11px] font-black uppercase tracking-widest text-white">Mystery Note</span>
           </button>
@@ -130,7 +130,7 @@ export default function DiscoverPage() {
             className="flex flex-col items-center justify-center gap-3 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
           >
             <div className="w-16 h-16 relative">
-              <Image src="https://placehold.co/100x100/transparent/white?text=📋" alt="Tasks" fill className="object-contain" />
+              <Image src="/task.png" alt="Tasks" fill className="object-contain" />
             </div>
             <span className="text-[11px] font-black uppercase tracking-widest text-white">Task Center</span>
           </button>

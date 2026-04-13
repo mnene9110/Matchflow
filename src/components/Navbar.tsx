@@ -2,8 +2,8 @@
 
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
-import { Home, MessageCircle, User } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { useFirebase, useUser } from "@/firebase"
 import { collection, query, where, onSnapshot } from "firebase/firestore"
@@ -58,9 +58,9 @@ export function Navbar() {
   if (shouldHide) return null
 
   const navItems = [
-    { icon: Home, label: "HOME", href: "/discover" },
-    { icon: MessageCircle, label: "CHATS", href: "/chat", badge: totalUnread },
-    { icon: User, label: "YOU", href: "/profile" },
+    { icon: "/home.png", label: "HOME", href: "/discover" },
+    { icon: "/chat.png", label: "CHATS", href: "/chat", badge: totalUnread },
+    { icon: "/me.png", label: "YOU", href: "/profile" },
   ]
 
   return (
@@ -68,7 +68,6 @@ export function Navbar() {
       <nav className="h-20 w-full flex items-center justify-around px-6">
         {navItems.map((item) => {
           const isActive = pathname === item.href
-          const Icon = item.icon
           return (
             <Link
               key={item.href}
@@ -79,7 +78,14 @@ export function Navbar() {
               )}
             >
               <div className="relative">
-                <Icon className={cn("w-6 h-6", isActive ? "stroke-[3px]" : "stroke-[2px]")} />
+                <div className="relative w-6 h-6">
+                  <Image 
+                    src={item.icon} 
+                    alt={item.label} 
+                    fill 
+                    className={cn("object-contain transition-opacity duration-300", isActive ? "opacity-100" : "opacity-40")} 
+                  />
+                </div>
                 {item.badge !== undefined && item.badge > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full bg-[#FF3737] flex items-center justify-center text-[8px] font-black text-white border-2 border-white shadow-sm">
                     {item.badge > 99 ? '99+' : item.badge}
