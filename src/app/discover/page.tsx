@@ -112,8 +112,8 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
-      {/* Red Header Section */}
-      <div className="bg-[#FF3737] px-6 pt-12 pb-10 space-y-10 rounded-b-[3rem]">
+      {/* Red Header Section - Straight edges */}
+      <div className="bg-[#FF3737] px-6 pt-12 pb-10 space-y-10">
         <div className="grid grid-cols-2 gap-4">
           <button 
             onClick={() => router.push('/mystery-note')}
@@ -148,12 +148,12 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Grid Section */}
-      <main className="px-4 grid grid-cols-2 gap-4 mt-6">
+      {/* Grid Section - Reduced gap and inner spacing */}
+      <main className="px-2 grid grid-cols-2 gap-2 mt-4">
         {mappedUsers.map((user) => (
           <div 
             key={user.id} 
-            className="group relative aspect-[3/4.2] rounded-[2.5rem] overflow-hidden bg-gray-100 shadow-lg active:scale-95 transition-all"
+            className="group relative aspect-[3/4.2] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm active:scale-95 transition-all"
             onClick={() => router.push(`/profile/${user.id}`)}
           >
             <Image src={user.image} alt={user.name} fill className="object-cover" data-ai-hint="dating profile photo" />
@@ -165,20 +165,20 @@ export default function DiscoverPage() {
                 e.stopPropagation(); 
                 router.push(`/chat/${user.id}`); 
               }}
-              className="absolute top-4 right-4 w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-lg active:scale-90 transition-all"
+              className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-lg active:scale-90 transition-all"
             >
-              <MessageSquare className="w-5 h-5 text-white fill-current" />
+              <MessageSquare className="w-4 h-4 text-white fill-current" />
             </button>
 
             {/* Info Overlay */}
-            <div className="absolute inset-x-0 bottom-0 p-5 space-y-3">
-              <h3 className="text-white font-black text-sm uppercase tracking-wider truncate">{user.name}</h3>
-              <div className="flex items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-black flex items-center justify-center border border-white/20">
-                  <span className="text-[10px] font-black text-white">{user.age}</span>
+            <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
+              <h3 className="text-white font-black text-xs uppercase tracking-wider truncate">{user.name}</h3>
+              <div className="flex items-center gap-1.5">
+                <div className="w-6 h-6 rounded-full bg-black flex items-center justify-center border border-white/20">
+                  <span className="text-[9px] font-black text-white">{user.age}</span>
                 </div>
-                <div className="h-7 px-3 rounded-full bg-[#FF3737] flex items-center justify-center border border-white/20">
-                  <span className="text-[9px] font-black text-white uppercase tracking-tighter">{user.location}</span>
+                <div className="h-6 px-2.5 rounded-full bg-[#FF3737] flex items-center justify-center border border-white/20">
+                  <span className="text-[8px] font-black text-white uppercase tracking-tighter">{user.location}</span>
                 </div>
               </div>
             </div>
@@ -186,7 +186,7 @@ export default function DiscoverPage() {
         ))}
 
         {isInitialLoading && Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="aspect-[3/4.2] rounded-[2.5rem] bg-gray-100 animate-pulse" />
+          <div key={i} className="aspect-[3/4.2] rounded-[2rem] bg-gray-100 animate-pulse" />
         ))}
       </main>
     </div>
