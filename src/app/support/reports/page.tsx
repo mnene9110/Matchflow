@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -7,11 +8,15 @@ import { Button } from "@/components/ui/button"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, collection, query, where, onSnapshot, updateDoc, serverTimestamp, increment as firestoreIncrement, setDoc } from "firebase/firestore"
 import { format } from "date-fns"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
+import { useToast } from "@/hooks/use-toast"
 
 export default function ReviewReportsPage() {
   const router = useRouter()
   const { user: currentUser } = useUser()
   const { firestore } = useFirebase()
+  const { toast } = useToast()
   
   const [reports, setReports] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -25,14 +30,21 @@ export default function ReviewReportsPage() {
     
     const q = query(collection(firestore, "reports"), where("status", "==", "pending"))
     
-    return onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
       setReports(list)
       setIsLoading(false)
-    }, (error) => {
-      console.error("Reports fetch error:", error)
+    }, async (error) => {
       setIsLoading(false)
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'reports',
+          operation: 'list'
+        }));
+      }
     })
+
+    return () => unsubscribe()
   }, [firestore, currentUser])
 
   if (supportProfile && !supportProfile.isSupport && !supportProfile.isAdmin) {
@@ -70,8 +82,13 @@ export default function ReviewReportsPage() {
       }, { merge: true })
 
       toast({ title: "Report Processed" })
-    } catch (error) {
-      console.error(error)
+    } catch (error: any) {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'reports',
+          operation: 'update'
+        }));
+      }
     } finally {
       setProcessingId(null)
     }

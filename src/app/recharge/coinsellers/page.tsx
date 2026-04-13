@@ -1,3 +1,4 @@
+
 "use client"
 
 import { Suspense, useState, useEffect } from "react"
@@ -9,6 +10,8 @@ import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, where, onSnapshot, doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { COUNTRY_CURRENCIES, STANDARD_PACKAGES } from "../page"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 function CoinsellersContent() {
   const router = useRouter()
@@ -30,14 +33,21 @@ function CoinsellersContent() {
     if (!firestore) return
     const q = query(collection(firestore, "userProfiles"), where("isCoinseller", "==", true))
     
-    return onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(q, (snapshot) => {
       const data = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
       setCoinsellers(data)
       setIsLoading(false)
-    }, (error) => {
-      console.error("Coinsellers fetch error:", error)
+    }, async (error) => {
       setIsLoading(false)
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'userProfiles',
+          operation: 'list'
+        }));
+      }
     })
+
+    return () => unsubscribe()
   }, [firestore])
 
   const handleChatWithSeller = (sellerId: string) => {

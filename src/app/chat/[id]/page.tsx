@@ -26,6 +26,8 @@ import {
 } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export const GIFTS = [
   { id: 'mask', name: 'Party mask 🎭', emoji: '🎭', price: 20 },
@@ -85,12 +87,21 @@ function ChatDetailContent() {
       limit(msgLimit)
     )
 
-    return onSnapshot(msgQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(msgQuery, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
       list.sort((a: any, b: any) => (a.sentAt?.seconds || 0) - (b.sentAt?.seconds || 0))
       setMessages(list)
       setHasMore(snapshot.docs.length >= msgLimit)
+    }, async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `chats/${chatId}/messages`,
+          operation: 'list'
+        }));
+      }
     })
+
+    return () => unsubscribe()
   }, [firestore, chatId, msgLimit])
 
   useEffect(() => {
@@ -107,7 +118,16 @@ function ChatDetailContent() {
   useEffect(() => {
     if (!firestore || !currentUser || !chatId) return
     const chatRef = doc(firestore, "chats", chatId)
-    updateDoc(chatRef, { [`unreadCount_${currentUser.uid}`]: 0 }).catch(() => {})
+    updateDoc(chatRef, { [`unreadCount_${currentUser.uid}`]: 0 })
+      .catch(async (error) => {
+        if (error.code === 'permission-denied') {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: chatRef.path,
+            operation: 'update',
+            requestResourceData: { [`unreadCount_${currentUser.uid}`]: 0 }
+          }));
+        }
+      })
   }, [firestore, currentUser, chatId, messages.length])
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
@@ -141,7 +161,7 @@ function ChatDetailContent() {
     }
 
     const callRef = doc(firestore, "calls", chatId);
-    await setDoc(callRef, { 
+    const callData = { 
       callerId: currentUser.uid, 
       receiverId: otherUserId, 
       status: 'ringing', 
@@ -150,10 +170,39 @@ function ChatDetailContent() {
       callerName: currentUserProfile.username || 'Someone',
       costPerMin: costPerMin,
       isFree: isFree
+    };
+
+    setDoc(callRef, callData).catch(async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: callRef.path,
+          operation: 'create',
+          requestResourceData: callData
+        }));
+      }
     });
 
-    await updateDoc(doc(firestore, "userProfiles", otherUserId), { incomingCallId: chatId });
-    await updateDoc(doc(firestore, "userProfiles", currentUser.uid), { incomingCallId: chatId });
+    const otherUserDocRef = doc(firestore, "userProfiles", otherUserId);
+    updateDoc(otherUserDocRef, { incomingCallId: chatId }).catch(async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: otherUserDocRef.path,
+          operation: 'update',
+          requestResourceData: { incomingCallId: chatId }
+        }));
+      }
+    });
+
+    const myUserDocRef = doc(firestore, "userProfiles", currentUser.uid);
+    updateDoc(myUserDocRef, { incomingCallId: chatId }).catch(async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: myUserDocRef.path,
+          operation: 'update',
+          requestResourceData: { incomingCallId: chatId }
+        }));
+      }
+    });
   }
 
   const handleSendMessage = async (textOverride?: string) => {
@@ -216,6 +265,11 @@ function ChatDetailContent() {
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({ variant: "destructive", title: "Insufficient Coins", description: "Recharge to continue chatting.", action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button> });
+      } else if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `chats/${chatId}`,
+          operation: 'write'
+        }));
       } else {
         toast({ variant: "destructive", title: "Send Failed", description: "Check your connection." });
       }
@@ -270,6 +324,11 @@ function ChatDetailContent() {
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({ variant: "destructive", title: "Insufficient Coins", description: "Please recharge to send this gift." });
+      } else if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `chats/${chatId}`,
+          operation: 'write'
+        }));
       } else {
         toast({ variant: "destructive", title: "Gift Failed", description: "Could not deliver gift." });
       }
@@ -301,7 +360,6 @@ function ChatDetailContent() {
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
-      {/* Reduced Header Padding */}
       <header className="px-5 pt-8 pb-4 bg-[#FF3737] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
         <div className={cn("flex items-center gap-2.5 transition-opacity flex-1 justify-center", otherUser.isSupport ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => !otherUser.isSupport && router.push(`/profile/${otherUserId}`)}>

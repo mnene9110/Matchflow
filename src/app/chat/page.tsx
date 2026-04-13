@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -14,6 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Button } from "@/components/ui/button"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: (id: string) => void }) {
   const { firestore } = useFirebase()
@@ -34,6 +37,13 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
         setOtherUserData(snap.data())
       } else {
         setOtherUserData({ username: "User logged out", profilePhotoUrls: [] })
+      }
+    }, async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: userRef.path,
+          operation: 'get'
+        }));
       }
     })
   }, [firestore, otherUserId])
@@ -133,7 +143,7 @@ export default function ChatListPage() {
       orderBy("timestamp", "desc")
     )
     
-    return onSnapshot(chatsQuery, (snapshot) => {
+    const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
       const filtered = list.filter((s: any) => {
         const isHidden = s[`hidden_${currentUser.uid}`] === true
@@ -143,7 +153,16 @@ export default function ChatListPage() {
       })
       setSessions(filtered)
       setHasFetched(true)
+    }, async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: 'chats',
+          operation: 'list'
+        }));
+      }
     })
+
+    return () => unsubscribe()
   }, [firestore, currentUser])
 
   const handleHideChat = async () => {
@@ -156,8 +175,14 @@ export default function ChatListPage() {
         [`unreadCount_${currentUser.uid}`]: 0 
       })
       setHidingTarget(null)
-    } catch (e) {
-      console.error("Failed to delete chat", e)
+    } catch (e: any) {
+      if (e.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `chats/${hidingTarget}`,
+          operation: 'update',
+          requestResourceData: { [`hidden_${currentUser.uid}`]: true, [`unreadCount_${currentUser.uid}`]: 0 }
+        }));
+      }
     } finally {
       setIsHiding(false)
     }

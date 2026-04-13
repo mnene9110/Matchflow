@@ -34,25 +34,15 @@ import {
   runTransaction,
   query,
   orderBy,
-  limit
+  limit,
+  setDoc
 } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { getZegoConfig } from "@/app/actions/zego"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet"
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function PartyRoomPage() {
   const params = useParams()
@@ -110,6 +100,13 @@ export default function PartyRoomPage() {
       } else {
         router.push('/party')
       }
+    }, async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `partyRooms/${roomId}`,
+          operation: 'get'
+        }));
+      }
     })
 
     const unsubSeats = onSnapshot(collection(firestore, "partyRooms", roomId, "seats"), (snap) => {
@@ -119,6 +116,13 @@ export default function PartyRoomPage() {
       const mySeat = Object.entries(data).find(([_, val]: [string, any]) => val.userId === currentUser.uid)
       if (mySeat) setMySeatIndex(Number(mySeat[0]))
       else setMySeatIndex(null)
+    }, async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `partyRooms/${roomId}/seats`,
+          operation: 'list'
+        }));
+      }
     })
 
     const unsubMsgs = onSnapshot(
@@ -126,11 +130,25 @@ export default function PartyRoomPage() {
       (snap) => {
         const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
         setMessages(list.reverse())
+      }, async (error) => {
+        if (error.code === 'permission-denied') {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: `partyRooms/${roomId}/messages`,
+            operation: 'list'
+          }));
+        }
       }
     )
 
     const unsubParts = onSnapshot(collection(firestore, "partyRooms", roomId, "participants"), (snap) => {
       setRoomUsers(snap.docs.map(d => d.data()))
+    }, async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `partyRooms/${roomId}/participants`,
+          operation: 'list'
+        }));
+      }
     })
 
     const participantRef = doc(firestore, "partyRooms", roomId, "participants", currentUser.uid)
@@ -139,14 +157,22 @@ export default function PartyRoomPage() {
       username: "System",
       isSystem: true,
       timestamp: serverTimestamp()
-    })
-    updateDoc(doc(firestore, "partyRooms", roomId), { memberCount: increment(1) })
-    setDoc(participantRef, { userId: currentUser.uid, username: profile.username, photo: profile.profilePhotoUrls?.[0] || "", joinedAt: Date.now() })
+    }).catch(async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `partyRooms/${roomId}/messages`,
+          operation: 'create'
+        }));
+      }
+    });
+
+    updateDoc(doc(firestore, "partyRooms", roomId), { memberCount: increment(1) }).catch(() => {});
+    setDoc(participantRef, { userId: currentUser.uid, username: profile.username, photo: profile.profilePhotoUrls?.[0] || "", joinedAt: Date.now() }).catch(() => {});
 
     return () => {
       if (currentUser) {
-        deleteDoc(participantRef)
-        updateDoc(doc(firestore, "partyRooms", roomId), { memberCount: increment(-1) })
+        deleteDoc(participantRef).catch(() => {});
+        updateDoc(doc(firestore, "partyRooms", roomId), { memberCount: increment(-1) }).catch(() => {});
       }
       killHardware()
     }
@@ -183,15 +209,26 @@ export default function PartyRoomPage() {
     if (currentSeat?.isLocked && !isAdmin) { toast({ variant: "destructive", title: "Seat Locked" }); return; }
 
     if (mySeatIndex !== null) {
-      await deleteDoc(doc(firestore, "partyRooms", roomId, "seats", mySeatIndex.toString()))
+      deleteDoc(doc(firestore, "partyRooms", roomId, "seats", mySeatIndex.toString())).catch(() => {});
     }
 
-    await setDoc(doc(firestore, "partyRooms", roomId, "seats", index.toString()), {
+    const seatRef = doc(firestore, "partyRooms", roomId, "seats", index.toString());
+    const seatData = {
       userId: currentUser.uid,
       username: profile.username,
       photo: profile.profilePhotoUrls?.[0] || "",
       isMicOn: true
-    })
+    };
+
+    setDoc(seatRef, seatData).catch(async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: seatRef.path,
+          operation: 'create',
+          requestResourceData: seatData
+        }));
+      }
+    });
 
     setIsMicMuted(false)
     if (zpRef.current) zpRef.current.mutePublishStreamAudio(false)
@@ -201,7 +238,15 @@ export default function PartyRoomPage() {
     if (mySeatIndex === null || !firestore) return
     if (zpRef.current) zpRef.current.mutePublishStreamAudio(true)
     setIsMicMuted(true)
-    await deleteDoc(doc(firestore, "partyRooms", roomId, "seats", mySeatIndex.toString()))
+    const seatRef = doc(firestore, "partyRooms", roomId, "seats", mySeatIndex.toString());
+    deleteDoc(seatRef).catch(async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: seatRef.path,
+          operation: 'delete'
+        }));
+      }
+    });
     setMySeatIndex(null)
   }
 
@@ -210,17 +255,35 @@ export default function PartyRoomPage() {
     const newState = !isMicMuted
     setIsMicMuted(newState)
     zpRef.current.mutePublishStreamAudio(newState)
-    updateDoc(doc(firestore, "partyRooms", roomId, "seats", mySeatIndex.toString()), { isMicOn: !newState })
+    const seatRef = doc(firestore, "partyRooms", roomId, "seats", mySeatIndex.toString());
+    updateDoc(seatRef, { isMicOn: !newState }).catch(async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: seatRef.path,
+          operation: 'update',
+          requestResourceData: { isMicOn: !newState }
+        }));
+      }
+    });
   }
 
   const handleSendMessage = () => {
     if (!chatInput.trim() || !currentUser || !profile || !firestore) return
-    addDoc(collection(firestore, "partyRooms", roomId, "messages"), {
+    const msgData = {
       text: chatInput,
       username: profile.username,
       userId: currentUser.uid,
       timestamp: serverTimestamp()
-    })
+    };
+    addDoc(collection(firestore, "partyRooms", roomId, "messages"), msgData).catch(async (error) => {
+      if (error.code === 'permission-denied') {
+        errorEmitter.emit('permission-error', new FirestorePermissionError({
+          path: `partyRooms/${roomId}/messages`,
+          operation: 'create',
+          requestResourceData: msgData
+        }));
+      }
+    });
     setChatInput("")
   }
 

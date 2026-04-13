@@ -25,6 +25,8 @@ import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
+import { errorEmitter } from "@/firebase/error-emitter"
+import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -40,7 +42,15 @@ export default function ProfilePage() {
   useEffect(() => {
     if (!firestore || !userProfile?.isSupport) return
     const q = query(collection(firestore, "reports"), where("status", "==", "pending"), limit(1));
-    getDocs(q).then(snap => setPendingReportsCount(snap.size));
+    getDocs(q).then(snap => setPendingReportsCount(snap.size))
+      .catch(async (error) => {
+        if (error.code === 'permission-denied') {
+          errorEmitter.emit('permission-error', new FirestorePermissionError({
+            path: 'reports',
+            operation: 'list'
+          }));
+        }
+      });
   }, [firestore, userProfile?.isSupport])
 
   const copyId = () => {
