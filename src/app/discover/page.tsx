@@ -113,14 +113,14 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
-      {/* Scrollable Top Section */}
-      <div className="bg-[#FF3737] px-6 pt-4 pb-4">
+      {/* Scrollable Top Section - Reduced Padding */}
+      <div className="bg-[#FF3737] px-6 pt-3 pb-3">
         <div className="grid grid-cols-2 gap-4">
           <button 
             onClick={() => router.push('/mystery-note')}
             className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
           >
-            <div className="w-14 h-14 relative">
+            <div className="w-12 h-12 relative">
               <Image src="/mystery.png" alt="Mystery" fill className="object-contain" />
             </div>
             <span className="text-[10px] font-black uppercase tracking-widest text-white">Mystery Note</span>
@@ -130,7 +130,7 @@ export default function DiscoverPage() {
             onClick={() => router.push('/task-center')}
             className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
           >
-            <div className="w-14 h-14 relative">
+            <div className="w-12 h-12 relative">
               <Image src="/task.png" alt="Tasks" fill className="object-contain" />
             </div>
             <span className="text-[10px] font-black uppercase tracking-widest text-white">Task Center</span>
@@ -138,36 +138,36 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Sticky Recommended Header */}
-      <div className="sticky top-0 z-30 bg-[#FF3737] px-6 py-2 flex items-center justify-between">
-        <h2 className="text-[11px] font-black text-white uppercase tracking-widest">Recommended for you</h2>
+      {/* Sticky Recommended Header - Reduced Padding */}
+      <div className="sticky top-0 z-30 bg-[#FF3737] px-6 py-1.5 flex items-center justify-between">
+        <h2 className="text-[10px] font-black text-white uppercase tracking-widest">Recommended for you</h2>
         <button 
           onClick={handleRefresh}
           disabled={isInitialLoading}
-          className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:bg-white/10 transition-colors"
+          className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:bg-white/10 transition-colors"
         >
-          {isInitialLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+          {isInitialLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
         </button>
       </div>
 
-      {/* Grid Section - Adjusted horizontal padding to reduce card width */}
+      {/* Grid Section - Removed scale movement from card click */}
       <main className="px-4 grid grid-cols-2 gap-3 mt-4">
         {mappedUsers.map((user) => (
           <div 
             key={user.id} 
-            className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm active:scale-95 transition-all"
+            className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm transition-opacity active:opacity-80"
             onClick={() => router.push(`/profile/${user.id}`)}
           >
             <Image src={user.image} alt={user.name} fill className="object-cover" data-ai-hint="dating profile photo" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
-            {/* Chat Icon */}
+            {/* Chat Icon - Independent hit area */}
             <button 
               onClick={(e) => { 
                 e.stopPropagation(); 
                 router.push(`/chat/${user.id}`); 
               }}
-              className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-lg active:scale-90 transition-all"
+              className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-lg active:scale-90 transition-all z-10"
             >
               <MessageSquare className="w-4 h-4 text-white fill-current" />
             </button>

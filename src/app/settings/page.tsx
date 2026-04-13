@@ -59,28 +59,28 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-y-auto">
-      <header className="px-4 py-6 flex items-center justify-between sticky top-0 bg-[#FF3737] z-50 shadow-lg text-white">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"><ChevronLeft className="w-6 h-6" /></Button>
-        <h1 className="text-xl font-black font-headline tracking-widest uppercase">Settings</h1>
-        <div className="w-10" />
+      <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-[#FF3737] z-50 shadow-lg text-white">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-9 w-9 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
+        <h1 className="text-lg font-black font-headline tracking-widest uppercase">Settings</h1>
+        <div className="w-9" />
       </header>
 
-      <main className="px-6 pt-8 pb-6 space-y-3">
+      <main className="px-6 pt-6 pb-6 space-y-3">
         {settingsItems.map((item, idx) => (
-          <button key={idx} onClick={item.onClick || (() => {})} className="w-full flex items-center justify-between p-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] transition-all hover:bg-gray-100 active:scale-[0.98] group shadow-sm">
+          <button key={idx} onClick={item.onClick || (() => {})} className="w-full flex items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-[1.5rem] transition-all hover:bg-gray-100 active:scale-[0.98] group shadow-sm">
             <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/5"><item.icon className="w-5 h-5 text-primary" /></div>
-              <div className="flex flex-col items-start"><span className="text-[13px] font-bold text-gray-900">{item.label}</span>{item.badge && <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full mt-1 ${isGuest ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>{item.badge}</span>}</div>
+              <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/5"><item.icon className="w-4 h-4 text-primary" /></div>
+              <div className="flex flex-col items-start"><span className="text-[12px] font-bold text-gray-900">{item.label}</span>{item.badge && <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full mt-0.5 ${isGuest ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>{item.badge}</span>}</div>
             </div>
-            <ChevronRight className="w-4 h-4 text-gray-300 group-hover:text-primary transition-colors" />
+            <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-primary transition-colors" />
           </button>
         ))}
 
-        <div className="pt-6">
+        <div className="pt-4">
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <button className="w-full flex items-center justify-center gap-2 py-5 px-3 bg-red-50/50 border border-red-100/50 rounded-[1.75rem] transition-all active:scale-[0.98] group">
-                <span className="text-xs font-black uppercase tracking-widest text-red-500">Sign Out</span>
+              <button className="w-full flex items-center justify-center gap-2 py-4 px-3 bg-red-50/50 border border-red-100/50 rounded-[1.5rem] transition-all active:scale-[0.98] group">
+                <span className="text-[11px] font-black uppercase tracking-widest text-red-500">Sign Out</span>
               </button>
             </AlertDialogTrigger>
             <AlertDialogContent className="rounded-[2.5rem] max-w-[85%] md:max-w-sm bg-white border-none shadow-2xl">
@@ -91,8 +91,8 @@ export default function SettingsPage() {
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="flex flex-col gap-2 mt-6">
-                <AlertDialogAction onClick={handleSignOut} className="rounded-full h-14 bg-red-500 hover:bg-red-600 text-white font-black text-sm w-full">Sign Out</AlertDialogAction>
-                <AlertDialogCancel className="rounded-full h-14 border-none bg-gray-50 font-black text-sm text-gray-400 hover:bg-gray-100 w-full">Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleSignOut} className="rounded-full h-12 bg-red-500 hover:bg-red-600 text-white font-black text-sm w-full">Sign Out</AlertDialogAction>
+                <AlertDialogCancel className="rounded-full h-12 border-none bg-gray-50 font-black text-sm text-gray-400 hover:bg-gray-100 w-full">Cancel</AlertDialogCancel>
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
@@ -100,10 +100,10 @@ export default function SettingsPage() {
       </main>
 
       <footer className="pb-32 flex flex-col items-center gap-4">
-        <div className="w-12 h-12 bg-primary/10 rounded-2xl flex items-center justify-center border border-primary/20"><span className="text-primary font-logo text-xl">MF</span></div>
-        <div className="text-center space-y-2">
-          <p className="text-[9px] font-black text-gray-300 uppercase tracking-[0.3em]">VERSION 3.1.0</p>
-          <div className="flex items-center gap-4 text-[9px] font-black text-gray-400 uppercase tracking-tighter">
+        <div className="w-10 h-10 bg-primary/10 rounded-xl flex items-center justify-center border border-primary/20"><span className="text-primary font-logo text-lg">MF</span></div>
+        <div className="text-center space-y-1.5">
+          <p className="text-[8px] font-black text-gray-300 uppercase tracking-[0.3em]">VERSION 3.1.0</p>
+          <div className="flex items-center gap-4 text-[8px] font-black text-gray-400 uppercase tracking-tighter">
             <span onClick={() => router.push('/settings/privacy')} className="cursor-pointer hover:text-primary transition-colors">Privacy</span>
             <span className="w-px h-2 bg-gray-100" />
             <span onClick={() => router.push('/settings/terms')} className="cursor-pointer hover:text-primary transition-colors">Terms</span>
