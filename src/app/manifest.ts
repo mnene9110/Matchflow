@@ -7,8 +7,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Connect with Heart',
     start_url: '/',
     display: 'standalone',
-    background_color: '#FF3737',
-    theme_color: '#FF3737',
+    background_color: '#3BC1A8',
+    theme_color: '#3BC1A8',
     icons: [
       {
         src: '/icon-192.png',

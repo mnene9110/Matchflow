@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -87,7 +86,7 @@ export default function TaskCenterPage() {
 
   if (!mounted || isLoading) {
     return (
-      <div className="flex h-svh items-center justify-center bg-[#FF3737]">
+      <div className="flex h-svh items-center justify-center bg-[#3BC1A8]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-white" />
           <span className="text-[10px] font-black uppercase text-white/60 tracking-[0.2em]">Checking rewards...</span>

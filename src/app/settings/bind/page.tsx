@@ -1,7 +1,6 @@
-
 "use client"
 
-import { useState } from "react"
+import { useState } from "relative"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Mail, Lock, ShieldCheck, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -63,7 +62,7 @@ export default function BindAccountPage() {
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900">
-      <header className="px-4 py-6 flex items-center sticky top-0 bg-[#FF3737] z-10 shadow-lg text-white">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-[#3BC1A8] z-10 shadow-lg text-white">
         <Button 
           variant="ghost" 
           size="icon" 

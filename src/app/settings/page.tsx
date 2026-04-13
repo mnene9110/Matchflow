@@ -1,4 +1,3 @@
-
 "use client"
 
 import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, MessageSquare, Ban, Info, BellOff } from "lucide-react"
@@ -59,7 +58,7 @@ export default function SettingsPage() {
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-y-auto">
-      <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-[#FF3737] z-50 shadow-lg text-white">
+      <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-[#3BC1A8] z-50 shadow-lg text-white">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-9 w-9 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
         <h1 className="text-lg font-black font-headline tracking-widest uppercase">Settings</h1>
         <div className="w-9" />

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
@@ -168,7 +167,7 @@ export default function EditProfilePage() {
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-hidden">
-      <header className="shrink-0 px-4 py-6 flex items-center bg-[#FF3737] z-50 shadow-lg text-white">
+      <header className="shrink-0 px-4 py-6 flex items-center bg-[#3BC1A8] z-50 shadow-lg text-white">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30"><ChevronLeft className="w-6 h-6" /></Button>
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Edit Profile</h1>
       </header>

@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useRef, useEffect } from "react"
@@ -164,7 +163,7 @@ export default function VerifyIdentityPage() {
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-y-auto scroll-smooth">
-      <header className="px-4 py-6 flex items-center sticky top-0 bg-white z-50 border-b border-gray-50 shrink-0">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-[#3BC1A8] z-50 border-b border-gray-50 shrink-0 text-white">
         <Button 
           variant="ghost" 
           size="icon" 
@@ -172,7 +171,7 @@ export default function VerifyIdentityPage() {
             stopCamera();
             router.back();
           }} 
-          className="text-gray-900 h-10 w-10 bg-gray-50 rounded-full hover:bg-gray-100"
+          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
