@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -118,7 +117,7 @@ export default function DiscoverPage() {
         <div className="grid grid-cols-2 gap-4">
           <button 
             onClick={() => router.push('/mystery-note')}
-            className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
+            className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] active:scale-95 transition-all group"
           >
             <div className="w-12 h-12 relative">
               <Image src="/mystery.png" alt="Mystery" fill className="object-contain" />
@@ -128,7 +127,7 @@ export default function DiscoverPage() {
           
           <button 
             onClick={() => router.push('/task-center')}
-            className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
+            className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] active:scale-95 transition-all group"
           >
             <div className="w-12 h-12 relative">
               <Image src="/task.png" alt="Tasks" fill className="object-contain" />
