@@ -1,4 +1,3 @@
-
 import { MetadataRoute } from 'next'
 
 export default function manifest(): MetadataRoute.Manifest {
@@ -8,7 +7,7 @@ export default function manifest(): MetadataRoute.Manifest {
     description: 'Connect with Heart',
     start_url: '/',
     display: 'standalone',
-    background_color: '#FFFFFF',
+    background_color: '#FF3737', // Updated to brand color for splash screen
     theme_color: '#FF3737',
     icons: [
       {

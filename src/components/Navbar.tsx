@@ -64,8 +64,8 @@ export function Navbar() {
   ]
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
-      <nav className="h-20 w-full flex items-center justify-around px-6">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)] border-none">
+      <nav className="h-20 w-full flex items-center justify-around px-6 outline-none ring-0">
         {navItems.map((item) => {
           const isActive = pathname === item.href
           return (
@@ -73,11 +73,11 @@ export function Navbar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1.5 transition-all duration-300 flex-1 outline-none focus:outline-none",
+                "flex flex-col items-center gap-1.5 transition-all duration-300 flex-1 outline-none ring-0 focus:outline-none focus:ring-0",
                 isActive ? "text-[#FF3737]" : "text-gray-300"
               )}
             >
-              <div className="relative outline-none">
+              <div className="relative outline-none ring-0">
                 <div className="relative w-6 h-6">
                   <Image 
                     src={item.icon} 
