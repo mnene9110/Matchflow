@@ -112,8 +112,8 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
-      {/* Red Header Section - Tightened spacing */}
-      <div className="bg-[#FF3737] px-6 pt-4 pb-4 space-y-4">
+      {/* Scrollable Top Section */}
+      <div className="bg-[#FF3737] px-6 pt-4 pb-4">
         <div className="grid grid-cols-2 gap-4">
           <button 
             onClick={() => router.push('/mystery-note')}
@@ -135,17 +135,18 @@ export default function DiscoverPage() {
             <span className="text-[10px] font-black uppercase tracking-widest text-white">Task Center</span>
           </button>
         </div>
+      </div>
 
-        <div className="flex items-center justify-between">
-          <h2 className="text-[13px] font-black text-white uppercase tracking-widest">Recommended for you</h2>
-          <button 
-            onClick={handleRefresh}
-            disabled={isInitialLoading}
-            className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:bg-white/10 transition-colors"
-          >
-            {isInitialLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
-          </button>
-        </div>
+      {/* Sticky Recommended Header */}
+      <div className="sticky top-0 z-30 bg-[#FF3737] px-6 py-2 flex items-center justify-between">
+        <h2 className="text-[11px] font-black text-white uppercase tracking-widest">Recommended for you</h2>
+        <button 
+          onClick={handleRefresh}
+          disabled={isInitialLoading}
+          className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:bg-white/10 transition-colors"
+        >
+          {isInitialLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
+        </button>
       </div>
 
       {/* Grid Section */}
