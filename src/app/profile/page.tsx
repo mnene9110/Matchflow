@@ -13,10 +13,13 @@ import {
   CheckCircle,
   Gem,
   Gamepad2,
-  ShieldAlert,
   ClipboardList,
   Building2,
-  Shield
+  Shield,
+  Users as UsersIcon,
+  Award,
+  Zap,
+  UserCog
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
@@ -64,11 +67,14 @@ export default function ProfilePage() {
   const userImage = (userProfile?.profilePhotoUrls && userProfile?.profilePhotoUrls[0]) || ""
   const isVerified = !!userProfile?.isVerified
 
+  // Logic to determine if management section should show
+  const hasManagementRole = userProfile?.isAdmin || userProfile?.isSupport || userProfile?.isCoinseller || userProfile?.isAgent;
+
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#FF3737]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
 
   return (
     <div className="flex flex-col h-svh w-full bg-white text-gray-900 overflow-y-auto scroll-smooth">
-      {/* Refined More Compact Header */}
+      {/* Brand Red Header */}
       <header className="flex flex-col items-center pt-8 pb-6 px-6 shrink-0 relative bg-gradient-to-b from-[#FF3737] via-[#FF5E5E] to-white/10">
         <div className="relative mb-4">
           <Avatar className="w-28 h-28 shadow-[0_20px_50px_rgba(255,55,55,0.3)] bg-gray-100">
@@ -103,9 +109,8 @@ export default function ProfilePage() {
       </header>
 
       <main className="flex-1 px-6 space-y-8 pb-44 -mt-4">
-        {/* Wallet Cards - Optimized Height */}
+        {/* Wallet Cards */}
         <div className="grid grid-cols-2 gap-4">
-          {/* Balance Card */}
           <div className="bg-white rounded-[2rem] p-4 flex flex-col items-center gap-3 shadow-[0_15px_45px_rgba(0,0,0,0.06)] border border-gray-50 text-center transition-transform active:scale-[0.98]">
             <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
               <Coins className="w-5 h-5 text-[#FF3737] opacity-60" />
@@ -122,7 +127,6 @@ export default function ProfilePage() {
             </Button>
           </div>
 
-          {/* Earnings Card */}
           <div className="bg-[#1A1A1A] rounded-[2rem] p-4 flex flex-col items-center gap-3 shadow-[0_15px_45px_rgba(0,0,0,0.2)] text-center transition-transform active:scale-[0.98]">
             <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
               <Gem className="w-5 h-5 text-[#FF3737]" />
@@ -140,7 +144,86 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Menu Sections */}
+        {/* Role-Based Management Tools */}
+        {hasManagementRole && (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between px-2">
+              <h2 className="text-[10px] font-black text-primary uppercase tracking-[0.3em]">Management Tools</h2>
+              <div className="h-px flex-1 bg-primary/10 ml-4" />
+            </div>
+            
+            <div className="grid grid-cols-1 gap-2.5">
+              {userProfile?.isAdmin && (
+                <button 
+                  onClick={() => router.push('/admin/roles')} 
+                  className="w-full h-16 rounded-[1.5rem] bg-zinc-900 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-xl"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center">
+                    <UserCog className="w-5 h-5 text-amber-400" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className="text-white font-black uppercase tracking-tight text-[13px] block">Role Management</span>
+                    <span className="text-white/40 text-[9px] font-bold uppercase mt-1 block">Assign Support & Agents</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-white/20" />
+                </button>
+              )}
+
+              {(userProfile?.isCoinseller || userProfile?.isAdmin) && (
+                <button 
+                  onClick={() => router.push(userProfile?.isAdmin ? '/admin/award' : '/coinseller/award')} 
+                  className="w-full h-16 rounded-[1.5rem] bg-white border border-amber-100 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-sm"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-amber-50 flex items-center justify-center border border-amber-100">
+                    <Award className="w-5 h-5 text-amber-600" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block">Award Coins</span>
+                    <span className="text-gray-400 text-[9px] font-bold uppercase mt-1 block">Grant coins to users</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-200" />
+                </button>
+              )}
+
+              {(userProfile?.isSupport || userProfile?.isAdmin) && (
+                <button 
+                  onClick={() => router.push('/support/reports')} 
+                  className="w-full h-16 rounded-[1.5rem] bg-white border border-blue-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-sm relative"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-blue-50 flex items-center justify-center border border-blue-100">
+                    <ClipboardList className="w-5 h-5 text-blue-600" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block">Review Reports</span>
+                    <span className="text-gray-400 text-[9px] font-bold uppercase mt-1 block">Handle User Complaints</span>
+                  </div>
+                  {pendingReportsCount > 0 && (
+                    <div className="absolute top-5 right-10 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse" />
+                  )}
+                  <ChevronRight className="w-4 h-4 text-gray-200" />
+                </button>
+              )}
+
+              {(userProfile?.isAgent || userProfile?.isAdmin) && (
+                <button 
+                  onClick={() => router.push('/profile/agent-center')} 
+                  className="w-full h-16 rounded-[1.5rem] bg-white border border-purple-50 flex items-center px-5 gap-4 shadow-sm active:scale-[0.98] transition-all"
+                >
+                  <div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center border border-purple-100">
+                    <Building2 className="w-5 h-5 text-purple-600" />
+                  </div>
+                  <div className="flex-1 text-left">
+                    <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block">Agent Center</span>
+                    <span className="text-gray-400 text-[9px] font-bold uppercase mt-1 block">Manage Agency Anchor</span>
+                  </div>
+                  <ChevronRight className="w-4 h-4 text-gray-200" />
+                </button>
+              )}
+            </div>
+          </section>
+        )}
+
+        {/* Account & Safety Section */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Account & Safety</h2>
@@ -148,7 +231,6 @@ export default function ProfilePage() {
           </div>
           
           <div className="space-y-2.5">
-            {/* Verify Identity Button - Shown if not verified */}
             {!isVerified && (
               <button 
                 onClick={() => router.push('/profile/verify')} 
@@ -165,10 +247,9 @@ export default function ProfilePage() {
               </button>
             )}
 
-            {/* Customer Support */}
             <button 
               onClick={() => router.push('/chat/support_agent')} 
-              className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-[0_4px_20px_rgba(0,0,0,0.02)]"
+              className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-sm"
             >
               <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center border border-green-100">
                 <Headset className="w-5 h-5 text-green-600" />
@@ -180,14 +261,9 @@ export default function ProfilePage() {
               <ChevronRight className="w-4 h-4 text-gray-200" />
             </button>
 
-            <div className="flex items-center justify-between px-2 pt-4">
-              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Entertainment</h2>
-              <div className="h-px flex-1 bg-gray-50 ml-4" />
-            </div>
-
             <button 
               onClick={() => router.push('/games')} 
-              className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-[0_4px_20px_rgba(0,0,0,0.02)] group"
+              className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-sm group"
             >
               <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF5722] to-[#FF8A65] flex items-center justify-center shadow-lg shadow-orange-500/20 group-hover:scale-105 transition-transform">
                 <Gamepad2 className="w-5 h-5 text-white" />
@@ -199,32 +275,6 @@ export default function ProfilePage() {
               <ChevronRight className="w-4 h-4 text-gray-200" />
             </button>
 
-            {/* Conditional Menus */}
-            {userProfile?.isAgent && (
-              <button 
-                onClick={() => router.push('/profile/agent-center')} 
-                className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.02)] active:scale-[0.98] transition-all"
-              >
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-purple-600 to-purple-400 flex items-center justify-center shadow-lg shadow-purple-500/20"><Building2 className="w-5 h-5 text-white" /></div>
-                <div className="flex-1 text-left"><span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block leading-none">Agent Center</span><span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Manage Agency</span></div>
-                <ChevronRight className="w-4 h-4 text-gray-200" />
-              </button>
-            )}
-
-            {userProfile?.isSupport && (
-              <button 
-                onClick={() => router.push('/support/reports')} 
-                className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-100 flex items-center px-5 gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.02)] active:scale-[0.98] transition-all relative"
-              >
-                <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-blue-600 to-blue-400 flex items-center justify-center shadow-lg shadow-blue-500/20"><ClipboardList className="w-5 h-5 text-white" /></div>
-                <div className="flex-1 text-left"><span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block leading-none">Review Reports</span><span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Handle Complaints</span></div>
-                {pendingReportsCount > 0 && (
-                  <div className="absolute top-5 right-10 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse" />
-                )}
-                <ChevronRight className="w-4 h-4 text-gray-200" />
-              </button>
-            )}
-
             <div className="flex items-center justify-between px-2 pt-4">
               <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Preferences</h2>
               <div className="h-px flex-1 bg-gray-50 ml-4" />
@@ -232,7 +282,7 @@ export default function ProfilePage() {
 
             <button 
               onClick={() => router.push('/settings')} 
-              className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 shadow-[0_4px_20px_rgba(0,0,0,0.02)] active:scale-[0.98] transition-all"
+              className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 shadow-sm active:scale-[0.98] transition-all"
             >
               <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100"><SettingsIcon className="w-5 h-5 text-gray-400" /></div>
               <div className="flex-1 text-left"><span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block leading-none">Settings</span><span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Privacy & Account</span></div>

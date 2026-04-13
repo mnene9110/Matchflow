@@ -23,16 +23,29 @@ service cloud.firestore {
 
     match /userProfiles/{userId} {
       allow read: if isAuthenticated();
-      // Allow users to update their own profile, or let anyone update presence/incomingCallId
-      allow write: if isAuthenticated() && (
-        request.auth.uid == userId || 
+      
+      // Allow creation during onboarding
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      
+      // Protect sensitive fields from self-update
+      allow update: if isAuthenticated() && (
+        // Admins can update everything
         isAdmin() || 
-        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isOnline', 'lastActiveAt', 'incomingCallId', 'inCall'])
+        
+        // Users can update their own non-sensitive fields
+        (request.auth.uid == userId && 
+         !request.resource.data.diff(resource.data).affectedKeys()
+           .hasAny(['isAdmin', 'isSupport', 'isCoinseller', 'isAgent', 'isPartyAdmin', 'coinBalance', 'diamondBalance', 'numericId'])) ||
+        
+        // Anyone can update call handshake and presence fields
+        request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['isOnline', 'lastActiveAt', 'incomingCallId', 'inCall'])
       );
       
       match /transactions/{transactionId} {
         allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-        allow write: if isAuthenticated() && (request.auth.uid == userId || isAdmin() || 
+        // Only Admins or Coinsellers (via code logic) should be writing to transactions
+        allow write: if isAuthenticated() && (isAdmin() || 
           get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.isCoinseller == true);
       }
       
