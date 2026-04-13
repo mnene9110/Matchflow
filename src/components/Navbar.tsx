@@ -58,9 +58,9 @@ export function Navbar() {
   if (shouldHide) return null
 
   const navItems = [
-    { icon: "/home.png", label: "HOME", href: "/discover" },
-    { icon: "/chat.png", label: "CHATS", href: "/chat", badge: totalUnread },
-    { icon: "/me.png", label: "YOU", href: "/profile" },
+    { icon: "/home.png", label: "Home", href: "/discover" },
+    { icon: "/chat.png", label: "Chats", href: "/chat", badge: totalUnread },
+    { icon: "/me.png", label: "You", href: "/profile" },
   ]
 
   return (
@@ -73,11 +73,11 @@ export function Navbar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1.5 transition-all duration-300 flex-1",
+                "flex flex-col items-center gap-1.5 transition-all duration-300 flex-1 outline-none focus:outline-none",
                 isActive ? "text-[#FF3737]" : "text-gray-300"
               )}
             >
-              <div className="relative">
+              <div className="relative outline-none">
                 <div className="relative w-6 h-6">
                   <Image 
                     src={item.icon} 

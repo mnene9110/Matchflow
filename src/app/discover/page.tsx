@@ -112,7 +112,7 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
-      {/* Scrollable Top Section - Reduced Padding */}
+      {/* Scrollable Top Section */}
       <div className="bg-[#FF3737] px-6 pt-3 pb-3">
         <div className="grid grid-cols-2 gap-4">
           <button 
@@ -137,9 +137,9 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Sticky Recommended Header - Reduced Padding */}
+      {/* Sticky Recommended Header */}
       <div className="sticky top-0 z-30 bg-[#FF3737] px-6 py-1.5 flex items-center justify-between">
-        <h2 className="text-[10px] font-black text-white uppercase tracking-widest">Recommended for you</h2>
+        <h2 className="text-[10px] font-black text-white capitalize tracking-widest">Recommended for you</h2>
         <button 
           onClick={handleRefresh}
           disabled={isInitialLoading}
@@ -149,7 +149,7 @@ export default function DiscoverPage() {
         </button>
       </div>
 
-      {/* Grid Section - Removed scale movement from card click */}
+      {/* Grid Section */}
       <main className="px-4 grid grid-cols-2 gap-3 mt-4">
         {mappedUsers.map((user) => (
           <div 
@@ -160,7 +160,7 @@ export default function DiscoverPage() {
             <Image src={user.image} alt={user.name} fill className="object-cover" data-ai-hint="dating profile photo" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
-            {/* Chat Icon - Independent hit area */}
+            {/* Chat Icon */}
             <button 
               onClick={(e) => { 
                 e.stopPropagation(); 

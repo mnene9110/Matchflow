@@ -1,4 +1,3 @@
-
 'use client';
 
 import { firebaseConfig } from '@/firebase/config';
@@ -14,23 +13,31 @@ export interface FirebaseSdks {
   database: Database;
 }
 
+// Keep a reference to the initialized SDKs to prevent multiple instances
+let cachedSdks: FirebaseSdks | null = null;
+
 // IMPORTANT: DO NOT MODIFY THIS FUNCTION
 export function initializeFirebase(): FirebaseSdks {
-  if (!getApps().length) {
-    let firebaseApp;
+  if (cachedSdks) return cachedSdks;
+
+  const apps = getApps();
+  let firebaseApp: FirebaseApp;
+
+  if (!apps.length) {
     try {
-      firebaseApp = initializeApp();
+      firebaseApp = initializeApp(firebaseConfig);
     } catch (e) {
       if (process.env.NODE_ENV === "production") {
-        console.warn('Automatic initialization failed. Falling back to firebase config object.', e);
+        console.warn('Firebase initialization failed.', e);
       }
       firebaseApp = initializeApp(firebaseConfig);
     }
-
-    return getSdks(firebaseApp);
+  } else {
+    firebaseApp = apps[0];
   }
 
-  return getSdks(getApp());
+  cachedSdks = getSdks(firebaseApp);
+  return cachedSdks;
 }
 
 export function getSdks(firebaseApp: FirebaseApp): FirebaseSdks {
