@@ -67,15 +67,13 @@ export default function ProfilePage() {
   const isVerified = !!userProfile?.isVerified
   const isFemale = userProfile?.gender?.toLowerCase() === 'female'
 
-  // Logic to determine if management section should show
   const hasManagementRole = userProfile?.isAdmin || userProfile?.isSupport || userProfile?.isCoinseller || (userProfile?.isAgent && isFemale);
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#FF3737]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
 
   return (
     <div className="flex flex-col h-svh w-full bg-white text-gray-900 overflow-y-auto scroll-smooth">
-      {/* Brand Red Header - Solid color with padding for overlap */}
-      <header className="flex flex-col items-center pt-8 pb-16 px-6 shrink-0 relative bg-[#FF3737] shadow-lg">
+      <header className="flex flex-col items-center pt-8 pb-16 px-6 shrink-0 relative bg-[#FF3737]">
         <div className="relative mb-4">
           <Avatar className="w-28 h-28 shadow-2xl bg-white/10 border-none">
             {userImage && <AvatarImage src={userImage} className="object-cover" />}
@@ -83,7 +81,7 @@ export default function ProfilePage() {
           </Avatar>
           <button 
             onClick={() => router.push('/profile/edit')} 
-            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-zinc-900 border-2 border-white flex items-center justify-center shadow-xl active:scale-90 transition-transform"
+            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center shadow-xl active:scale-90 transition-transform"
           >
             <Pencil className="w-3.5 h-3.5 text-white" />
           </button>
@@ -109,7 +107,6 @@ export default function ProfilePage() {
       </header>
 
       <main className="flex-1 px-6 space-y-8 pb-44 -mt-10 relative z-10">
-        {/* Wallet Cards - Overlapping the red header */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-[2.25rem] p-5 flex flex-col items-center gap-3 shadow-[0_20px_50px_rgba(0,0,0,0.12)] border border-gray-50 text-center transition-transform active:scale-[0.98]">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
@@ -144,7 +141,6 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {/* Role-Based Management Tools */}
         {hasManagementRole && (
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2">
@@ -204,7 +200,6 @@ export default function ProfilePage() {
                 </button>
               )}
 
-              {/* Agency Button restricted to Female accounts */}
               {isFemale && (userProfile?.isAgent || userProfile?.isAdmin) && (
                 <button 
                   onClick={() => router.push('/profile/agent-center')} 
@@ -224,7 +219,6 @@ export default function ProfilePage() {
           </section>
         )}
 
-        {/* Account & Safety Section */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
             <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Account & Safety</h2>
@@ -248,7 +242,6 @@ export default function ProfilePage() {
               </button>
             )}
 
-            {/* Special handling for Customer Support button to avoid 'User Logged Out' screen */}
             <button 
               onClick={() => router.push('/chat/customer_support')} 
               className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-sm"
@@ -263,7 +256,6 @@ export default function ProfilePage() {
               <ChevronRight className="w-4 h-4 text-gray-200" />
             </button>
 
-            {/* Join Agency Button restricted to Female accounts */}
             {isFemale && (
               <button 
                 onClick={() => router.push('/profile/agency')} 

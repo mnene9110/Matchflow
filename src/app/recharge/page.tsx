@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
@@ -98,8 +97,8 @@ function RechargeContent() {
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-hidden">
-      <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-[#FF3737] z-10 shrink-0 shadow-lg text-white">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-9 w-9 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
+      <header className="px-4 py-4 flex items-center justify-between sticky top-0 bg-[#FF3737] z-10 shrink-0 text-white">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-9 w-9 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
         <div className="flex flex-col items-center">
           <h1 className="text-base font-black font-headline tracking-widest uppercase">Wallet</h1>
           <p className="text-[7px] font-black text-white/60 uppercase tracking-widest">{currencyInfo.code} Region</p>

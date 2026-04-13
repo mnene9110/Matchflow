@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect } from 'react';
@@ -11,7 +10,7 @@ import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 
 /**
  * @fileOverview Root layout component.
- * Updated with specific brand-red status bar configuration.
+ * Updated with black-translucent status bar for seamless brand-red integration.
  */
 
 export default function RootLayout({
@@ -64,7 +63,7 @@ export default function RootLayout({
         <link rel="manifest" href="/manifest.json" />
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#FF3737" />
         <meta name="apple-mobile-web-app-title" content="MatchFlow" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
