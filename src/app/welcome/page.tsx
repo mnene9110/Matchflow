@@ -64,7 +64,13 @@ export default function WelcomePage() {
 
   if (isUserLoading || (user && !isLoggingIn)) {
     return (
-      <div className="flex h-svh w-full bg-[#FF3737]" />
+      <div className="flex h-svh w-full flex-col items-center justify-center bg-[#FF3737]">
+        <div className="flex flex-col items-center gap-6 animate-pulse">
+          <h1 className="text-6xl font-logo text-white drop-shadow-2xl">
+            MatchFlow
+          </h1>
+        </div>
+      </div>
     )
   }
 
