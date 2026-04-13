@@ -109,7 +109,7 @@ function RechargeContent() {
 
       <main className="flex-1 px-6 pt-6 pb-44 overflow-y-auto scroll-smooth">
         <section className="mb-6">
-          <div className="flex items-center gap-4 bg-gray-50 p-5 rounded-[2rem] border border-gray-100 shadow-sm">
+          <div className="flex items-center gap-4 bg-white p-5 rounded-[2rem] border border-gray-100 shadow-[0_15px_45px_rgba(0,0,0,0.06)]">
             <div className="bg-primary/10 w-12 h-12 rounded-2xl flex items-center justify-center"><span className="text-primary font-black text-xl italic">S</span></div>
             <div className="flex flex-col">
               <span className="text-3xl font-black font-headline tracking-tighter text-gray-900">{(profile?.coinBalance || 0).toLocaleString()}</span>

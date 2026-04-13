@@ -74,12 +74,12 @@ export default function ProfilePage() {
 
   return (
     <div className="flex flex-col h-svh w-full bg-white text-gray-900 overflow-y-auto scroll-smooth">
-      {/* Brand Red Header */}
-      <header className="flex flex-col items-center pt-8 pb-6 px-6 shrink-0 relative bg-gradient-to-b from-[#FF3737] via-[#FF5E5E] to-white/10">
+      {/* Brand Red Header - Simplified to solid color */}
+      <header className="flex flex-col items-center pt-8 pb-10 px-6 shrink-0 relative bg-[#FF3737] shadow-lg">
         <div className="relative mb-4">
-          <Avatar className="w-28 h-28 shadow-[0_20px_50px_rgba(255,55,55,0.3)] bg-gray-100">
+          <Avatar className="w-28 h-28 shadow-2xl bg-white/10">
             {userImage && <AvatarImage src={userImage} className="object-cover" />}
-            <AvatarFallback className="bg-primary text-white font-black text-2xl uppercase">{userProfile?.username?.[0]}</AvatarFallback>
+            <AvatarFallback className="bg-white/20 text-white font-black text-2xl uppercase">{userProfile?.username?.[0]}</AvatarFallback>
           </Avatar>
           <button 
             onClick={() => router.push('/profile/edit')} 
@@ -108,12 +108,12 @@ export default function ProfilePage() {
         )}
       </header>
 
-      <main className="flex-1 px-6 space-y-8 pb-44 -mt-4">
-        {/* Wallet Cards */}
+      <main className="flex-1 px-6 space-y-8 pb-44 -mt-6">
+        {/* Wallet Cards - Standardized to white bg */}
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-[2rem] p-4 flex flex-col items-center gap-3 shadow-[0_15px_45px_rgba(0,0,0,0.06)] border border-gray-50 text-center transition-transform active:scale-[0.98]">
-            <div className="w-10 h-10 rounded-xl bg-red-50 flex items-center justify-center">
-              <Coins className="w-5 h-5 text-[#FF3737] opacity-60" />
+            <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center">
+              <Coins className="w-5 h-5 text-primary" />
             </div>
             <div className="space-y-0.5">
               <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block">Balance</span>
@@ -127,17 +127,17 @@ export default function ProfilePage() {
             </Button>
           </div>
 
-          <div className="bg-[#1A1A1A] rounded-[2rem] p-4 flex flex-col items-center gap-3 shadow-[0_15px_45px_rgba(0,0,0,0.2)] text-center transition-transform active:scale-[0.98]">
-            <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center">
-              <Gem className="w-5 h-5 text-[#FF3737]" />
+          <div className="bg-white rounded-[2rem] p-4 flex flex-col items-center gap-3 shadow-[0_15px_45px_rgba(0,0,0,0.06)] border border-gray-50 text-center transition-transform active:scale-[0.98]">
+            <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center">
+              <Gem className="w-5 h-5 text-blue-500" />
             </div>
             <div className="space-y-0.5">
-              <span className="text-[9px] font-black text-gray-500 uppercase tracking-widest block">Earnings</span>
-              <span className="text-2xl font-black text-white font-headline">{(userProfile?.diamondBalance || 0).toLocaleString()}</span>
+              <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block">Earnings</span>
+              <span className="text-2xl font-black text-gray-900 font-headline">{(userProfile?.diamondBalance || 0).toLocaleString()}</span>
             </div>
             <Button 
               onClick={() => router.push('/profile/income')}
-              className="w-full h-10 rounded-full bg-white/10 hover:bg-white/20 text-white border border-white/10 font-black text-[9px] uppercase tracking-widest active:scale-95"
+              className="w-full h-10 rounded-full bg-zinc-900 hover:bg-zinc-800 text-white font-black text-[9px] uppercase tracking-widest active:scale-95"
             >
               Income
             </Button>
