@@ -49,7 +49,7 @@ async function registerIPN(token: string) {
   const ipnUrl = `${baseUrl}/api/pesapal-ipn`;
   
   try {
-    // Check list first to avoid duplicates
+    // Check list first to avoid duplicates and speed up the redirect
     const listResponse = await fetch(`${PESAPAL_URL}/api/URLSetup/GetIpnList`, {
       method: 'GET',
       headers: {

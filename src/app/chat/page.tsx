@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -137,6 +136,11 @@ export default function ChatListPage() {
   useEffect(() => {
     if (!firestore || !currentUser) return
     
+    // Safety timeout: if Firestore takes too long, stop showing the spinner
+    const timer = setTimeout(() => {
+      setHasFetched(true)
+    }, 8000)
+
     const chatsQuery = query(
       collection(firestore, "chats"),
       where("participants", "array-contains", currentUser.uid),
@@ -144,6 +148,7 @@ export default function ChatListPage() {
     )
     
     const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
+      clearTimeout(timer)
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
       const filtered = list.filter((s: any) => {
         const isHidden = s[`hidden_${currentUser.uid}`] === true
@@ -154,6 +159,8 @@ export default function ChatListPage() {
       setSessions(filtered)
       setHasFetched(true)
     }, async (error) => {
+      clearTimeout(timer)
+      setHasFetched(true) // Ensure we don't load forever even on error
       if (error.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'chats',
@@ -162,7 +169,10 @@ export default function ChatListPage() {
       }
     })
 
-    return () => unsubscribe()
+    return () => {
+      clearTimeout(timer)
+      unsubscribe()
+    }
   }, [firestore, currentUser])
 
   const handleHideChat = async () => {

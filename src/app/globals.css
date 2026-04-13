@@ -72,7 +72,7 @@
 
 .app-container {
   @apply relative h-full w-full flex flex-col overflow-y-auto;
-  background-color: transparent; /* Bleeds body background color up */
+  background-color: transparent; 
   padding-top: 0px;
   -webkit-overflow-scrolling: touch;
 }
@@ -94,7 +94,13 @@
   animation: float 3s ease-in-out infinite;
 }
 
-/* Hide potential progress bars if added by libraries */
-#nprogress .bar {
+/* Aggressively hide any potential progress bars or loading lines */
+#nprogress, 
+.nprogress-busy, 
+.nextjs-progress-bar,
+[role="progressbar"] {
   display: none !important;
+  visibility: hidden !important;
+  height: 0 !important;
+  opacity: 0 !important;
 }
