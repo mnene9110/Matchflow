@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -99,7 +100,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
           <div className="flex justify-between items-baseline mb-1">
             <h3 className={cn(
               "font-black text-base truncate",
-              name === "User logged out" ? "text-gray-400 font-medium italic" : "text-[#FF3737]"
+              name === "User logged out" ? "text-gray-400 font-medium italic" : "text-[#3BC1A8]"
             )}>
               {name}
             </h3>
@@ -114,7 +115,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
               {session.lastMessage || "Start a conversation"}
             </p>
             {unreadCount > 0 && (
-              <span className="h-5 min-w-5 px-1.5 rounded-full bg-[#FF3737] flex items-center justify-center text-[10px] font-black text-white shadow-sm">
+              <span className="h-5 min-w-5 px-1.5 rounded-full bg-[#3BC1A8] flex items-center justify-center text-[10px] font-black text-white shadow-sm">
                 {unreadCount}
               </span>
             )}
@@ -189,7 +190,7 @@ export default function ChatListPage() {
 
   return (
     <div className="flex flex-col h-svh pb-20 bg-white">
-      <header className="bg-[#FF3737] pt-6 pb-3 px-6 sticky top-0 z-20 shrink-0">
+      <header className="bg-[#3BC1A8] pt-6 pb-3 px-6 sticky top-0 z-20 shrink-0">
         <div className="flex items-center justify-between">
           <h1 className="text-3xl font-logo text-white drop-shadow-sm">
             Chats

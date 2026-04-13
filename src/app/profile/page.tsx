@@ -1,3 +1,4 @@
+
 "use client"
 
 import { 
@@ -69,11 +70,11 @@ export default function ProfilePage() {
 
   const hasManagementRole = userProfile?.isAdmin || userProfile?.isSupport || userProfile?.isCoinseller || (userProfile?.isAgent && isFemale);
 
-  if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#FF3737]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
+  if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#3BC1A8]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
 
   return (
     <div className="flex flex-col h-svh w-full bg-white text-gray-900 overflow-y-auto scroll-smooth">
-      <header className="flex flex-col items-center pt-8 pb-16 px-6 shrink-0 relative bg-[#FF3737]">
+      <header className="flex flex-col items-center pt-8 pb-16 px-6 shrink-0 relative bg-[#3BC1A8]">
         <div className="relative mb-4">
           <Avatar className="w-28 h-28 shadow-2xl bg-white/10 border-none">
             {userImage && <AvatarImage src={userImage} className="object-cover" />}
@@ -118,7 +119,7 @@ export default function ProfilePage() {
             </div>
             <Button 
               onClick={() => router.push('/recharge')}
-              className="w-full h-10 rounded-full bg-[#FF3737] hover:bg-[#E63232] text-white font-black text-[9px] uppercase tracking-widest shadow-lg shadow-red-500/20 active:scale-95"
+              className="w-full h-10 rounded-full bg-[#3BC1A8] hover:bg-[#32B098] text-white font-black text-[9px] uppercase tracking-widest shadow-lg shadow-[#3BC1A8]/20 active:scale-95"
             >
               Recharge
             </Button>

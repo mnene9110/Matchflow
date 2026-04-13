@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -61,7 +62,7 @@ export default function WelcomePage() {
 
   if (isUserLoading || (user && !isLoggingIn)) {
     return (
-      <div className="flex h-svh w-full flex-col items-center justify-center bg-[#FF3737]">
+      <div className="flex h-svh w-full flex-col items-center justify-center bg-[#3BC1A8]">
         <div className="flex flex-col items-center gap-6 animate-pulse">
           <h1 className="text-6xl font-logo text-white drop-shadow-2xl">
             MatchFlow
@@ -77,7 +78,7 @@ export default function WelcomePage() {
         <div className="mb-10 relative">
           <div className="w-48 h-48 bg-zinc-950 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center border border-white/10 animate-float overflow-hidden relative">
             <div className="relative w-24 h-24 mb-2 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-full h-full text-[#FF3737] fill-current" xmlns="http://www.w3.org/2000/svg">
+              <svg viewBox="0 0 24 24" className="w-full h-full text-[#3BC1A8] fill-current" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
               </svg>
             </div>
@@ -85,7 +86,7 @@ export default function WelcomePage() {
           </div>
         </div>
 
-        <h1 className="text-5xl font-logo text-[#FF3737] mb-2 drop-shadow-md">MatchFlow</h1>
+        <h1 className="text-5xl font-logo text-[#3BC1A8] mb-2 drop-shadow-md">MatchFlow</h1>
         <p className="text-gray-400 text-[15px] font-black uppercase tracking-[0.1em] leading-relaxed max-w-[240px] mb-12">Connect with Heart</p>
 
         <div className="w-full space-y-4 max-w-xs">
@@ -104,7 +105,7 @@ export default function WelcomePage() {
             onClick={handleFastLogin} 
             disabled={isLoggingIn || isNavigatingEmail}
           >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-[#FF3737]" />}
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-[#3BC1A8]" />}
             Fast Login
           </Button>
         </div>

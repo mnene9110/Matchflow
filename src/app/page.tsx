@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect } from "react"
@@ -6,7 +7,7 @@ import { useUser } from "@/firebase"
 
 /**
  * @fileOverview This is the code responsible for the Splash Screen.
- * It displays the MatchFlow logo and name using the brand color (#FF3737)
+ * It displays the MatchFlow logo and name using the brand color (#3BC1A8)
  * and the Pacifico font while checking auth state.
  */
 export default function Home() {
@@ -27,7 +28,7 @@ export default function Home() {
   }, [user, isUserLoading, router])
 
   return (
-    <div className="flex h-svh w-full flex-col items-center justify-center bg-[#FF3737] z-[9999] overflow-hidden">
+    <div className="flex h-svh w-full flex-col items-center justify-center bg-[#3BC1A8] z-[9999] overflow-hidden">
       <div className="flex flex-col items-center gap-6 animate-in fade-in zoom-in duration-1000">
         <div className="w-24 h-24 bg-white/10 rounded-[2.5rem] flex items-center justify-center border-2 border-white/20 shadow-2xl animate-float">
            <svg viewBox="0 0 24 24" className="w-12 h-12 text-white fill-current drop-shadow-lg" xmlns="http://www.w3.org/2000/svg">

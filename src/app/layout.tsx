@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect } from 'react';
@@ -53,14 +54,14 @@ export default function RootLayout({
         <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=0, viewport-fit=cover" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-        <meta name="theme-color" content="#FF3737" />
-        <meta name="msapplication-TileColor" content="#FF3737" />
+        <meta name="theme-color" content="#3BC1A8" />
+        <meta name="msapplication-TileColor" content="#3BC1A8" />
         <meta name="apple-mobile-web-app-title" content="MatchFlow" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
         <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
       </head>
-      <body className="font-body antialiased selection:bg-none bg-[#FF3737]">
+      <body className="font-body antialiased selection:bg-none bg-[#3BC1A8]">
         <FirebaseClientProvider>
           <OfflineDetector>
             <div className="app-container">

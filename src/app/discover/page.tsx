@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -113,7 +114,7 @@ export default function DiscoverPage() {
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
       {/* Scrollable Top Section */}
-      <div className="bg-[#FF3737] px-6 pt-3 pb-3">
+      <div className="bg-[#3BC1A8] px-6 pt-3 pb-3">
         <div className="grid grid-cols-2 gap-4">
           <button 
             onClick={() => router.push('/mystery-note')}
@@ -138,7 +139,7 @@ export default function DiscoverPage() {
       </div>
 
       {/* Sticky Recommended Header */}
-      <div className="sticky top-0 z-30 bg-[#FF3737] px-6 py-1.5 flex items-center justify-between">
+      <div className="sticky top-0 z-30 bg-[#3BC1A8] px-6 py-1.5 flex items-center justify-between">
         <h2 className="text-[10px] font-black text-white capitalize tracking-widest">Recommended for you</h2>
         <button 
           onClick={handleRefresh}
@@ -178,7 +179,7 @@ export default function DiscoverPage() {
                 <div className="w-6 h-6 rounded-full bg-black flex items-center justify-center border border-white/20">
                   <span className="text-[9px] font-black text-white">{user.age}</span>
                 </div>
-                <div className="h-6 px-2.5 rounded-full bg-[#FF3737] flex items-center justify-center border border-white/20">
+                <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20">
                   <span className="text-[8px] font-black text-white uppercase tracking-tighter">{user.location}</span>
                 </div>
               </div>

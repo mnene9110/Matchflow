@@ -75,7 +75,7 @@ export function Navbar() {
               href={item.href}
               className={cn(
                 "flex flex-col items-center gap-1.5 transition-all duration-300 flex-1",
-                isActive ? "text-[#FF3737]" : "text-gray-300"
+                isActive ? "text-[#3BC1A8]" : "text-gray-300"
               )}
             >
               <div className="relative">
@@ -88,14 +88,14 @@ export function Navbar() {
                   />
                 </div>
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full bg-[#FF3737] flex items-center justify-center text-[8px] font-black text-white border-2 border-white shadow-sm">
+                  <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full bg-[#3BC1A8] flex items-center justify-center text-[8px] font-black text-white border-2 border-white shadow-sm">
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
                 )}
               </div>
               <span className={cn(
                 "text-[9px] font-black tracking-[0.1em]",
-                isActive ? "text-[#FF3737]" : "text-gray-300"
+                isActive ? "text-[#3BC1A8]" : "text-gray-300"
               )}>
                 {item.label}
               </span>
