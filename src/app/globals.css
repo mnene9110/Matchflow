@@ -49,20 +49,18 @@
   }
   
   html, body {
-    @apply m-0 p-0 overflow-hidden;
-    background-color: #3BC1A8 !important; /* Forces status bar area to match app color */
+    @apply m-0 p-0;
+    background-color: #3BC1A8 !important;
     overscroll-behavior: none;
     touch-action: manipulation;
-    position: fixed; 
     width: 100%;
     height: 100%;
-    top: 0;
-    left: 0;
   }
 
   body {
     @apply text-foreground antialiased;
-    overflow-y: auto; 
+    overflow-x: hidden;
+    overflow-y: auto;
   }
 
   input, textarea, select {
@@ -71,9 +69,8 @@
 }
 
 .app-container {
-  @apply relative h-full w-full flex flex-col overflow-y-auto;
+  @apply relative min-h-full w-full flex flex-col;
   background-color: transparent; 
-  padding-top: 0px;
   -webkit-overflow-scrolling: touch;
 }
 
@@ -94,13 +91,23 @@
   animation: float 3s ease-in-out infinite;
 }
 
-/* Aggressively hide any potential progress bars or loading lines */
-#nprogress, 
-.nprogress-busy, 
+/* Fix for the Loading Line: Color match and absolute top position */
+#nprogress .bar,
+.nprogress-custom-parent #nprogress .bar,
+.nprogress-custom-parent #nprogress .spinner,
 .nextjs-progress-bar,
 [role="progressbar"] {
-  display: none !important;
-  visibility: hidden !important;
-  height: 0 !important;
-  opacity: 0 !important;
+  background: #3BC1A8 !important;
+  height: 3px !important;
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  z-index: 99999 !important;
+  opacity: 1 !important;
+  box-shadow: none !important;
+}
+
+/* Ensure the peg (glow) also matches the brand color */
+#nprogress .peg {
+  box-shadow: 0 0 10px #3BC1A8, 0 0 5px #3BC1A8 !important;
 }

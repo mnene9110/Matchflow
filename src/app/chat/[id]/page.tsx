@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -384,7 +383,7 @@ function ChatDetailContent() {
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
-      <header className="px-5 pt-8 pb-4 bg-[#3BC1A8] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
+      <header className="px-5 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 bg-[#3BC1A8] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
         <div className={cn("flex items-center gap-2.5 transition-opacity flex-1 justify-center", (otherUser?.isSupport || isGenericSupport) ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => (!otherUser?.isSupport && !isGenericSupport) && router.push(`/profile/${resolvedOtherUserId}`)}>
           <Avatar className="w-8 h-8 border border-white/20 shadow-sm">

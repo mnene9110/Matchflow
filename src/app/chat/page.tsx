@@ -200,8 +200,8 @@ export default function ChatListPage() {
 
   return (
     <div className="flex flex-col h-svh pb-20 bg-white">
-      <header className="bg-[#3BC1A8] pt-6 pb-3 px-6 sticky top-0 z-20 shrink-0">
-        <div className="flex items-center justify-between">
+      <header className="bg-[#3BC1A8] pt-[env(safe-area-inset-top)] pb-3 px-6 sticky top-0 z-20 shrink-0">
+        <div className="flex items-center justify-between pt-6">
           <h1 className="text-3xl font-logo text-white drop-shadow-sm">
             Chats
           </h1>

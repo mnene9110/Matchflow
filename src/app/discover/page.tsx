@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -114,7 +113,7 @@ export default function DiscoverPage() {
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
       {/* Scrollable Top Section */}
-      <div className="bg-[#3BC1A8] px-6 pt-3 pb-3">
+      <div className="bg-[#3BC1A8] px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-3">
         <div className="grid grid-cols-2 gap-4">
           <button 
             onClick={() => router.push('/mystery-note')}

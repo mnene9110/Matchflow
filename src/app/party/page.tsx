@@ -91,15 +91,15 @@ export default function PartyListPage() {
 
   return (
     <div className="flex flex-col h-svh bg-transparent text-gray-900 overflow-hidden relative">
-      <header className="px-6 pt-12 pb-6 flex items-center justify-between sticky top-0 bg-transparent z-20 shrink-0">
-        <h1 className="text-3xl font-logo text-white relative flex items-center gap-2 drop-shadow-sm">
+      <header className="px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-6 flex items-center justify-between sticky top-0 bg-transparent z-20 shrink-0">
+        <h1 className="text-3xl font-logo text-white relative flex items-center gap-2 drop-shadow-sm pt-6">
           Party
           <Music className="w-6 h-6 text-white/30" />
         </h1>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 pt-6">
           <Button 
             onClick={handleHostClick}
-            className="h-10 px-4 rounded-full bg-white text-[#5A1010] font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all gap-2"
+            className="h-10 px-4 rounded-full bg-white text-[#3BC1A8] font-black text-[10px] uppercase tracking-widest shadow-xl active:scale-95 transition-all gap-2"
           >
             <Plus className="w-3.5 h-3.5" />
             Host Room
