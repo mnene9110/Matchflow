@@ -58,14 +58,14 @@ export function Navbar() {
   if (shouldHide) return null
 
   const navItems = [
-    { icon: Home, label: "Home", href: "/discover" },
-    { icon: MessageCircle, label: "Chats", href: "/chat", badge: totalUnread },
-    { icon: User, label: "Profile", href: "/profile" },
+    { icon: Home, label: "HOME", href: "/discover" },
+    { icon: MessageCircle, label: "CHATS", href: "/chat", badge: totalUnread },
+    { icon: User, label: "YOU", href: "/profile" },
   ]
 
   return (
-    <div className="fixed bottom-6 left-6 right-6 z-50 max-w-md mx-auto">
-      <nav className="h-20 w-full bg-white/90 backdrop-blur-2xl border border-white/40 rounded-[2.5rem] shadow-[0_20px_50px_rgba(0,0,0,0.15)] flex items-center justify-around px-4">
+    <div className="fixed bottom-0 left-0 right-0 z-50 bg-white border-t border-gray-100 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.05)]">
+      <nav className="h-20 w-full flex items-center justify-around px-6">
         {navItems.map((item) => {
           const isActive = pathname === item.href
           const Icon = item.icon
@@ -74,24 +74,21 @@ export function Navbar() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center gap-1 transition-all duration-300 flex-1",
-                isActive ? "text-primary" : "text-gray-400 hover:text-gray-600"
+                "flex flex-col items-center gap-1.5 transition-all duration-300 flex-1",
+                isActive ? "text-[#FF3737]" : "text-gray-300"
               )}
             >
-              <div className={cn(
-                "p-2 rounded-2xl transition-all relative",
-                isActive ? "bg-primary/10 text-primary scale-110" : "bg-transparent"
-              )}>
-                <Icon className={cn("w-5 h-5", isActive ? "stroke-[3px]" : "stroke-[2px]")} />
+              <div className="relative">
+                <Icon className={cn("w-6 h-6", isActive ? "stroke-[3px]" : "stroke-[2px]")} />
                 {item.badge !== undefined && item.badge > 0 && (
-                  <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-primary flex items-center justify-center text-[8px] font-black text-white border-2 border-white shadow-sm">
+                  <span className="absolute -top-1.5 -right-1.5 h-4 min-w-4 px-1 rounded-full bg-[#FF3737] flex items-center justify-center text-[8px] font-black text-white border-2 border-white shadow-sm">
                     {item.badge > 99 ? '99+' : item.badge}
                   </span>
                 )}
               </div>
               <span className={cn(
-                "text-[9px] font-black uppercase tracking-[0.1em] mt-0.5",
-                isActive ? "text-primary" : "text-gray-400"
+                "text-[9px] font-black tracking-[0.1em]",
+                isActive ? "text-[#FF3737]" : "text-gray-300"
               )}>
                 {item.label}
               </span>
