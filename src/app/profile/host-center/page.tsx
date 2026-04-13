@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -159,7 +160,7 @@ export default function HostCenterPage() {
     }
   }
 
-  if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#B36666]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
+  if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#FF3737]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
 
   if (!profile?.isPartyAdmin && !profile?.isAdmin) {
     return <div className="flex h-svh items-center justify-center bg-white text-zinc-400 font-black uppercase text-xs tracking-widest">Access Denied</div>

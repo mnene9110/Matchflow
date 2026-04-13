@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -86,7 +87,7 @@ export default function TaskCenterPage() {
 
   if (!mounted || isLoading) {
     return (
-      <div className="flex h-svh items-center justify-center bg-[#B36666]">
+      <div className="flex h-svh items-center justify-center bg-[#FF3737]">
         <div className="flex flex-col items-center gap-4">
           <Loader2 className="w-10 h-10 animate-spin text-white" />
           <span className="text-[10px] font-black uppercase text-white/60 tracking-[0.2em]">Checking rewards...</span>
@@ -120,7 +121,7 @@ export default function TaskCenterPage() {
           <div className="grid grid-cols-3 gap-3">
             {REWARDS.slice(4).map((reward, i) => {
               const dayNum = i + 5; const isActive = streak >= dayNum; const isCurrent = (streak % 7) + 1 === dayNum && canClaim;
-              return (<div key={i} className={cn("aspect-square rounded-[2rem] border flex flex-col items-center justify-center gap-2 transition-all relative", isActive ? "bg-[#5A1010] border-[#5A1010] shadow-lg" : isCurrent ? "bg-white/60 border-primary animate-pulse" : "bg-white/20 border-white/30")}><span className={cn("text-[10px] font-black uppercase tracking-widest", isActive ? "text-white/60" : "text-gray-400")}>Day {dayNum}</span><div className="flex flex-col items-center"><div className={cn("w-8 h-8 rounded-full flex items-center justify-center mb-1", isActive ? "bg-white/20" : "bg-primary/10")}>{isActive ? <Check className="w-4 h-4 text-white stroke-[4]" /> : <span className="font-black text-xs text-primary italic">S</span>}</div><span className={cn("text-xs font-black", isActive ? "text-white" : "text-gray-900")}>{reward}</span></div></div>)
+              return (<div key={i} className={cn("aspect-square rounded-[2rem] border flex flex-col items-center justify-center gap-2 transition-all relative", isActive ? "bg-[#5A1010] border-[#5A1010] shadow-lg" : isCurrent ? "bg-white/60 border-primary animate-pulse" : "bg-white/20 border-white/30")}><span className={cn("text-[8px] font-black uppercase tracking-widest", isActive ? "text-white/60" : "text-gray-400")}>Day {dayNum}</span><div className="flex flex-col items-center"><div className={cn("w-8 h-8 rounded-full flex items-center justify-center mb-1", isActive ? "bg-white/20" : "bg-primary/10")}>{isActive ? <Check className="w-4 h-4 text-white stroke-[4]" /> : <span className="font-black text-xs text-primary italic">S</span>}</div><span className={cn("text-xs font-black", isActive ? "text-white" : "text-gray-900")}>{reward}</span></div></div>)
             })}
           </div>
 

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -24,7 +25,7 @@ export function OfflineDetector({ children }: { children: React.ReactNode }) {
 
   if (isOffline) {
     return (
-      <div className="fixed inset-0 z-[9999] bg-[#B36666] flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
+      <div className="fixed inset-0 z-[9999] bg-[#FF3737] flex flex-col items-center justify-center p-8 text-center animate-in fade-in duration-500">
         <div className="w-24 h-24 bg-white/20 backdrop-blur-xl rounded-[2.5rem] flex items-center justify-center mb-8 border border-white/30 animate-float">
           <WifiOff className="w-10 h-10 text-white" />
         </div>
@@ -34,7 +35,7 @@ export function OfflineDetector({ children }: { children: React.ReactNode }) {
         </p>
         <Button 
           onClick={() => window.location.reload()} 
-          className="h-16 w-full max-w-xs rounded-full bg-white text-[#B36666] hover:bg-white/90 font-black text-lg gap-3 shadow-2xl active:scale-95 transition-all"
+          className="h-16 w-full max-w-xs rounded-full bg-white text-[#FF3737] hover:bg-white/90 font-black text-lg gap-3 shadow-2xl active:scale-95 transition-all"
         >
           <RotateCcw className="w-5 h-5" />
           Reload App

@@ -64,7 +64,7 @@ export default function WelcomePage() {
 
   if (isUserLoading || (user && !isLoggingIn)) {
     return (
-      <div className="flex h-svh w-full bg-[#B36666]" />
+      <div className="flex h-svh w-full bg-[#FF3737]" />
     )
   }
 

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect } from "react"
@@ -22,8 +23,8 @@ export default function Home() {
     }
   }, [user, isUserLoading, router])
 
-  // Use the app's theme background to prevent a white/black flash during transition
+  // Use the app's brand red color to prevent a flash during transition
   return (
-    <div className="flex h-svh w-full bg-[#B36666]" />
+    <div className="flex h-svh w-full bg-[#FF3737]" />
   )
 }
