@@ -12,7 +12,7 @@ const CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
 
 async function getAuthToken() {
   if (!CONSUMER_KEY || !CONSUMER_SECRET) {
-    throw new Error('PesaPal Consumer Key or Secret is missing.');
+    throw new Error('PesaPal Consumer Key or Secret is missing in environment variables.');
   }
 
   const response = await fetch(`${PESAPAL_URL}/api/Auth/RequestToken`, {
@@ -30,7 +30,7 @@ async function getAuthToken() {
 
   const data = await response.json();
   if (!data.token) {
-    throw new Error(data.message || 'Failed to get PesaPal token');
+    throw new Error(data.message || 'Failed to get PesaPal token. Check your Consumer Key and Secret.');
   }
   return data.token;
 }
@@ -40,7 +40,10 @@ async function getAuthToken() {
  * PesaPal V3 returns an error if you try to register an identical URL that already exists.
  */
 async function registerIPN(token: string) {
-  const ipnUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/pesapal/ipn`;
+  // Use NEXT_PUBLIC_APP_URL, or VERCEL_URL as fallback, or localhost for dev.
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+  const ipnUrl = `${baseUrl}/api/pesapal/ipn`;
   
   try {
     // 1. Check existing IPNs first to avoid "Duplicate" errors
@@ -53,18 +56,19 @@ async function registerIPN(token: string) {
       cache: 'no-store',
     });
 
-    const ipns = await listResponse.json();
-    
-    // Search for an existing registration with the same URL
-    if (Array.isArray(ipns)) {
-      const existing = ipns.find((item: any) => item.url === ipnUrl);
-      if (existing && existing.ipn_id) {
-        console.log('Using existing PesaPal IPN ID:', existing.ipn_id);
-        return existing.ipn_id;
+    if (listResponse.ok) {
+      const ipns = await listResponse.json();
+      // Search for an existing registration with the same URL
+      if (Array.isArray(ipns)) {
+        const existing = ipns.find((item: any) => item.url === ipnUrl);
+        if (existing && existing.ipn_id) {
+          console.log('Reusing existing PesaPal IPN ID:', existing.ipn_id);
+          return existing.ipn_id;
+        }
       }
     }
 
-    // 2. If not found, register new
+    // 2. If not found or list failed, attempt to register new
     const response = await fetch(`${PESAPAL_URL}/api/URLSetup/RegisterIPN`, {
       method: 'POST',
       headers: {
@@ -83,32 +87,39 @@ async function registerIPN(token: string) {
     
     if (data.ipn_id) return data.ipn_id;
     
-    // Handle cases where registration fails but didn't throw
-    console.error('PesaPal IPN Registration Response:', data);
+    // Log specific error from PesaPal for debugging
+    console.error('PesaPal IPN Registration Error:', data);
     return null;
   } catch (error) {
-    console.error('Error in registerIPN:', error);
+    console.error('Critical failure in registerIPN:', error);
     return null;
   }
 }
 
 export async function initializePesaPalTransaction(email: string, amount: number, metadata: any) {
   try {
+    if (!CONSUMER_KEY || !CONSUMER_SECRET) {
+      return { error: 'PesaPal API keys are missing. Please add PESAPAL_CONSUMER_KEY and PESAPAL_CONSUMER_SECRET to your Vercel environment variables.' };
+    }
+
     const token = await getAuthToken();
     const ipnId = await registerIPN(token);
 
     if (!ipnId) {
-      return { error: 'Failed to secure a payment notification ID from PesaPal. Please try again or contact support.' };
+      return { error: 'Could not register a Payment Notification ID with PesaPal. Ensure your NEXT_PUBLIC_APP_URL is set to a valid HTTPS domain in Vercel settings.' };
     }
 
-    // Use a unique but shorter reference ID
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 
+                    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3000');
+
+    // Unique reference ID
     const shortId = Date.now().toString().slice(-10);
     const orderData = {
       id: `MF${shortId}`,
       currency: 'KES',
       amount: Number(amount),
       description: `MatchFlow Coin Recharge (${metadata.packageAmount} coins)`,
-      callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/recharge/callback/pesapal`,
+      callback_url: `${baseUrl}/recharge/callback/pesapal`,
       notification_id: ipnId,
       billing_address: {
         email_address: email,
@@ -141,7 +152,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
     }
   } catch (error: any) {
     console.error('PesaPal Transaction Error:', error);
-    return { error: error.message || 'An error occurred during PesaPal initialization' };
+    return { error: error.message || 'An unexpected error occurred while connecting to PesaPal.' };
   }
 }
 
