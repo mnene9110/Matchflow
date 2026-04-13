@@ -153,7 +153,7 @@ export default function DiscoverPage() {
         {mappedUsers.map((user) => (
           <div 
             key={user.id} 
-            className="group relative aspect-[3/4.2] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm active:scale-95 transition-all"
+            className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm active:scale-95 transition-all"
             onClick={() => router.push(`/profile/${user.id}`)}
           >
             <Image src={user.image} alt={user.name} fill className="object-cover" data-ai-hint="dating profile photo" />
@@ -186,7 +186,7 @@ export default function DiscoverPage() {
         ))}
 
         {isInitialLoading && Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="aspect-[3/4.2] rounded-[2rem] bg-gray-100 animate-pulse" />
+          <div key={i} className="aspect-[3/3.8] rounded-[2rem] bg-gray-100 animate-pulse" />
         ))}
       </main>
     </div>
