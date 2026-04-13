@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
@@ -12,7 +11,6 @@ import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { initializePesaPalTransaction } from "@/app/actions/pesapal"
 
-// Standard Pricing (Normal Users)
 export const STANDARD_PACKAGES = [
   { amount: 500, priceKes: 70 },
   { amount: 1000, priceKes: 120 },
@@ -60,7 +58,7 @@ function RechargeContent() {
   const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
   const isKenyan = profile?.location === "Kenya";
 
-  // Reset loading state when page gains focus (user returned from external payment site)
+  // Reset loading state when the user returns to the app window
   useEffect(() => {
     const handleFocus = () => {
       setIsProcessing(false);
@@ -74,9 +72,8 @@ function RechargeContent() {
     if (status === 'success') {
       toast({ title: "Payment Successful", description: "Your balance has been updated." });
     } else if (status === 'error') {
-      toast({ variant: "destructive", title: "Payment Failed" });
+      toast({ variant: "destructive", title: "Payment Failed", description: "Transaction was not completed." });
     }
-    // Also reset processing if we have a status parameter
     if (status) setIsProcessing(false);
   }, [searchParams, toast])
 
@@ -139,7 +136,7 @@ function RechargeContent() {
               const localPrice = Math.round(pkg.priceKes * currencyInfo.rate);
               
               return (
-                <Card key={pkg.amount} onClick={() => setSelectedPackage(pkg)} className={cn("relative aspect-square flex flex-col items-center justify-center gap-1.5 border-2 transition-all cursor-pointer rounded-[1.5rem]", isSelected ? "border-primary bg-white shadow-xl scale-[1.05]" : "border-gray-50 bg-gray-50/50")}>
+                <Card key={pkg.amount} onClick={() => !isProcessing && setSelectedPackage(pkg)} className={cn("relative aspect-square flex flex-col items-center justify-center gap-1.5 border-2 transition-all cursor-pointer rounded-[1.5rem]", isSelected ? "border-primary bg-white shadow-xl scale-[1.05]" : "border-gray-50 bg-gray-50/50")}>
                   <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", isSelected ? "bg-primary" : "bg-primary/10")}><span className={cn("font-black text-xs italic", isSelected ? "text-white" : "text-primary")}>S</span></div>
                   <div className="text-center">
                     <p className={cn("text-xs font-black", isSelected ? "text-primary" : "text-gray-900")}>{pkg.amount.toLocaleString()}</p>

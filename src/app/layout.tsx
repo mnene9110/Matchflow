@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect } from 'react';
@@ -61,7 +60,7 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
         <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
       </head>
-      <body className="font-body antialiased selection:bg-none bg-white">
+      <body className="font-body antialiased selection:bg-none bg-[#FF3737]">
         <FirebaseClientProvider>
           <OfflineDetector>
             <div className="app-container">

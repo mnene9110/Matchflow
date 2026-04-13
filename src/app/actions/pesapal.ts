@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -50,7 +49,7 @@ async function registerIPN(token: string) {
   const ipnUrl = `${baseUrl}/api/pesapal-ipn`;
   
   try {
-    // First, check if IPN is already registered to avoid redundant API calls
+    // Check list first to avoid duplicates
     const listResponse = await fetch(`${PESAPAL_URL}/api/URLSetup/GetIpnList`, {
       method: 'GET',
       headers: {
@@ -71,7 +70,6 @@ async function registerIPN(token: string) {
       }
     }
 
-    // If not found, register it
     const response = await fetch(`${PESAPAL_URL}/api/URLSetup/RegisterIPN`, {
       method: 'POST',
       headers: {
@@ -114,13 +112,11 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const shortId = Date.now().toString().slice(-10);
     const merchantRef = `MF${shortId}`;
 
-    // Initialize Firebase for pre-saving transaction
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     const txRef = doc(collection(db, "userProfiles", metadata.userId, "transactions"));
     
-    // Save record asynchronously to not block the redirect
-    setDoc(txRef, {
+    await setDoc(txRef, {
       id: txRef.id,
       type: "recharge_pending",
       amount: metadata.packageAmount,
@@ -128,7 +124,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
       transactionDate: new Date().toISOString(),
       description: `Initiated Recharge (${metadata.packageAmount} coins)`,
       status: "pending"
-    }).catch(e => console.error("Firestore background save failed", e));
+    });
 
     const orderData = {
       id: merchantRef,
