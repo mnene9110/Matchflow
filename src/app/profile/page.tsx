@@ -81,7 +81,7 @@ export default function ProfilePage() {
           </Avatar>
           <button 
             onClick={() => router.push('/profile/edit')} 
-            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center shadow-xl active:scale-90 transition-transform"
+            className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center shadow-xl active:scale-90 transition-transform border-none outline-none ring-0"
           >
             <Pencil className="w-3.5 h-3.5 text-white" />
           </button>
@@ -92,7 +92,7 @@ export default function ProfilePage() {
             {userProfile?.username || "Guest"}
             {isVerified && <CheckCircle className="w-4 h-4 text-white fill-white/20" />}
           </h1>
-          <p className="text-white/60 text-[9px] font-black capitalize tracking-[0.2em]">Official profile</p>
+          <p className="text-white/60 text-[9px] font-black capitalize tracking-[0.2em]">Official Profile</p>
         </div>
 
         {userProfile?.numericId && (
@@ -144,7 +144,7 @@ export default function ProfilePage() {
         {hasManagementRole && (
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2">
-              <h2 className="text-[10px] font-black text-primary capitalize tracking-[0.3em]">Management tools</h2>
+              <h2 className="text-[10px] font-black text-primary capitalize tracking-[0.3em]">Management Tools</h2>
               <div className="h-px flex-1 bg-primary/10 ml-4" />
             </div>
             
@@ -159,7 +159,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex-1 text-left">
                     <span className="text-white font-black tracking-tight text-[13px] block">Role management</span>
-                    <span className="text-white/40 text-[9px] font-bold uppercase mt-1 block">Assign support & agents</span>
+                    <span className="text-white/40 text-[9px] font-bold mt-1 block">Assign support & agents</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-white/20" />
                 </button>
@@ -175,7 +175,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex-1 text-left">
                     <span className="text-gray-900 font-black tracking-tight text-[13px] block">Award coins</span>
-                    <span className="text-gray-400 text-[9px] font-bold uppercase mt-1 block">Grant coins to users</span>
+                    <span className="text-gray-400 text-[9px] font-bold mt-1 block">Grant coins to users</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-200" />
                 </button>
@@ -191,7 +191,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex-1 text-left">
                     <span className="text-gray-900 font-black tracking-tight text-[13px] block">Support dashboard</span>
-                    <span className="text-gray-400 text-[9px] font-bold uppercase mt-1 block">Handle user complaints</span>
+                    <span className="text-gray-400 text-[9px] font-bold mt-1 block">Handle user complaints</span>
                   </div>
                   {pendingReportsCount > 0 && (
                     <div className="absolute top-5 right-10 w-2.5 h-2.5 bg-red-500 rounded-full border-2 border-white animate-pulse" />
@@ -210,7 +210,7 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex-1 text-left">
                     <span className="text-gray-900 font-black tracking-tight text-[13px] block">Agent center</span>
-                    <span className="text-gray-400 text-[9px] font-bold uppercase mt-1 block">Manage agency anchor</span>
+                    <span className="text-gray-400 text-[9px] font-bold mt-1 block">Manage agency anchor</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-200" />
                 </button>
@@ -221,7 +221,7 @@ export default function ProfilePage() {
 
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Account & safety</h2>
+            <h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Account & Safety</h2>
             <div className="h-px flex-1 bg-gray-50 ml-4" />
           </div>
           
@@ -236,7 +236,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex-1 text-left">
                   <span className="text-white font-black tracking-tight text-[13px] block leading-none">Verify profile</span>
-                  <span className="text-white/60 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Get official checkmark</span>
+                  <span className="text-white/60 text-[10px] font-bold tracking-tighter mt-1 block">Get official checkmark</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-white/40" />
               </button>
@@ -251,7 +251,7 @@ export default function ProfilePage() {
               </div>
               <div className="flex-1 text-left">
                 <span className="text-gray-900 font-black tracking-tight text-[13px] block leading-none">Customer support</span>
-                <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Chat with help team</span>
+                <span className="text-gray-400 text-[10px] font-bold tracking-tighter mt-1 block">Chat with help team</span>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-200" />
             </button>
@@ -266,7 +266,7 @@ export default function ProfilePage() {
                 </div>
                 <div className="flex-1 text-left">
                   <span className="text-gray-900 font-black tracking-tight text-[13px] block leading-none">Agency anchor</span>
-                  <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Join official host team</span>
+                  <span className="text-gray-400 text-[10px] font-bold tracking-tighter mt-1 block">Join official host team</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-200" />
               </button>
@@ -281,7 +281,7 @@ export default function ProfilePage() {
               </div>
               <div className="flex-1 text-left">
                 <span className="text-gray-900 font-black tracking-tight text-[13px] block leading-none">Games center</span>
-                <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Play & win coins</span>
+                <span className="text-gray-400 text-[10px] font-bold tracking-tighter mt-1 block">Play & win coins</span>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-200" />
             </button>
@@ -296,7 +296,7 @@ export default function ProfilePage() {
               className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 shadow-sm active:scale-[0.98] transition-all"
             >
               <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100"><SettingsIcon className="w-5 h-5 text-gray-400" /></div>
-              <div className="flex-1 text-left"><span className="text-gray-900 font-black tracking-tight text-[13px] block leading-none">Settings</span><span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Privacy & Account</span></div>
+              <div className="flex-1 text-left"><span className="text-gray-900 font-black tracking-tight text-[13px] block leading-none">Settings</span><span className="text-gray-400 text-[10px] font-bold tracking-tighter mt-1 block">Privacy & Account</span></div>
               <ChevronRight className="w-4 h-4 text-gray-200" />
             </button>
           </div>

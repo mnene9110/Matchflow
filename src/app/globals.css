@@ -54,7 +54,7 @@
   
   html, body {
     @apply m-0 p-0 overflow-x-hidden min-h-svh;
-    background-color: #FFFFFF;
+    background-color: #FF3737; /* Matches brand color to hide loading lines */
     overscroll-behavior-y: none; 
     overscroll-behavior-x: none;
     touch-action: manipulation;
@@ -75,7 +75,6 @@
 
 .app-container {
   @apply relative h-full w-full flex flex-col overflow-y-auto;
-  /* Removed top padding to allow header to bleed into status bar, hiding the "line" */
   padding-top: 0px;
   -webkit-overflow-scrolling: touch;
 }
