@@ -14,6 +14,9 @@ const PESAPAL_URL = 'https://pay.pesapal.com/v3';
 const CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY;
 const CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
 
+// Simple in-memory cache for IPN ID to speed up transactions
+let cachedIpnId: string | null = null;
+
 async function getAuthToken() {
   if (!CONSUMER_KEY || !CONSUMER_SECRET) {
     throw new Error('PesaPal Consumer Key or Secret is missing in environment variables.');
@@ -40,11 +43,12 @@ async function getAuthToken() {
 }
 
 async function registerIPN(token: string) {
+  if (cachedIpnId) return cachedIpnId;
+
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-12.vercel.app';
   const ipnUrl = `${baseUrl}/api/pesapal-ipn`;
   
   try {
-    // 1. Optimization: Check if IPN is already registered to avoid redundant work
     const listResponse = await fetch(`${PESAPAL_URL}/api/URLSetup/GetIpnList`, {
       method: 'GET',
       headers: {
@@ -59,12 +63,12 @@ async function registerIPN(token: string) {
       if (Array.isArray(ipns)) {
         const existing = ipns.find((item: any) => item.url === ipnUrl);
         if (existing && existing.ipn_id) {
+          cachedIpnId = existing.ipn_id;
           return existing.ipn_id;
         }
       }
     }
 
-    // 2. If not found, register it
     const response = await fetch(`${PESAPAL_URL}/api/URLSetup/RegisterIPN`, {
       method: 'POST',
       headers: {
@@ -80,6 +84,9 @@ async function registerIPN(token: string) {
     });
 
     const data = await response.json();
+    if (data.ipn_id) {
+      cachedIpnId = data.ipn_id;
+    }
     return data.ipn_id || null;
   } catch (error) {
     console.error('PesaPal IPN Registration Error:', error);
@@ -90,7 +97,7 @@ async function registerIPN(token: string) {
 export async function initializePesaPalTransaction(email: string, amount: number, metadata: any) {
   try {
     if (!CONSUMER_KEY) {
-      return { error: 'PesaPal API keys are not configured in environment variables.' };
+      return { error: 'PesaPal API keys are not configured.' };
     }
 
     const token = await getAuthToken();
@@ -103,6 +110,22 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-12.vercel.app';
     const shortId = Date.now().toString().slice(-10);
     const merchantRef = `MF${shortId}`;
+
+    // Initialize Firebase
+    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+    const db = getFirestore(app);
+    const txRef = doc(collection(db, "userProfiles", metadata.userId, "transactions"));
+    
+    // Save record asynchronously to not block the redirect
+    setDoc(txRef, {
+      id: txRef.id,
+      type: "recharge_pending",
+      amount: metadata.packageAmount,
+      orderTrackingId: merchantRef,
+      transactionDate: new Date().toISOString(),
+      description: `Initiated Recharge (${metadata.packageAmount} coins)`,
+      status: "pending"
+    }).catch(e => console.error("Firestore background save failed", e));
 
     const orderData = {
       id: merchantRef,
@@ -120,21 +143,6 @@ export async function initializePesaPalTransaction(email: string, amount: number
         country_code: "KE"
       },
     };
-
-    // Save PENDING transaction to Firestore before redirecting
-    const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
-    const db = getFirestore(app);
-    const txRef = doc(collection(db, "userProfiles", metadata.userId, "transactions"));
-    
-    await setDoc(txRef, {
-      id: txRef.id,
-      type: "recharge_pending",
-      amount: metadata.packageAmount,
-      orderTrackingId: merchantRef,
-      transactionDate: new Date().toISOString(),
-      description: `Initiated Recharge (${metadata.packageAmount} coins)`,
-      status: "pending"
-    });
 
     const response = await fetch(`${PESAPAL_URL}/api/Transactions/SubmitOrderRequest`, {
       method: 'POST',

@@ -75,6 +75,8 @@ function RechargeContent() {
     } else if (status === 'error') {
       toast({ variant: "destructive", title: "Payment Failed" });
     }
+    // Also reset processing if we have a status parameter
+    if (status) setIsProcessing(false);
   }, [searchParams, toast])
 
   const handlePay = async () => {
