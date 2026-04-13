@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -42,20 +43,20 @@ export default function CallSettingsPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-svh bg-transparent text-gray-900">
-      <header className="px-4 py-6 flex items-center sticky top-0 bg-transparent z-10">
+    <div className="flex flex-col min-h-svh bg-white text-gray-900">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-[#FF3737] z-10 shadow-lg text-white">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.back()} 
-          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"
+          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Call Settings</h1>
       </header>
 
-      <main className="flex-1 px-6 pb-20 space-y-6">
+      <main className="flex-1 px-6 pb-20 space-y-6 pt-8">
         <div className="p-6 bg-zinc-900 rounded-[2.5rem] text-white shadow-xl flex items-center justify-between">
            <div className="space-y-1">
               <p className="text-[10px] font-black uppercase tracking-widest text-primary">Preferences</p>
@@ -70,7 +71,7 @@ export default function CallSettingsPage() {
           </div>
         ) : (
           <div className="space-y-3">
-            <div className="p-6 bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2rem] flex items-center justify-between shadow-sm">
+            <div className="p-6 bg-gray-50 border border-gray-100 rounded-[2rem] flex items-center justify-between shadow-sm">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center">
                   <Phone className="w-5 h-5 text-blue-500" />
@@ -83,7 +84,7 @@ export default function CallSettingsPage() {
               <Switch checked={settings.dndVoice} onCheckedChange={() => toggleDND('dndVoice')} />
             </div>
 
-            <div className="p-6 bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2rem] flex items-center justify-between shadow-sm">
+            <div className="p-6 bg-gray-50 border border-gray-100 rounded-[2rem] flex items-center justify-between shadow-sm">
               <div className="flex items-center gap-4">
                 <div className="w-12 h-12 rounded-2xl bg-primary/10 flex items-center justify-center">
                   <Video className="w-5 h-5 text-primary" />
@@ -98,7 +99,7 @@ export default function CallSettingsPage() {
           </div>
         )}
 
-        <div className="bg-white/20 p-6 rounded-[2rem] border border-white/30 text-center">
+        <div className="bg-gray-50 p-6 rounded-[2rem] border border-gray-100 text-center">
           <p className="text-[10px] font-bold text-gray-400 uppercase leading-relaxed">
             When Do Not Disturb is enabled, incoming calls will be automatically rejected and you will not be notified.
           </p>

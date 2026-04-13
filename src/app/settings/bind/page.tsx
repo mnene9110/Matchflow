@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -61,20 +62,20 @@ export default function BindAccountPage() {
   }
 
   return (
-    <div className="flex flex-col h-svh bg-transparent text-gray-900">
-      <header className="px-4 py-4 flex items-center sticky top-0 bg-transparent z-10 border-b border-gray-100">
+    <div className="flex flex-col h-svh bg-white text-gray-900">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-[#FF3737] z-10 shadow-lg text-white">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.back()} 
-          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full"
+          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Secure Account</h1>
       </header>
 
-      <main className="flex-1 p-8 space-y-10">
+      <main className="flex-1 p-8 space-y-10 pt-12">
         <div className="space-y-4">
           <div className="w-16 h-16 bg-primary/10 rounded-[2rem] flex items-center justify-center mb-2 border border-primary/20">
             <ShieldCheck className="w-8 h-8 text-primary" />

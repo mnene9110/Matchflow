@@ -57,7 +57,6 @@ function RechargeContent() {
   const meRef = useMemoFirebase(() => user ? doc(firestore, "userProfiles", user.uid) : null, [firestore, user])
   const { data: profile } = useDoc(meRef)
 
-  const packages = STANDARD_PACKAGES;
   const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
   const isKenyan = profile?.location === "Kenya";
 
@@ -75,7 +74,6 @@ function RechargeContent() {
     
     setIsProcessing(true);
     try {
-      // PesaPal typically expects the base price in KES
       const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
       const result = await initializePesaPalTransaction(email, selectedPackage.priceKes, {
         userId: user.uid,
@@ -98,22 +96,20 @@ function RechargeContent() {
     }
   }
 
-  const darkMaroon = "bg-[#5A1010]";
-
   return (
-    <div className="flex flex-col h-svh bg-transparent text-gray-900 overflow-hidden">
-      <header className="px-4 py-6 flex items-center justify-between sticky top-0 bg-transparent z-10 shrink-0">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"><ChevronLeft className="w-6 h-6" /></Button>
+    <div className="flex flex-col h-svh bg-white text-gray-900 overflow-hidden">
+      <header className="px-4 py-6 flex items-center justify-between sticky top-0 bg-[#FF3737] z-10 shrink-0 shadow-lg text-white">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"><ChevronLeft className="w-6 h-6" /></Button>
         <div className="flex flex-col items-center">
-          <h1 className="text-lg font-black font-headline tracking-widest uppercase text-white drop-shadow-md">Wallet</h1>
+          <h1 className="text-lg font-black font-headline tracking-widest uppercase">Wallet</h1>
           <p className="text-[8px] font-black text-white/60 uppercase tracking-widest">{currencyInfo.code} Region</p>
         </div>
-        <Button variant="ghost" size="icon" onClick={() => router.push('/recharge/history')} className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full"><History className="w-5 h-5" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => router.push('/recharge/history')} className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30"><History className="w-5 h-5" /></Button>
       </header>
 
-      <main className="flex-1 px-6 pt-4 pb-44 overflow-y-auto scroll-smooth">
+      <main className="flex-1 px-6 pt-8 pb-44 overflow-y-auto scroll-smooth">
         <section className="mb-8">
-          <div className="flex items-center gap-4 bg-white/40 backdrop-blur-xl p-6 rounded-[2.5rem] border border-white/40 shadow-xl">
+          <div className="flex items-center gap-4 bg-gray-50 p-6 rounded-[2.5rem] border border-gray-100 shadow-sm">
             <div className="bg-primary/10 w-14 h-14 rounded-2xl flex items-center justify-center"><span className="text-primary font-black text-2xl italic">S</span></div>
             <div className="flex flex-col">
               <span className="text-4xl font-black font-headline tracking-tighter text-gray-900">{(profile?.coinBalance || 0).toLocaleString()}</span>
@@ -123,14 +119,14 @@ function RechargeContent() {
         </section>
 
         <section className="space-y-4">
-          <h2 className="text-[10px] font-black text-white uppercase tracking-[0.2em] mb-3 ml-2 drop-shadow-sm">Select Package</h2>
+          <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] mb-3 ml-2">Select Package</h2>
           <div className="grid grid-cols-3 gap-3">
-            {packages.map((pkg) => {
+            {STANDARD_PACKAGES.map((pkg) => {
               const isSelected = selectedPackage?.amount === pkg.amount;
               const localPrice = Math.round(pkg.priceKes * currencyInfo.rate);
               
               return (
-                <Card key={pkg.amount} onClick={() => setSelectedPackage(pkg)} className={cn("relative aspect-square flex flex-col items-center justify-center gap-2 border-2 transition-all cursor-pointer rounded-[1.75rem]", isSelected ? "border-primary bg-white shadow-2xl scale-[1.05]" : "border-white/40 bg-white/20")}>
+                <Card key={pkg.amount} onClick={() => setSelectedPackage(pkg)} className={cn("relative aspect-square flex flex-col items-center justify-center gap-2 border-2 transition-all cursor-pointer rounded-[1.75rem]", isSelected ? "border-primary bg-white shadow-xl scale-[1.05]" : "border-gray-50 bg-gray-50/50")}>
                   <div className={cn("w-8 h-8 rounded-xl flex items-center justify-center", isSelected ? "bg-primary" : "bg-primary/10")}><span className={cn("font-black text-sm italic", isSelected ? "text-white" : "text-primary")}>S</span></div>
                   <div className="text-center">
                     <p className={cn("text-sm font-black", isSelected ? "text-primary" : "text-gray-900")}>{pkg.amount.toLocaleString()}</p>
@@ -148,23 +144,23 @@ function RechargeContent() {
         {isKenyan && (
           <section className="mt-8 space-y-4 pb-10">
             <div className="flex items-center gap-2 px-2">
-              <Users className="w-4 h-4 text-white/40" />
-              <h3 className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">P2P Coinsellers</h3>
+              <Users className="w-4 h-4 text-primary/40" />
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">P2P Coinsellers</h3>
             </div>
             <button 
               onClick={() => router.push(`/recharge/coinsellers?amount=${selectedPackage?.amount || ''}`)} 
-              className="w-full h-16 rounded-[2rem] bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center gap-3 text-white active:scale-95 transition-all shadow-lg"
+              className="w-full h-16 rounded-[2rem] bg-gray-50 border border-gray-100 flex items-center justify-center gap-3 text-gray-900 active:scale-95 transition-all shadow-sm"
             >
-              <Users className="w-5 h-5 opacity-60" />
+              <Users className="w-5 h-5 text-primary opacity-60" />
               <span className="text-[11px] font-black uppercase tracking-widest">Contact Official Sellers</span>
             </button>
           </section>
         )}
       </main>
 
-      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white/80 backdrop-blur-xl border-t border-gray-100 z-50">
+      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white border-t border-gray-50 z-50">
         <Button 
-          className={cn("w-full h-16 rounded-full text-white font-black text-lg shadow-2xl transition-all", darkMaroon)} 
+          className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-xl active:scale-95 transition-all" 
           onClick={handlePay} 
           disabled={!selectedPackage || isProcessing}
         >
@@ -183,7 +179,7 @@ function RechargeContent() {
 
 export default function RechargePage() {
   return (
-    <Suspense fallback={<div className="flex h-svh items-center justify-center bg-transparent" />}>
+    <Suspense fallback={<div className="flex h-svh items-center justify-center bg-white" />}>
       <RechargeContent />
     </Suspense>
   )

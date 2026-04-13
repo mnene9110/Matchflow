@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useRouter } from "next/navigation"
@@ -14,20 +15,20 @@ export default function ChargeSettingsPage() {
   ]
 
   return (
-    <div className="flex flex-col min-h-svh bg-transparent text-gray-900">
-      <header className="px-4 py-6 flex items-center sticky top-0 bg-transparent z-10">
+    <div className="flex flex-col min-h-svh bg-white text-gray-900">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-[#FF3737] z-10 shadow-lg text-white">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.back()} 
-          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"
+          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Charge Settings</h1>
       </header>
 
-      <main className="flex-1 px-6 pb-20 space-y-6">
+      <main className="flex-1 px-6 pb-20 space-y-6 pt-8">
         <div className="p-6 bg-zinc-900 rounded-[2.5rem] text-white shadow-xl flex items-center justify-between">
            <div className="space-y-1">
               <p className="text-[10px] font-black uppercase tracking-widest text-primary">Standard Rates</p>
@@ -38,7 +39,7 @@ export default function ChargeSettingsPage() {
 
         <div className="space-y-3">
           {charges.map((item, idx) => (
-            <div key={idx} className="p-6 bg-white/40 backdrop-blur-xl border border-white/40 rounded-[2rem] flex items-center gap-5">
+            <div key={idx} className="p-6 bg-gray-50 border border-gray-100 rounded-[2rem] flex items-center gap-5 shadow-sm">
               <div className="w-14 h-14 rounded-2xl bg-primary/10 flex items-center justify-center shrink-0">
                 <item.icon className="w-6 h-6 text-primary" />
               </div>

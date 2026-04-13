@@ -1,6 +1,7 @@
+
 "use client"
 
-import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, MessageSquare, Ban, Info, BellOff, Zap, ShieldAlert } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, MessageSquare, Ban, Info, BellOff } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useAuth, useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
@@ -57,16 +58,16 @@ export default function SettingsPage() {
   ]
 
   return (
-    <div className="flex flex-col h-svh bg-transparent text-gray-900 overflow-y-auto">
-      <header className="px-4 pt-12 pb-6 flex items-center justify-between sticky top-0 bg-transparent z-50 backdrop-blur-md">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"><ChevronLeft className="w-6 h-6" /></Button>
+    <div className="flex flex-col h-svh bg-white text-gray-900 overflow-y-auto">
+      <header className="px-4 py-6 flex items-center justify-between sticky top-0 bg-[#FF3737] z-50 shadow-lg text-white">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"><ChevronLeft className="w-6 h-6" /></Button>
         <h1 className="text-xl font-black font-headline tracking-widest uppercase">Settings</h1>
         <div className="w-10" />
       </header>
 
-      <main className="px-6 pt-2 pb-6 space-y-3">
+      <main className="px-6 pt-8 pb-6 space-y-3">
         {settingsItems.map((item, idx) => (
-          <button key={idx} onClick={item.onClick || (() => {})} className="w-full flex items-center justify-between p-5 bg-white/40 backdrop-blur-md border border-white/40 rounded-[1.75rem] transition-all hover:bg-white/60 active:scale-[0.98] group shadow-sm">
+          <button key={idx} onClick={item.onClick || (() => {})} className="w-full flex items-center justify-between p-5 bg-gray-50 border border-gray-100 rounded-[1.75rem] transition-all hover:bg-gray-100 active:scale-[0.98] group shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-2xl bg-primary/10 flex items-center justify-center border border-primary/5"><item.icon className="w-5 h-5 text-primary" /></div>
               <div className="flex flex-col items-start"><span className="text-[13px] font-bold text-gray-900">{item.label}</span>{item.badge && <span className={`text-[8px] font-black uppercase px-2 py-0.5 rounded-full mt-1 ${isGuest ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>{item.badge}</span>}</div>

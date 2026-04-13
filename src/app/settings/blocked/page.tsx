@@ -37,20 +37,20 @@ export default function BlockedListPage() {
   }
 
   return (
-    <div className="flex flex-col min-h-svh bg-transparent text-gray-900">
-      <header className="px-4 py-6 flex items-center sticky top-0 bg-transparent z-10">
+    <div className="flex flex-col min-h-svh bg-white text-gray-900">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-[#FF3737] z-10 shadow-lg text-white">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.back()} 
-          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"
+          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Blocked List</h1>
       </header>
 
-      <main className="flex-1 px-6 pb-20">
+      <main className="flex-1 px-6 pb-20 pt-8">
         {isLoading ? (
           <div className="flex flex-col items-center justify-center py-20 gap-4">
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
@@ -61,9 +61,9 @@ export default function BlockedListPage() {
             {blockedUsers.map((item: any) => (
               <div 
                 key={item.id} 
-                className="bg-white/40 backdrop-blur-md border border-white/40 p-4 rounded-[1.75rem] flex items-center gap-4 shadow-sm"
+                className="bg-gray-50 border border-gray-100 p-4 rounded-[1.75rem] flex items-center gap-4 shadow-sm"
               >
-                <Avatar className="w-10 h-10">
+                <Avatar className="w-10 h-10 border border-white">
                   <AvatarFallback className="bg-gray-100 text-gray-400">
                     {item.username?.[0] || "?"}
                   </AvatarFallback>
@@ -89,7 +89,7 @@ export default function BlockedListPage() {
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
-            <div className="w-20 h-20 bg-white/20 backdrop-blur-md rounded-[2.5rem] flex items-center justify-center border border-white/30">
+            <div className="w-20 h-20 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100">
               <Ban className="w-8 h-8 text-gray-200" />
             </div>
             <div className="space-y-1">

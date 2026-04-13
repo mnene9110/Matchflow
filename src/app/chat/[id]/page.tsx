@@ -10,11 +10,10 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { useFirebase, useUser, useDoc, useMemoFirebase, useCollection } from "@/firebase"
+import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { 
   collection, 
   doc, 
-  addDoc, 
   updateDoc, 
   query, 
   orderBy, 
@@ -23,9 +22,6 @@ import {
   serverTimestamp, 
   increment, 
   runTransaction,
-  where,
-  getDoc,
-  getDocs,
   setDoc
 } from "firebase/firestore"
 import { cn } from "@/lib/utils"
@@ -63,7 +59,6 @@ function ChatDetailContent() {
   const [isSending, setIsSending] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
   
-  // PAGINATION
   const [msgLimit, setMsgLimit] = useState(30)
   const [hasMore, setHasMore] = useState(true)
 
@@ -168,7 +163,6 @@ function ChatDetailContent() {
     const isMemberOfMyAgency = currentUserProfile.agencyId && otherUser.memberOfAgencyId === currentUserProfile.agencyId;
     const isMyAgent = currentUserProfile.memberOfAgencyId && otherUser.agencyId === currentUserProfile.memberOfAgencyId;
     
-    // Messaging is free for females, or between agents and their members
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
                    currentUserProfile.isCoinseller || 
@@ -307,21 +301,21 @@ function ChatDetailContent() {
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
-      <header className="px-5 pt-8 pb-4 bg-white flex items-center justify-between sticky top-0 z-10 border-b border-gray-50">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-full bg-gray-50 text-gray-500"><ChevronLeft className="w-5 h-5" /></Button>
+      <header className="px-5 pt-10 pb-6 bg-[#FF3737] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-10 w-10 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
         <div className={cn("flex items-center gap-3 transition-opacity flex-1 justify-center", otherUser.isSupport ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => !otherUser.isSupport && router.push(`/profile/${otherUserId}`)}>
-          <Avatar className="w-9 h-9 border border-gray-100 shadow-sm"><AvatarImage src={otherUserImage} className="object-cover" /><AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback></Avatar>
+          <Avatar className="w-9 h-9 border border-white/20 shadow-sm"><AvatarImage src={otherUserImage} className="object-cover" /><AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback></Avatar>
           <div className="flex flex-col text-center">
             <div className="flex items-center justify-center gap-1 mb-1">
               <h3 className="font-bold text-[13px] leading-none h-3.5">{otherUserName}</h3>
-              {otherUser.isVerified && <CheckCircle className="w-3 h-3 text-blue-500 fill-blue-500/10" />}
+              {otherUser.isVerified && <CheckCircle className="w-3 h-3 text-white fill-white/10" />}
             </div>
-            <span className={cn("text-[9px] font-black uppercase tracking-widest", otherUser.isOnline ? "text-green-500" : "text-gray-400")}>{presenceText}</span>
+            <span className={cn("text-[9px] font-black uppercase tracking-widest", otherUser.isOnline ? "text-green-300" : "text-white/40")}>{presenceText}</span>
           </div>
         </div>
         <div className="flex items-center">
           {currentUserProfile?.isCoinseller && (
-            <Button variant="ghost" size="icon" onClick={handleSendPackages} className="h-10 w-10 rounded-full bg-amber-50 text-amber-600 border border-amber-100 shadow-sm animate-in fade-in zoom-in">
+            <Button variant="ghost" size="icon" onClick={handleSendPackages} className="h-10 w-10 rounded-full bg-white/20 text-white border border-white/10 shadow-sm hover:bg-white/30">
               <Zap className="w-5 h-5 fill-current" />
             </Button>
           )}

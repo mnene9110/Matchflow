@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -93,17 +94,17 @@ export default function DeleteAccountPage() {
   }
 
   return (
-    <div className="flex flex-col h-svh bg-transparent text-gray-900">
-      <header className="px-4 py-4 flex items-center sticky top-0 bg-transparent z-10 border-b border-gray-100">
+    <div className="flex flex-col h-svh bg-white text-gray-900">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-[#FF3737] z-10 shadow-lg text-white">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.back()} 
-          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full"
+          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
-        <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase text-red-500">Delete Account</h1>
+        <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Delete Account</h1>
       </header>
 
       <main className="flex-1 p-8 space-y-10 flex flex-col items-center justify-center">
