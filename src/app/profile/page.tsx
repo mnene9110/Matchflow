@@ -1,4 +1,3 @@
-
 "use client"
 
 import { 
@@ -163,7 +162,7 @@ export default function ProfilePage() {
                     <UserCog className="w-5 h-5 text-amber-400" />
                   </div>
                   <div className="flex-1 text-left">
-                    <span className="text-white font-black uppercase tracking-tight text-[13px] block">Role Management</span>
+                    <span className="text-white font-black tracking-tight text-[13px] block">Role Management</span>
                     <span className="text-white/40 text-[9px] font-bold uppercase mt-1 block">Assign Support & Agents</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-white/20" />
@@ -179,7 +178,7 @@ export default function ProfilePage() {
                     <Award className="w-5 h-5 text-amber-600" />
                   </div>
                   <div className="flex-1 text-left">
-                    <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block">Award Coins</span>
+                    <span className="text-gray-900 font-black tracking-tight text-[13px] block">Award Coins</span>
                     <span className="text-gray-400 text-[9px] font-bold uppercase mt-1 block">Grant coins to users</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-200" />
@@ -195,7 +194,7 @@ export default function ProfilePage() {
                     <ClipboardList className="w-5 h-5 text-blue-600" />
                   </div>
                   <div className="flex-1 text-left">
-                    <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block">Review Reports</span>
+                    <span className="text-gray-900 font-black tracking-tight text-[13px] block">Support Dashboard</span>
                     <span className="text-gray-400 text-[9px] font-bold uppercase mt-1 block">Handle User Complaints</span>
                   </div>
                   {pendingReportsCount > 0 && (
@@ -215,7 +214,7 @@ export default function ProfilePage() {
                     <Building2 className="w-5 h-5 text-purple-600" />
                   </div>
                   <div className="flex-1 text-left">
-                    <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block">Agent Center</span>
+                    <span className="text-gray-900 font-black tracking-tight text-[13px] block">Agent Center</span>
                     <span className="text-gray-400 text-[9px] font-bold uppercase mt-1 block">Manage Agency Anchor</span>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-200" />
@@ -242,7 +241,7 @@ export default function ProfilePage() {
                   <ShieldCheck className="w-5 h-5 text-white" />
                 </div>
                 <div className="flex-1 text-left">
-                  <span className="text-white font-black uppercase tracking-tight text-[13px] block leading-none">Verify Profile</span>
+                  <span className="text-white font-black tracking-tight text-[13px] block leading-none">Verify Profile</span>
                   <span className="text-white/60 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Get official checkmark</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-white/40" />
@@ -258,7 +257,7 @@ export default function ProfilePage() {
                 <Headset className="w-5 h-5 text-green-600" />
               </div>
               <div className="flex-1 text-left">
-                <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block leading-none">Customer Support</span>
+                <span className="text-gray-900 font-black tracking-tight text-[13px] block leading-none">Customer Support</span>
                 <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Chat with help team</span>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-200" />
@@ -274,7 +273,7 @@ export default function ProfilePage() {
                   <Building2 className="w-5 h-5 text-purple-600" />
                 </div>
                 <div className="flex-1 text-left">
-                  <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block leading-none">Agency Anchor</span>
+                  <span className="text-gray-900 font-black tracking-tight text-[13px] block leading-none">Agency Anchor</span>
                   <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Join official host team</span>
                 </div>
                 <ChevronRight className="w-4 h-4 text-gray-200" />
@@ -289,7 +288,7 @@ export default function ProfilePage() {
                 <Gamepad2 className="w-5 h-5 text-white" />
               </div>
               <div className="flex-1 text-left">
-                <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block leading-none">Games Center</span>
+                <span className="text-gray-900 font-black tracking-tight text-[13px] block leading-none">Games Center</span>
                 <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Play & win coins</span>
               </div>
               <ChevronRight className="w-4 h-4 text-gray-200" />
@@ -305,7 +304,7 @@ export default function ProfilePage() {
               className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 shadow-sm active:scale-[0.98] transition-all"
             >
               <div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100"><SettingsIcon className="w-5 h-5 text-gray-400" /></div>
-              <div className="flex-1 text-left"><span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block leading-none">Settings</span><span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Privacy & Account</span></div>
+              <div className="flex-1 text-left"><span className="text-gray-900 font-black tracking-tight text-[13px] block leading-none">Settings</span><span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Privacy & Account</span></div>
               <ChevronRight className="w-4 h-4 text-gray-200" />
             </button>
           </div>

@@ -173,7 +173,7 @@ export default function DiscoverPage() {
 
             {/* Info Overlay */}
             <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
-              <h3 className="text-white font-black text-xs uppercase tracking-wider truncate">{user.name}</h3>
+              <h3 className="text-white font-black text-xs tracking-wider truncate">{user.name}</h3>
               <div className="flex items-center gap-1.5">
                 <div className="w-6 h-6 rounded-full bg-black flex items-center justify-center border border-white/20">
                   <span className="text-[9px] font-black text-white">{user.age}</span>
