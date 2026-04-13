@@ -112,38 +112,38 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
-      {/* Red Header Section */}
-      <div className="bg-[#FF3737] px-6 pt-6 pb-8 space-y-8">
+      {/* Red Header Section - Tightened spacing */}
+      <div className="bg-[#FF3737] px-6 pt-4 pb-4 space-y-4">
         <div className="grid grid-cols-2 gap-4">
           <button 
             onClick={() => router.push('/mystery-note')}
-            className="flex flex-col items-center justify-center gap-3 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
+            className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
           >
-            <div className="w-16 h-16 relative">
+            <div className="w-14 h-14 relative">
               <Image src="/mystery.png" alt="Mystery" fill className="object-contain" />
             </div>
-            <span className="text-[11px] font-black uppercase tracking-widest text-white">Mystery Note</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-white">Mystery Note</span>
           </button>
           
           <button 
             onClick={() => router.push('/task-center')}
-            className="flex flex-col items-center justify-center gap-3 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
+            className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] shadow-xl active:scale-95 transition-all group"
           >
-            <div className="w-16 h-16 relative">
+            <div className="w-14 h-14 relative">
               <Image src="/task.png" alt="Tasks" fill className="object-contain" />
             </div>
-            <span className="text-[11px] font-black uppercase tracking-widest text-white">Task Center</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-white">Task Center</span>
           </button>
         </div>
 
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-black text-white uppercase tracking-widest">Recommended for you</h2>
+          <h2 className="text-[13px] font-black text-white uppercase tracking-widest">Recommended for you</h2>
           <button 
             onClick={handleRefresh}
             disabled={isInitialLoading}
-            className="w-12 h-12 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:bg-white/10 transition-colors"
+            className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:bg-white/10 transition-colors"
           >
-            {isInitialLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <RotateCcw className="w-5 h-5" />}
+            {isInitialLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <RotateCcw className="w-4 h-4" />}
           </button>
         </div>
       </div>
