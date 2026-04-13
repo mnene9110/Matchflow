@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect } from "react"
@@ -6,8 +5,7 @@ import { useRouter } from "next/navigation"
 import { useUser } from "@/firebase"
 
 /**
- * @fileOverview Root entry point that handles initial routing.
- * Features a branded splash screen with the app name in Pacifico font.
+ * @fileOverview Branded splash screen using hardcoded brand hex #FF3737.
  */
 export default function Home() {
   const { user, isUserLoading } = useUser()
@@ -15,14 +13,13 @@ export default function Home() {
 
   useEffect(() => {
     if (!isUserLoading) {
-      // Branded splash delay for better UX and recognition
       const timer = setTimeout(() => {
         if (user) {
           router.replace("/discover")
         } else {
           router.replace("/welcome")
         }
-      }, 1500)
+      }, 2000)
       return () => clearTimeout(timer)
     }
   }, [user, isUserLoading, router])

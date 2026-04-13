@@ -8,25 +8,18 @@ import { OfflineDetector } from "@/components/OfflineDetector"
 import { Navbar } from "@/components/Navbar"
 import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 
-/**
- * @fileOverview Root layout component.
- * Updated with black-translucent status bar for seamless brand-red integration.
- */
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
   useEffect(() => {
-    // 1. Prevent "Leave Site" browser prompts completely
     window.onbeforeunload = null;
     const preventConfirm = (e: BeforeUnloadEvent) => {
       delete e['returnValue'];
     };
     window.addEventListener('beforeunload', preventConfirm);
 
-    // 2. Robust ServiceWorker registration
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       const registerSW = () => {
         navigator.serviceWorker.register('/sw.js')
@@ -44,10 +37,6 @@ export default function RootLayout({
         registerSW();
       } else {
         window.addEventListener('load', registerSW);
-        return () => {
-          window.removeEventListener('load', registerSW);
-          window.removeEventListener('beforeunload', preventConfirm);
-        };
       }
     }
     
@@ -71,7 +60,7 @@ export default function RootLayout({
         <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
         <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
       </head>
-      <body className="font-body antialiased selection:bg-none">
+      <body className="font-body antialiased selection:bg-none bg-white">
         <FirebaseClientProvider>
           <OfflineDetector>
             <div className="app-container">

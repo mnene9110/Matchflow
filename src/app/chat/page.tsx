@@ -189,18 +189,18 @@ export default function ChatListPage() {
 
   return (
     <div className="flex flex-col h-svh pb-20 bg-white">
-      <header className="bg-[#FF3737] pt-8 pb-4 px-6 sticky top-0 z-20 shrink-0">
+      <header className="bg-[#FF3737] pt-6 pb-3 px-6 sticky top-0 z-20 shrink-0">
         <div className="flex items-center justify-between">
-          <h1 className="text-4xl font-logo text-white drop-shadow-sm">
+          <h1 className="text-3xl font-logo text-white drop-shadow-sm">
             Chats
           </h1>
-          <div className="w-12 h-12 rounded-full border-2 border-white/30 flex items-center justify-center shadow-inner active:bg-white/10 transition-colors">
-            <MessageSquare className="w-5 h-5 text-white fill-current" />
+          <div className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center shadow-inner active:bg-white/10 transition-colors">
+            <MessageSquare className="w-4 h-4 text-white fill-current" />
           </div>
         </div>
       </header>
 
-      <main className="flex-1 px-6 pt-2 bg-white">
+      <main className="flex-1 px-6 pt-2 bg-white overflow-y-auto">
         {sessions.length > 0 ? (
           <div className="flex flex-col">
             {sessions.map((session) => (

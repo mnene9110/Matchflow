@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from "react"
@@ -20,7 +19,6 @@ export default function WelcomePage() {
   const [isNavigatingEmail, setIsNavigatingEmail] = useState(false)
 
   useEffect(() => {
-    // Only auto-redirect if we're not currently in the middle of a manual login attempt
     if (user && !isUserLoading && firestore && !isLoggingIn) {
       getDoc(doc(firestore, "userProfiles", user.uid)).then(snap => {
         if (snap.exists()) {
@@ -48,11 +46,10 @@ export default function WelcomePage() {
       }
     } catch (error: any) {
       setIsLoggingIn(false)
-      console.error("Fast login failed:", error)
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: error.message || "An error occurred during fast login. Please check your connection.",
+        description: error.message || "An error occurred during fast login.",
       })
     }
   }
@@ -75,12 +72,12 @@ export default function WelcomePage() {
   }
 
   return (
-    <div className="flex flex-col h-svh bg-transparent relative overflow-hidden">
+    <div className="flex flex-col h-svh bg-white relative overflow-hidden">
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
         <div className="mb-10 relative">
           <div className="w-48 h-48 bg-zinc-950 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center border border-white/10 animate-float overflow-hidden relative">
             <div className="relative w-24 h-24 mb-2 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-full h-full text-primary fill-current filter drop-shadow-[0_0_15px_rgba(179,102,102,0.9)]" xmlns="http://www.w3.org/2000/svg">
+              <svg viewBox="0 0 24 24" className="w-full h-full text-[#FF3737] fill-current" xmlns="http://www.w3.org/2000/svg">
                 <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
               </svg>
             </div>
@@ -88,12 +85,12 @@ export default function WelcomePage() {
           </div>
         </div>
 
-        <h1 className="text-5xl font-logo text-primary mb-2 drop-shadow-md">MatchFlow</h1>
-        <p className="text-[#5A1010]/80 text-[15px] font-black uppercase tracking-[0.1em] leading-relaxed max-w-[240px] mb-12">Connect with Heart</p>
+        <h1 className="text-5xl font-logo text-[#FF3737] mb-2 drop-shadow-md">MatchFlow</h1>
+        <p className="text-gray-400 text-[15px] font-black uppercase tracking-[0.1em] leading-relaxed max-w-[240px] mb-12">Connect with Heart</p>
 
         <div className="w-full space-y-4 max-w-xs">
           <Button 
-            className="w-full h-16 rounded-full bg-[#5A1010] text-white hover:bg-[#5A1010]/90 text-lg font-black gap-3 shadow-[0_15px_40px_rgba(0,0,0,0.2)] transition-all active:scale-95 flex items-center justify-center" 
+            className="w-full h-16 rounded-full bg-zinc-900 text-white hover:bg-zinc-800 text-lg font-black gap-3 shadow-xl transition-all active:scale-95 flex items-center justify-center" 
             onClick={handleEmailClick}
             disabled={isNavigatingEmail || isLoggingIn}
           >
@@ -103,11 +100,11 @@ export default function WelcomePage() {
           
           <Button 
             variant="ghost" 
-            className="w-full h-16 rounded-full bg-white/40 text-gray-900 border border-white/30 hover:bg-white/60 text-lg font-black gap-3 transition-all active:scale-95 backdrop-blur-md shadow-sm flex items-center justify-center" 
+            className="w-full h-16 rounded-full bg-gray-50 text-gray-900 border border-gray-100 hover:bg-gray-100 text-lg font-black gap-3 transition-all active:scale-95 shadow-sm flex items-center justify-center" 
             onClick={handleFastLogin} 
             disabled={isLoggingIn || isNavigatingEmail}
           >
-            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-primary" />}
+            {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-[#FF3737]" />}
             Fast Login
           </Button>
         </div>
