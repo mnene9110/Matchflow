@@ -50,7 +50,7 @@
   
   html, body {
     @apply m-0 p-0 overflow-hidden;
-    background-color: #3BC1A8;
+    background-color: #3BC1A8; /* Hide top line by matching document color */
     overscroll-behavior: none;
     touch-action: manipulation;
     position: fixed; 
@@ -72,7 +72,7 @@
 
 .app-container {
   @apply relative h-full w-full flex flex-col overflow-y-auto;
-  background-color: transparent;
+  background-color: transparent; /* Bleed background color from body */
   padding-top: 0px;
   -webkit-overflow-scrolling: touch;
 }
