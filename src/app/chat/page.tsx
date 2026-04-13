@@ -189,7 +189,7 @@ export default function ChatListPage() {
 
   return (
     <div className="flex flex-col h-svh pb-20 bg-white">
-      <header className="bg-[#FF3737] pt-6 pb-8 px-6 sticky top-0 z-20 shrink-0">
+      <header className="bg-[#FF3737] pt-8 pb-4 px-6 sticky top-0 z-20 shrink-0">
         <div className="flex items-center justify-between">
           <h1 className="text-4xl font-logo text-white drop-shadow-sm">
             Chats
@@ -210,13 +210,6 @@ export default function ChatListPage() {
                 onLongPress={setHidingTarget} 
               />
             ))}
-            
-            <div className="py-16 flex flex-col items-center justify-center gap-2 opacity-20">
-               <Shield className="w-4 h-4 text-primary" />
-               <p className="text-[10px] font-black text-primary uppercase tracking-[0.4em] text-center">
-                 Encrypted Conversations
-               </p>
-            </div>
           </div>
         ) : hasFetched ? (
           <div className="flex flex-col items-center justify-center py-32 text-gray-400 font-medium gap-4">
