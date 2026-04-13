@@ -15,7 +15,8 @@ import {
   Gamepad2,
   ShieldAlert,
   ClipboardList,
-  Building2
+  Building2,
+  Shield
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
@@ -68,7 +69,7 @@ export default function ProfilePage() {
   return (
     <div className="flex flex-col h-svh w-full bg-white text-gray-900 overflow-y-auto scroll-smooth">
       {/* Refined More Compact Header */}
-      <header className="flex flex-col items-center pt-12 pb-8 px-6 shrink-0 relative bg-gradient-to-b from-[#FF3737] via-[#FF5E5E] to-white/10">
+      <header className="flex flex-col items-center pt-8 pb-6 px-6 shrink-0 relative bg-gradient-to-b from-[#FF3737] via-[#FF5E5E] to-white/10">
         <div className="relative mb-4">
           <Avatar className="w-28 h-28 shadow-[0_20px_50px_rgba(255,55,55,0.3)] bg-gray-100">
             {userImage && <AvatarImage src={userImage} className="object-cover" />}
@@ -102,7 +103,7 @@ export default function ProfilePage() {
       </header>
 
       <main className="flex-1 px-6 space-y-8 pb-44 -mt-4">
-        {/* Wallet Cards - Reduced Padding and Height */}
+        {/* Wallet Cards - Optimized Height */}
         <div className="grid grid-cols-2 gap-4">
           {/* Balance Card */}
           <div className="bg-white rounded-[2rem] p-4 flex flex-col items-center gap-3 shadow-[0_15px_45px_rgba(0,0,0,0.06)] border border-gray-50 text-center transition-transform active:scale-[0.98]">
@@ -142,11 +143,48 @@ export default function ProfilePage() {
         {/* Menu Sections */}
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Entertainment</h2>
+            <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Account & Safety</h2>
             <div className="h-px flex-1 bg-gray-50 ml-4" />
           </div>
           
           <div className="space-y-2.5">
+            {/* Verify Identity Button - Shown if not verified */}
+            {!isVerified && (
+              <button 
+                onClick={() => router.push('/profile/verify')} 
+                className="w-full h-16 rounded-[1.5rem] bg-gradient-to-r from-blue-600 to-blue-500 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-lg shadow-blue-500/20"
+              >
+                <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center">
+                  <ShieldCheck className="w-5 h-5 text-white" />
+                </div>
+                <div className="flex-1 text-left">
+                  <span className="text-white font-black uppercase tracking-tight text-[13px] block leading-none">Verify Profile</span>
+                  <span className="text-white/60 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Get official checkmark</span>
+                </div>
+                <ChevronRight className="w-4 h-4 text-white/40" />
+              </button>
+            )}
+
+            {/* Customer Support */}
+            <button 
+              onClick={() => router.push('/chat/support_agent')} 
+              className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-[0_4px_20px_rgba(0,0,0,0.02)]"
+            >
+              <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center border border-green-100">
+                <Headset className="w-5 h-5 text-green-600" />
+              </div>
+              <div className="flex-1 text-left">
+                <span className="text-gray-900 font-black uppercase tracking-tight text-[13px] block leading-none">Customer Support</span>
+                <span className="text-gray-400 text-[10px] font-bold uppercase tracking-tighter mt-1 block">Chat with help team</span>
+              </div>
+              <ChevronRight className="w-4 h-4 text-gray-200" />
+            </button>
+
+            <div className="flex items-center justify-between px-2 pt-4">
+              <h2 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.3em]">Entertainment</h2>
+              <div className="h-px flex-1 bg-gray-50 ml-4" />
+            </div>
+
             <button 
               onClick={() => router.push('/games')} 
               className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-[0_4px_20px_rgba(0,0,0,0.02)] group"

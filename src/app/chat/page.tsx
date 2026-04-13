@@ -190,7 +190,7 @@ export default function ChatListPage() {
 
   return (
     <div className="flex flex-col h-svh pb-20 bg-white">
-      {/* Brand Red Header - Tighter spacing */}
+      {/* Brand Red Header - Reduced padding for more content space */}
       <header className="bg-[#FF3737] pt-6 pb-8 px-6 sticky top-0 z-20 shrink-0 shadow-lg">
         <div className="flex items-center justify-between">
           <h1 className="text-4xl font-logo text-white drop-shadow-sm">
