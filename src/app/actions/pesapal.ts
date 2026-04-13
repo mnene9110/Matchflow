@@ -49,6 +49,7 @@ async function registerIPN(token: string) {
   const ipnUrl = `${baseUrl}/api/pesapal-ipn`;
   
   try {
+    // First, check if IPN is already registered to avoid redundant API calls
     const listResponse = await fetch(`${PESAPAL_URL}/api/URLSetup/GetIpnList`, {
       method: 'GET',
       headers: {
@@ -69,6 +70,7 @@ async function registerIPN(token: string) {
       }
     }
 
+    // If not found, register it
     const response = await fetch(`${PESAPAL_URL}/api/URLSetup/RegisterIPN`, {
       method: 'POST',
       headers: {
@@ -111,7 +113,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const shortId = Date.now().toString().slice(-10);
     const merchantRef = `MF${shortId}`;
 
-    // Initialize Firebase
+    // Initialize Firebase for pre-saving transaction
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     const txRef = doc(collection(db, "userProfiles", metadata.userId, "transactions"));
