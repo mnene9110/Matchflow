@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -149,8 +150,8 @@ export default function DiscoverPage() {
         </button>
       </div>
 
-      {/* Grid Section */}
-      <main className="px-2 grid grid-cols-2 gap-2 mt-4">
+      {/* Grid Section - Adjusted horizontal padding to reduce card width */}
+      <main className="px-4 grid grid-cols-2 gap-3 mt-4">
         {mappedUsers.map((user) => (
           <div 
             key={user.id} 
