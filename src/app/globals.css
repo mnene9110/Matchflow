@@ -1,3 +1,4 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -71,7 +72,8 @@
 }
 
 .app-container {
-  @apply relative h-full w-full flex flex-col overflow-y-auto bg-white;
+  @apply relative h-full w-full flex flex-col overflow-y-auto;
+  background-color: transparent; /* Changed from white to hide the line */
   padding-top: 0px;
   -webkit-overflow-scrolling: touch;
 }
