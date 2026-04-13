@@ -3,7 +3,7 @@
 /**
  * @fileOverview Server actions for PesaPal V3 integration.
  * Handles authentication, IPN registration, and order submission.
- * Optimized to handle existing IPN registrations to prevent "could not register IPN" errors.
+ * Updated to use the new /api/pesapal-ipn endpoint.
  */
 
 const PESAPAL_URL = 'https://pay.pesapal.com/v3';
@@ -30,18 +30,17 @@ async function getAuthToken() {
 
   const data = await response.json();
   if (!data.token) {
-    throw new Error(data.message || 'Failed to get PesaPal token. Check your Consumer Key and Secret.');
+    throw new Error(data.message || 'Failed to get PesaPal token.');
   }
   return data.token;
 }
 
 /**
- * Checks for existing IPNs or registers a new one.
- * PesaPal V3 returns an error if you try to register an identical URL that already exists.
+ * Registers the new IPN URL or reuses an existing one.
  */
 async function registerIPN(token: string) {
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-12.vercel.app';
-  const ipnUrl = `${baseUrl}/api/pesapal/ipn`;
+  const ipnUrl = `${baseUrl}/api/pesapal-ipn`;
   
   try {
     // 1. Check existing IPNs first to avoid "Duplicate" errors
@@ -91,14 +90,14 @@ async function registerIPN(token: string) {
 export async function initializePesaPalTransaction(email: string, amount: number, metadata: any) {
   try {
     if (!CONSUMER_KEY || CONSUMER_KEY === 'your_pesapal_consumer_key') {
-      return { error: 'PesaPal API keys are not configured in Vercel environment variables.' };
+      return { error: 'PesaPal API keys are not configured.' };
     }
 
     const token = await getAuthToken();
     const ipnId = await registerIPN(token);
 
     if (!ipnId) {
-      return { error: 'PesaPal could not provide a Notification ID. Please check your Consumer Key and Secret.' };
+      return { error: 'PesaPal could not provide a Notification ID.' };
     }
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-12.vercel.app';
@@ -141,7 +140,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
     }
   } catch (error: any) {
     console.error('PesaPal Transaction Error:', error);
-    return { error: error.message || 'An unexpected error occurred while connecting to PesaPal.' };
+    return { error: error.message || 'An unexpected error occurred.' };
   }
 }
 
