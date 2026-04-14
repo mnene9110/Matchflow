@@ -45,6 +45,27 @@ export const GIFTS = [
   { id: 'balloon', name: 'Balloon 🎈', emoji: '🎈', price: 20 },
   { id: 'soulmate', name: 'Soul mate 💖', emoji: '💖', price: 30 },
   { id: 'ufo', name: 'UFO 🛸', emoji: '🛸', price: 1990 },
+  // 20 Premium Gifts
+  { id: 'roses', name: 'Rose Bouquet 🌹', emoji: '🌹', price: 500 },
+  { id: 'ring', name: 'Diamond Ring 💍', emoji: '💍', price: 1000 },
+  { id: 'champagne', name: 'Champagne 🍾', emoji: '🍾', price: 1200 },
+  { id: 'trophy', name: 'Gold Trophy 🏆', emoji: '🏆', price: 1500 },
+  { id: 'fireworks', name: 'Fireworks 🎆', emoji: '🎆', price: 2000 },
+  { id: 'goldbar', name: 'Gold Bar 🧱', emoji: '🧱', price: 2500 },
+  { id: 'crown', name: 'Royal Crown 👑', emoji: '👑', price: 3000 },
+  { id: 'lamp', name: 'Magic Lamp 🪔', emoji: '🪔', price: 4000 },
+  { id: 'car', name: 'Sport Car 🏎️', emoji: '🏎️', price: 5000 },
+  { id: 'crystal', name: 'Crystal Ball 🔮', emoji: '🔮', price: 6000 },
+  { id: 'map', name: 'Treasure Map 🗺️', emoji: '🗺️', price: 8500 },
+  { id: 'scroll', name: 'Ancient Scroll 📜', emoji: '📜', price: 12000 },
+  { id: 'yacht', name: 'Luxury Yacht 🛥️', emoji: '🛥️', price: 20000 },
+  { id: 'phoenix', name: 'Phoenix 🐦‍🔥', emoji: '🐦‍🔥', price: 35000 },
+  { id: 'jet', name: 'Private Jet 🛩️', emoji: '🛩️', price: 50000 },
+  { id: 'dragon', name: 'Flying Dragon 🐲', emoji: '🐲', price: 75000 },
+  { id: 'supernova', name: 'Supernova 🌟', emoji: '🌟', price: 100000 },
+  { id: 'galaxy', name: 'Galaxy 🌌', emoji: '🌌', price: 250000 },
+  { id: 'timemachine', name: 'Time Machine ⏳', emoji: '⏳', price: 450000 },
+  { id: 'universe', name: 'Universe Core 🌌✨', emoji: '🌌✨', price: 500000 },
 ]
 
 function ChatDetailContent() {
