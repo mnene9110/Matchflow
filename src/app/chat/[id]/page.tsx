@@ -158,9 +158,14 @@ function ChatDetailContent() {
     const textToUse = textOverride || inputText;
     if (!textToUse.trim() || !currentUser || !chatId || !firestore || !resolvedOtherUserId || !otherUser || isSending || !currentUserProfile) return
     
+    // Condition for free chatting:
+    // 1. Current user is Admin, Support, or Coinseller
+    // 2. The recipient is Admin, Support, or Coinseller
+    // 3. Current user is Female
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
                    currentUserProfile.isCoinseller || 
+                   otherUser.isAdmin ||
                    otherUser.isSupport || 
                    otherUser.isCoinseller || 
                    currentUserProfile.gender?.toLowerCase() === 'female';

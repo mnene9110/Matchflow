@@ -3,9 +3,9 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { RotateCcw, Loader2, MessageSquare, Rocket, Star, Trophy } from "lucide-react"
+import { RotateCcw, Loader2, MessageSquare, RotateCw, Trophy } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { collection, query, where, limit, getDocs, doc, Timestamp } from "firebase/firestore"
+import { collection, query, where, limit, getDocs, doc } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 
@@ -56,9 +56,10 @@ export default function DiscoverPage() {
         return;
       }
 
+      // Explicitly filter out the current user by ID and also exclude support accounts from general discovery
       const allUsers = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
-        .filter((u: any) => u.isSupport !== true && u.id !== currentUser.uid);
+        .filter((u: any) => u.id !== currentUser.uid && u.isSupport !== true);
       
       // Sort: Highest VIP First, then Online status
       const sorted = allUsers.sort((a: any, b: any) => {
