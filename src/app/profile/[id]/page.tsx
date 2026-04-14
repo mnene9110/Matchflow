@@ -27,7 +27,7 @@ import {
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, collection, addDoc, serverTimestamp } from "firebase/firestore"
+import { doc, collection, addDoc, serverTimestamp, setDoc } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -55,12 +55,28 @@ export default function ProfileDetailPage() {
   
   const targetDocRef = useMemoFirebase(() => id ? doc(firestore, "userProfiles", id as string) : null, [firestore, id])
   const { data: userProfile, isLoading: isProfileLoading } = useDoc(targetDocRef)
+
+  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
+  const { data: currentUserProfile } = useDoc(meRef)
   
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportDetails, setReportDetails] = useState("")
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
   
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null)
+
+  // Record Visitor Logic
+  useEffect(() => {
+    if (currentUser && id && id !== currentUser.uid && firestore && userProfile && currentUserProfile) {
+      const visitorRef = doc(firestore, "userProfiles", id as string, "visitors", currentUser.uid);
+      setDoc(visitorRef, {
+        userId: currentUser.uid,
+        username: currentUserProfile.username || "Someone",
+        photo: (currentUserProfile.profilePhotoUrls && currentUserProfile.profilePhotoUrls[0]) || "",
+        timestamp: serverTimestamp()
+      }, { merge: true }).catch(console.error);
+    }
+  }, [currentUser?.uid, id, !!firestore, !!userProfile, !!currentUserProfile]);
 
   useEffect(() => {
     const handlePopState = () => {

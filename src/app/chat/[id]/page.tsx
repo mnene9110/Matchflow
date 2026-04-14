@@ -30,7 +30,7 @@ import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
-import { getVipDiscount, getVipDiamondMultiplier } from "@/app/profile/vip/page"
+import { getVipDiamondMultiplier } from "@/app/profile/vip/page"
 
 export const GIFTS = [
   { id: 'mask', name: 'Party mask 🎭', emoji: '🎭', price: 20 },
@@ -221,9 +221,7 @@ function ChatDetailContent() {
     
     setIsSendingGift(true);
     
-    // Applying VIP Discount for Sender
-    const discount = getVipDiscount(currentUserProfile.vipLevel || 0);
-    const finalPrice = Math.floor(gift.price * (1 - discount));
+    const finalPrice = gift.price;
     
     // Applying VIP Multiplier for Receiver
     const receiverMultiplier = getVipDiamondMultiplier(otherUser.vipLevel || 0);
@@ -239,7 +237,7 @@ function ChatDetailContent() {
         transaction.update(otherUserRef!, { diamondBalance: increment(diamondGain) });
 
         const senderLogRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
-        transaction.set(senderLogRef, { id: senderLogRef.id, type: "gift_sent", amount: -finalPrice, transactionDate: new Date().toISOString(), description: `Sent ${gift.name} (VIP Discount applied)` });
+        transaction.set(senderLogRef, { id: senderLogRef.id, type: "gift_sent", amount: -finalPrice, transactionDate: new Date().toISOString(), description: `Sent ${gift.name}` });
 
         const receiverLogRef = doc(collection(firestore, "userProfiles", resolvedOtherUserId, "transactions"));
         transaction.set(receiverLogRef, { id: receiverLogRef.id, type: "gift_received", amount: diamondGain, transactionDate: new Date().toISOString(), description: `Received ${gift.name} from ${currentUserProfile.username} (VIP Bonus applied)` });
@@ -367,15 +365,12 @@ function ChatDetailContent() {
                 <div className="flex-1 overflow-y-auto px-4 pb-32">
                   <div className="grid grid-cols-4 gap-2">
                     {GIFTS.map((gift) => {
-                      const discount = getVipDiscount(currentUserProfile?.vipLevel || 0);
-                      const finalPrice = Math.floor(gift.price * (1 - discount));
                       return (
                         <div key={gift.id} onClick={() => setSelectedGift(gift)} className={cn("flex flex-col items-center gap-2 p-2 rounded-2xl border transition-all cursor-pointer", selectedGift?.id === gift.id ? "bg-primary/20 border-primary" : "bg-transparent border-transparent")}>
                           <div className="text-4xl">{gift.emoji}</div>
                           <div className="flex flex-col items-center">
                             <div className="flex items-center gap-1">
-                              <span className="text-[10px] font-black text-amber-400">{finalPrice}</span>
-                              {discount > 0 && <span className="text-[7px] text-zinc-500 line-through">{gift.price}</span>}
+                              <span className="text-[10px] font-black text-amber-400">{gift.price}</span>
                             </div>
                             <span className="text-[8px] font-bold text-zinc-400 truncate w-full text-center">{gift.name}</span>
                           </div>

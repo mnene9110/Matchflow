@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Star, Check, Coins, Loader2, Gem, Trophy, Sparkles, Zap, ShieldCheck, Heart, MessageCircle, Crown, UserCheck, Shield, Flame, Target, Gift } from "lucide-react"
+import { ChevronLeft, Star, Check, Coins, Loader2, Gem, Trophy, Sparkles, Zap, ShieldCheck, Heart, MessageCircle, Crown, UserCheck, Shield, Flame, Target, Gift, Eye } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, updateDoc } from "firebase/firestore"
@@ -11,21 +11,21 @@ import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
 export const VIP_CONFIG = [
-  { level: 1, exp: 5000, perks: ["Blue username", "Basic VIP badge", "Custom entry effect", "Daily 10 Coins bonus"] },
-  { level: 2, exp: 20000, perks: ["Avatar frame", "Chat bubble", "5% Gift discount", "Profile visitor list"] },
-  { level: 3, exp: 50000, perks: ["Gold Discover name", "Unique profile glow", "10% Gift discount", "2 Free Mystery Notes daily"] },
-  { level: 4, exp: 100000, perks: ["Priority Support", "Elite VIP Badge", "15% Gift discount", "Custom Profile UI"] },
-  { level: 5, exp: 250000, perks: ["Global broadcast access", "Hide location option", "20% Gift discount", "Exclusive Crown"] },
-  { level: 6, exp: 500000, perks: ["Voice chat priority", "Animated avatar", "25% Gift discount", "Premium Chat Bubble"] },
-  { level: 7, exp: 1000000, perks: ["Invisibility mode", "Direct Support line", "30% Gift discount", "Legendary Entry Video"] },
-  { level: 8, exp: 2000000, perks: ["Ghost Mode", "Unlimited Mystery Notes", "35% Gift discount", "Global Profile Glow"] },
-  { level: 9, exp: 4000000, perks: ["Custom Room Tags", "Personal Manager", "40% Gift discount", "Elite Ring Decor"] },
-  { level: 10, exp: 7000000, perks: ["Platform Moderator rights", "Legendary Status", "45% Gift discount", "Diamond Multiplier x1.2"] },
-  { level: 11, exp: 11000000, perks: ["Custom Entrance Video", "Elite Chat Glow", "50% Gift discount", "Exclusive User ID Decor"] },
-  { level: 12, exp: 16000000, perks: ["Platform Ambassador", "Private Room Invites", "55% Gift discount", "Diamond Multiplier x1.5"] },
-  { level: 13, exp: 22000000, perks: ["God Mode Badge", "Immunity from Reports", "60% Gift discount", "Custom Profile Background"] },
-  { level: 14, exp: 30000000, perks: ["Global Profile Glow+", "Direct Admin Line", "70% Gift discount", "All Room Unlocks"] },
-  { level: 15, exp: 40000000, perks: ["Platform God Status", "Infinite Boost Ability", "80% Gift discount", "Ultimate Legacy Badge"] },
+  { level: 1, exp: 5000, perks: ["Blue username", "Basic VIP badge", "Daily 10 Coins", "Priority Chat"] },
+  { level: 2, exp: 20000, perks: ["Visitor List", "Unblur Visitors", "Profile Badge", "Support Priority"] },
+  { level: 3, exp: 50000, perks: ["Gold Name", "Profile Glow", "2 Mystery Notes", "Unique Badge"] },
+  { level: 4, exp: 100000, perks: ["Elite Rank", "Hide Age", "Extra Interest", "Chat Bubble"] },
+  { level: 5, exp: 250000, perks: ["Global Broadcast", "Hide Location", "Exclusive Icon", "VIP Support"] },
+  { level: 6, exp: 500000, perks: ["Voice Priority", "Gold Badge+", "Daily 50 Coins", "Premium Status"] },
+  { level: 7, exp: 1000000, perks: ["Invisibility", "Direct Line", "Legendary Badge", "Secret Mode"] },
+  { level: 8, exp: 2000000, perks: ["Ghost Mode", "Unlimited Notes", "Global Glow+", "Elite Status"] },
+  { level: 9, exp: 4000000, perks: ["Custom Tags", "Personal Manager", "Elite Ring", "Admin Priority"] },
+  { level: 10, exp: 7000000, perks: ["Moderator Rights", "Legendary Status", "Diamond x1.2", "Official Crown"] },
+  { level: 11, exp: 11000000, perks: ["Elite Glow", "Exclusive ID", "Daily 100 Coins", "Super VIP"] },
+  { level: 12, exp: 16000000, perks: ["Ambassador", "Private Invites", "Diamond x1.5", "Global Icon"] },
+  { level: 13, exp: 22000000, perks: ["God Mode", "Report Immunity", "Gold Profile", "Ultimate Rank"] },
+  { level: 14, exp: 30000000, perks: ["Global Glow Max", "Admin Direct", "Daily 500 Coins", "Legacy Badge"] },
+  { level: 15, exp: 40000000, perks: ["Platform God", "Infinite Boost", "Diamond x2.0", "Crown of Honor"] },
 ]
 
 export function getVipLevelFromExp(exp: number) {
@@ -39,25 +39,8 @@ export function getVipLevelFromExp(exp: number) {
   return level;
 }
 
-export function getVipDiscount(level: number) {
-  if (level >= 15) return 0.80;
-  if (level >= 14) return 0.70;
-  if (level >= 13) return 0.60;
-  if (level >= 12) return 0.55;
-  if (level >= 11) return 0.50;
-  if (level >= 10) return 0.45;
-  if (level >= 9) return 0.40;
-  if (level >= 8) return 0.35;
-  if (level >= 7) return 0.30;
-  if (level >= 6) return 0.25;
-  if (level >= 5) return 0.20;
-  if (level >= 4) return 0.15;
-  if (level >= 3) return 0.10;
-  if (level >= 2) return 0.05;
-  return 0;
-}
-
 export function getVipDiamondMultiplier(level: number) {
+  if (level >= 15) return 2.0;
   if (level >= 12) return 1.5;
   if (level >= 10) return 1.2;
   return 1.0;
@@ -77,7 +60,6 @@ export default function VIPCenterPage() {
   const currentLevel = profile?.vipLevel || 0
 
   useEffect(() => {
-    // Only update the level in Firestore when the user opens this screen
     if (profile && firestore) {
       const calculatedLevel = getVipLevelFromExp(currentExp)
       if (calculatedLevel !== currentLevel) {

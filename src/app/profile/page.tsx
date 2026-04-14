@@ -22,12 +22,13 @@ import {
   UserCog,
   Star,
   Rocket,
-  Trophy
+  Trophy,
+  Eye
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
-import { useUser, useFirebase, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, collection, query, where, getDocs, limit } from "firebase/firestore"
+import { useUser, useFirebase, useDoc, useMemoFirebase, useCollection } from "@/firebase"
+import { doc, collection, query, where, getDocs, limit, onSnapshot } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -45,6 +46,7 @@ export default function ProfilePage() {
   const { data: userProfile, isLoading } = useDoc(userRef)
   
   const [pendingReportsCount, setPendingReportsCount] = useState(0)
+  const [visitorsCount, setVisitorsCount] = useState(0)
 
   useEffect(() => {
     if (!firestore || !userProfile?.isSupport) return
@@ -59,6 +61,14 @@ export default function ProfilePage() {
         }
       });
   }, [firestore, userProfile?.isSupport])
+
+  useEffect(() => {
+    if (!firestore || !currentUser) return
+    const visitorsRef = collection(firestore, "userProfiles", currentUser.uid, "visitors");
+    return onSnapshot(visitorsRef, (snap) => {
+      setVisitorsCount(snap.size)
+    })
+  }, [firestore, currentUser])
 
   const copyId = () => {
     if (userProfile?.numericId) {
@@ -79,6 +89,23 @@ export default function ProfilePage() {
   return (
     <div className="flex flex-col h-svh w-full bg-white text-gray-900 overflow-y-auto scroll-smooth">
       <header className="flex flex-col items-center pt-8 pb-16 px-6 shrink-0 relative bg-[#3BC1A8]">
+        <div className="absolute top-8 right-6 z-20">
+          <button 
+            onClick={() => router.push('/profile/visitors')}
+            className="flex flex-col items-center gap-1 group active:scale-95 transition-all"
+          >
+            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center relative shadow-lg">
+              <Eye className="w-5 h-5 text-white" />
+              {visitorsCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-4 min-w-4 px-1 rounded-full bg-red-500 text-[8px] font-black text-white flex items-center justify-center border-2 border-[#3BC1A8] shadow-sm">
+                  {visitorsCount > 99 ? '99+' : visitorsCount}
+                </span>
+              )}
+            </div>
+            <span className="text-[8px] font-black text-white/60 uppercase tracking-widest">Visitors</span>
+          </button>
+        </div>
+
         <div className="relative mb-4">
           <Avatar className={cn(
             "w-28 h-28 shadow-2xl bg-white/10 border-none transition-all",
