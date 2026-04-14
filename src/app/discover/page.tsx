@@ -1,10 +1,11 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { RotateCcw, Loader2, MessageSquare } from "lucide-react"
+import { RotateCcw, Loader2, MessageSquare, Rocket, Star } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { collection, query, where, limit, getDocs, doc } from "firebase/firestore"
+import { collection, query, where, limit, getDocs, doc, Timestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 
@@ -53,7 +54,7 @@ export default function DiscoverPage() {
       const usersQuery = query(
         collection(firestore, "userProfiles"),
         where("gender", "==", targetGender),
-        limit(50)
+        limit(100)
       );
       
       const snap = await getDocs(usersQuery);
@@ -68,10 +69,30 @@ export default function DiscoverPage() {
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((u: any) => u.isSupport !== true && u.id !== currentUser.uid);
       
-      const onlineUsers = allUsers.filter((u: any) => u.isOnline === true);
-      const offlineUsers = allUsers.filter((u: any) => u.isOnline !== true);
+      // PRIORITY SORTING: Boosted Users -> VIP Users -> Others
+      const now = Date.now();
+      const boosted = allUsers.filter((u: any) => {
+        const boostedUntil = u.boostedUntil?.toMillis ? u.boostedUntil.toMillis() : 0;
+        return boostedUntil > now;
+      });
+      const vips = allUsers.filter((u: any) => u.isVIP === true && !boosted.find(b => b.id === u.id));
+      const others = allUsers.filter((u: any) => !u.isVIP && !boosted.find(b => b.id === u.id));
 
-      const sorted = [...shuffleArray(onlineUsers), ...shuffleArray(offlineUsers)];
+      const onlineBoosted = boosted.filter(u => u.isOnline);
+      const offlineBoosted = boosted.filter(u => !u.isOnline);
+      const onlineVips = vips.filter(u => u.isOnline);
+      const offlineVips = vips.filter(u => !u.isOnline);
+      const onlineOthers = others.filter(u => u.isOnline);
+      const offlineOthers = others.filter(u => !u.isOnline);
+
+      const sorted = [
+        ...shuffleArray(onlineBoosted),
+        ...shuffleArray(offlineBoosted),
+        ...shuffleArray(onlineVips),
+        ...shuffleArray(offlineVips),
+        ...shuffleArray(onlineOthers),
+        ...shuffleArray(offlineOthers)
+      ].slice(0, 50);
       
       setUsers(sorted);
       cachedUsers = sorted;
@@ -107,7 +128,9 @@ export default function DiscoverPage() {
     name: u.username || "Match",
     location: u.location || "Kenya",
     age: calculateAge(u.dateOfBirth),
-    image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/400/600`
+    image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/400/600`,
+    isBoosted: !!(u.boostedUntil?.toMillis ? u.boostedUntil.toMillis() > Date.now() : false),
+    isVIP: !!u.isVIP
   }))
 
   return (
@@ -154,11 +177,29 @@ export default function DiscoverPage() {
         {mappedUsers.map((user) => (
           <div 
             key={user.id} 
-            className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm transition-opacity active:opacity-80"
+            className={cn(
+              "group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm transition-all active:opacity-80",
+              user.isBoosted && "ring-2 ring-orange-500 ring-offset-2",
+              user.isVIP && "ring-2 ring-amber-400 ring-offset-2"
+            )}
             onClick={() => router.push(`/profile/${user.id}`)}
           >
             <Image src={user.image} alt={user.name} fill className="object-cover" data-ai-hint="dating profile photo" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+
+            {/* Status Icons */}
+            <div className="absolute top-3 left-3 flex flex-col gap-1.5">
+              {user.isBoosted && (
+                <div className="w-7 h-7 rounded-lg bg-orange-500 flex items-center justify-center shadow-lg animate-pulse">
+                  <Rocket className="w-4 h-4 text-white fill-current" />
+                </div>
+              )}
+              {user.isVIP && (
+                <div className="w-7 h-7 rounded-lg bg-amber-400 flex items-center justify-center shadow-lg">
+                  <Star className="w-4 h-4 text-zinc-900 fill-current" />
+                </div>
+              )}
+            </div>
 
             {/* Chat Icon */}
             <button 
