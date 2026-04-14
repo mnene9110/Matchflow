@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -13,7 +14,7 @@ import { Loader2 } from "lucide-react"
 
 const TARGET_COUNTRIES = [
   "Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", 
-  "Madagascar", "Malawi", "Mauritius", "Mozambique", "Nigeria", 
+  "Madagascar", "Malawi", "Mauritius", "Mozambique", 
   "Rwanda", "Seychelles", "Somalia", "South Sudan", "Tanzania", 
   "Uganda", "Zambia", "Zimbabwe"
 ]
@@ -55,7 +56,8 @@ export default function FastOnboardingPage() {
         dateOfBirth: "2000-01-01",
         isVerified: false,
         isOnline: true,
-        agencyJoinStatus: "none"
+        agencyJoinStatus: "none",
+        visitorsUnlocked: false
       }
 
       await setDoc(doc(firestore, "userProfiles", user.uid), profileData);

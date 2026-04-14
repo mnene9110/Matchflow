@@ -15,14 +15,9 @@ import {
   Gamepad2,
   ClipboardList,
   Building2,
-  Shield,
-  Users as UsersIcon,
   Award,
   Zap,
   UserCog,
-  Star,
-  Rocket,
-  Trophy,
   Eye
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"

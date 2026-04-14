@@ -18,7 +18,6 @@ import {
   runTransaction 
 } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
-import { getVipLevelFromExp } from "@/app/profile/vip/page"
 
 export default function AwardCoinsPage() {
   const router = useRouter()
@@ -89,16 +88,9 @@ export default function AwardCoinsPage() {
           });
         }
 
-        // 2. Grant to Target + Award EXP (+)
-        const targetSnap = await transaction.get(targetRef);
-        const targetData = targetSnap.data();
-        const newExp = (targetData?.vipExp || 0) + amount;
-        const newLevel = getVipLevelFromExp(newExp);
-
+        // 2. Grant to Target
         transaction.update(targetRef, { 
           coinBalance: increment(amount),
-          vipExp: increment(amount), // Grant EXP for + coins
-          vipLevel: newLevel,
           updatedAt: new Date().toISOString()
         });
         
@@ -108,11 +100,11 @@ export default function AwardCoinsPage() {
           type: "award",
           amount: amount,
           transactionDate: new Date().toISOString(),
-          description: `Received coins from ${profile.isAdmin ? 'Admin' : 'Coinseller'} (+EXP)`
+          description: `Received coins from ${profile.isAdmin ? 'Admin' : 'Coinseller'}`
         });
       });
 
-      toast({ title: "Award Successful", description: `${amount} coins & EXP granted.` })
+      toast({ title: "Award Successful", description: `${amount} coins granted.` })
       router.back()
     } catch (error: any) {
       const msg = error.message === "INSUFFICIENT_COINS" ? "Insufficient coins in your wallet." : "An error occurred.";
@@ -160,7 +152,6 @@ export default function AwardCoinsPage() {
               <div className="flex-1">
                 <h3 className="font-black text-lg text-gray-900 leading-tight">{foundUser.username}</h3>
                 <p className="text-[10px] font-bold text-[#3BC1A8] uppercase tracking-widest">ID: {foundUser.numericId}</p>
-                <p className="text-[9px] font-bold text-gray-400 mt-1">Current VIP: {foundUser.vipLevel || 0}</p>
               </div>
             </div>
 
@@ -170,11 +161,10 @@ export default function AwardCoinsPage() {
                  <Award className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" />
                  <Input type="number" placeholder="0" value={awardAmount} onChange={(e) => setAwardAmount(e.target.value)} className="h-16 pl-14 rounded-3xl bg-white border-2 border-amber-500/20 text-2xl font-black focus-visible:ring-amber-500/10" />
               </div>
-              <p className="text-[8px] font-bold text-gray-400 uppercase tracking-widest text-center">User will gain 1 VIP EXP for every 1 awarded coin</p>
             </div>
 
             <Button className="w-full h-16 rounded-full bg-zinc-900 text-white font-black text-lg shadow-2xl active:scale-95 transition-all gap-3" onClick={handleAward} disabled={isAwarding || !awardAmount || Number(awardAmount) <= 0}>
-              {isAwarding ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span className="text-sm font-black uppercase tracking-widest">Grant Coins & EXP</span><ArrowRight className="w-5 h-5" /></>}
+              {isAwarding ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span className="text-sm font-black uppercase tracking-widest">Grant Coins</span><ArrowRight className="w-5 h-5" /></>}
             </Button>
           </section>
         )}

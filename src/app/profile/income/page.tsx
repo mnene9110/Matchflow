@@ -10,7 +10,6 @@ import { doc, increment as firestoreIncrement, collection, query, where, orderBy
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
-import { getVipLevelFromExp } from "@/app/profile/vip/page"
 
 export default function IncomePage() {
   const router = useRouter()
@@ -46,26 +45,20 @@ export default function IncomePage() {
     const blocks = Math.floor(diamondBalance / 500)
     const diamondsToDeduct = blocks * 500
     const coinsToGain = blocks * 150
-    const expToGain = coinsToGain // + Coin gains grant EXP
 
     try {
       await runTransaction(firestore, async (transaction) => {
         const snap = await transaction.get(meRef!);
         const currentData = snap.data();
         const currentDiamonds = currentData?.diamondBalance || 0;
-        const currentExp = (currentData?.vipExp || 0) + expToGain;
         
         if (currentDiamonds < diamondsToDeduct) {
           throw new Error("Insufficient diamond balance");
         }
 
-        const newLevel = getVipLevelFromExp(currentExp);
-
         transaction.update(meRef!, {
           diamondBalance: firestoreIncrement(-diamondsToDeduct),
           coinBalance: firestoreIncrement(coinsToGain),
-          vipExp: firestoreIncrement(expToGain),
-          vipLevel: newLevel,
           updatedAt: new Date().toISOString()
         });
 
@@ -76,11 +69,11 @@ export default function IncomePage() {
           amount: coinsToGain,
           diamondAmount: -diamondsToDeduct,
           transactionDate: new Date().toISOString(),
-          description: `Exchanged ${diamondsToDeduct} diamonds for ${coinsToGain} coins (+EXP)`
+          description: `Exchanged ${diamondsToDeduct} diamonds for ${coinsToGain} coins`
         });
       });
 
-      toast({ title: "Exchange Successful!", description: `Received ${coinsToGain} coins & EXP.` });
+      toast({ title: "Exchange Successful!", description: `Received ${coinsToGain} coins.` });
     } catch (error: any) {
       toast({ variant: "destructive", title: "Exchange Failed", description: error.message || "Error occurred." });
     } finally {

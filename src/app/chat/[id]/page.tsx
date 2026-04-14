@@ -11,8 +11,7 @@ import {
   ArrowUp, 
   Zap, 
   Phone, 
-  Video,
-  Heart
+  Video
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -39,7 +38,6 @@ import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
-import { Progress } from "@/components/ui/progress"
 
 export const GIFTS = [
   { id: 'mask', name: 'Party mask 🎭', emoji: '🎭', price: 20 },
@@ -76,35 +74,6 @@ export const GIFTS = [
   { id: 'universe', name: 'Universe Core 🌌✨', emoji: '🌌✨', price: 500000 },
 ]
 
-const INTIMACY_TIERS = [
-  { level: 1, name: "Stranger", min: 0 },
-  { level: 2, name: "Acquaintance", min: 50 },
-  { level: 3, name: "Friend", min: 200 },
-  { level: 4, name: "Close Friend", min: 1000 },
-  { level: 5, name: "Bestie", min: 5000 },
-  { level: 6, name: "Soulmate", min: 20000 },
-  { level: 7, name: "Eternal", min: 100000 },
-]
-
-export function getIntimacyData(score: number) {
-  let currentTier = INTIMACY_TIERS[0]
-  let nextTier = INTIMACY_TIERS[1]
-  
-  for (let i = INTIMACY_TIERS.length - 1; i >= 0; i--) {
-    if (score >= INTIMACY_TIERS[i].min) {
-      currentTier = INTIMACY_TIERS[i]
-      nextTier = INTIMACY_TIERS[i + 1] || null
-      break
-    }
-  }
-  
-  const progress = nextTier 
-    ? ((score - currentTier.min) / (nextTier.min - currentTier.min)) * 100 
-    : 100
-
-  return { currentTier, nextTier, progress }
-}
-
 function ChatDetailContent() {
   const params = useParams()
   const searchParams = useSearchParams()
@@ -132,8 +101,6 @@ function ChatDetailContent() {
   const [resolvedOtherUserId, setResolvedOtherUserId] = useState<string | null>(null)
   const [isResolvingId, setIsResolvingId] = useState(false)
 
-  const [chatMeta, setChatMeta] = useState<any>(null)
-
   useEffect(() => {
     if (otherUserId === 'customer_support' || otherUserId === 'support_agent') {
       setIsResolvingId(true)
@@ -160,14 +127,6 @@ function ChatDetailContent() {
 
   const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
   const { data: currentUserProfile } = useDoc(meRef)
-
-  useEffect(() => {
-    if (!firestore || !chatId) return
-    const chatRef = doc(firestore, "chats", chatId)
-    return onSnapshot(chatRef, (snap) => {
-      setChatMeta(snap.data())
-    })
-  }, [firestore, chatId])
 
   useEffect(() => {
     if (!firestore || !chatId) return
@@ -261,8 +220,7 @@ function ChatDetailContent() {
           timestamp: serverTimestamp(),
           participants: [currentUser.uid, resolvedOtherUserId],
           [`unreadCount_${resolvedOtherUserId}`]: increment(1),
-          [`userHasSent_${currentUser.uid}`]: true,
-          intimacyScore: increment(1) // 1 point per message
+          [`userHasSent_${currentUser.uid}`]: true
         }, { merge: true });
       });
 
@@ -309,8 +267,7 @@ function ChatDetailContent() {
           timestamp: serverTimestamp(),
           participants: [currentUser.uid, resolvedOtherUserId],
           [`unreadCount_${resolvedOtherUserId}`]: increment(1),
-          [`userHasSent_${currentUser.uid}`]: true,
-          intimacyScore: increment(finalPrice) // 1 point per 1 coin spent on gift
+          [`userHasSent_${currentUser.uid}`]: true
         }, { merge: true });
       });
 
@@ -365,9 +322,6 @@ function ChatDetailContent() {
   const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${resolvedOtherUserId}/200/200`
   const otherUserName = otherUser?.isSupport ? "Customer Support" : (otherUser?.username || "User")
   
-  const intimacyScore = chatMeta?.intimacyScore || 0
-  const { currentTier, nextTier, progress } = getIntimacyData(intimacyScore)
-
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       <header className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 bg-[#3BC1A8] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
@@ -385,65 +339,6 @@ function ChatDetailContent() {
             <span className="text-[8px] font-black uppercase tracking-widest text-white/40">{otherUser?.isOnline ? "Online" : "Offline"}</span>
           </div>
         </div>
-
-        {!otherUser?.isSupport && (
-          <Sheet>
-            <SheetTrigger asChild>
-              <button className="flex flex-col items-center mr-2 group">
-                <div className="relative">
-                  <Heart className="w-5 h-5 text-red-400 fill-current animate-pulse" />
-                  <span className="absolute -bottom-1 -right-1 bg-white text-red-500 text-[7px] font-black h-3 w-3 rounded-full flex items-center justify-center shadow-sm">{currentTier.level}</span>
-                </div>
-                <span className="text-[6px] font-black uppercase tracking-tighter mt-0.5 text-white/60">{currentTier.name}</span>
-              </button>
-            </SheetTrigger>
-            <SheetContent side="bottom" className="rounded-t-[3rem] p-8 space-y-8 bg-white border-none shadow-2xl">
-              <SheetHeader>
-                <SheetTitle className="text-center font-black font-headline text-2xl uppercase tracking-widest text-gray-900">Intimacy Level</SheetTitle>
-              </SheetHeader>
-              
-              <div className="flex flex-col items-center gap-6">
-                <div className="w-32 h-32 rounded-full bg-red-50 flex items-center justify-center border-4 border-red-100 shadow-inner">
-                  <Heart className="w-16 h-16 text-red-500 fill-current" />
-                </div>
-                <div className="text-center space-y-1">
-                  <h2 className="text-xl font-black text-gray-900">Lvl {currentTier.level}: {currentTier.name}</h2>
-                  <p className="text-[10px] font-bold text-gray-400 uppercase tracking-[0.2em]">{intimacyScore.toLocaleString()} Total Points</p>
-                </div>
-                <div className="w-full space-y-2">
-                  <div className="flex justify-between text-[10px] font-black uppercase tracking-widest text-gray-400">
-                    <span>{currentTier.name}</span>
-                    <span>{nextTier ? nextTier.name : "Max"}</span>
-                  </div>
-                  <Progress value={progress} className="h-3 bg-red-50" />
-                  {nextTier && (
-                    <p className="text-[9px] text-center font-bold text-gray-400 uppercase tracking-widest mt-2">
-                      Need {(nextTier.min - intimacyScore).toLocaleString()} more points to level up
-                    </p>
-                  )}
-                </div>
-              </div>
-
-              <div className="bg-gray-50 rounded-[2rem] p-6 space-y-4">
-                <h3 className="text-[10px] font-black uppercase tracking-widest text-primary">How to gain intimacy</h3>
-                <div className="grid grid-cols-1 gap-3">
-                  <div className="flex items-center gap-3 text-[11px] font-medium text-gray-600">
-                    <div className="w-2 h-2 rounded-full bg-red-400" />
-                    <span>Send 1 message = 1 Point</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] font-medium text-gray-600">
-                    <div className="w-2 h-2 rounded-full bg-red-400" />
-                    <span>Send 1 coin gift = 1 Point</span>
-                  </div>
-                  <div className="flex items-center gap-3 text-[11px] font-medium text-gray-600">
-                    <div className="w-2 h-2 rounded-full bg-red-400" />
-                    <span>Call 1 minute = 10 Points</span>
-                  </div>
-                </div>
-              </div>
-            </SheetContent>
-          </Sheet>
-        )}
 
         {!otherUser?.isSupport ? (
           <div className="flex items-center gap-1">

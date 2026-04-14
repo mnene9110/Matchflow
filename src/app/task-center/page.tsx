@@ -9,7 +9,6 @@ import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
 import { doc, writeBatch, increment, collection, serverTimestamp } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { getVipLevelFromExp } from "@/app/profile/vip/page"
 
 const REWARDS = [5, 5, 10, 5, 5, 7, 50]
 
@@ -53,18 +52,12 @@ export default function TaskCenterPage() {
         newStreak = ((profile?.checkInStreak || 0) % 7) + 1
       }
       const rewardAmount = REWARDS[newStreak - 1]
-      const expToGain = rewardAmount // Claiming (+) coins grants EXP
 
       const batch = writeBatch(firestore);
       const txRef = doc(collection(userRef, "transactions"));
       
-      const newTotalExp = (profile?.vipExp || 0) + expToGain;
-      const newLevel = getVipLevelFromExp(newTotalExp);
-
       batch.update(userRef, {
         coinBalance: increment(rewardAmount),
-        vipExp: increment(expToGain),
-        vipLevel: newLevel,
         lastCheckInDate: todayStr,
         checkInStreak: newStreak,
         lastActiveAt: serverTimestamp(),
@@ -76,12 +69,12 @@ export default function TaskCenterPage() {
         type: "check-in",
         amount: rewardAmount,
         transactionDate: new Date().toISOString(),
-        description: `Daily check-in Day ${newStreak} (+EXP)`
+        description: `Daily check-in Day ${newStreak}`
       });
 
       await batch.commit();
 
-      toast({ title: "Coins Claimed!", description: `You've received ${rewardAmount} coins & EXP.` })
+      toast({ title: "Coins Claimed!", description: `You've received ${rewardAmount} coins.` })
     } catch (error: any) {
       toast({ variant: "destructive", title: "Claim Failed", description: "An error occurred." })
     } finally {
@@ -111,7 +104,7 @@ export default function TaskCenterPage() {
       <main className="flex-1 overflow-y-auto px-6 pb-20 space-y-8 pt-6">
         <section className="bg-gray-50 rounded-[3rem] p-8 border border-gray-100 relative overflow-hidden shadow-sm">
           <div className="flex justify-between items-start mb-8">
-            <div className="space-y-2"><h2 className="text-3xl font-black font-headline leading-tight text-gray-900">Daily Attendance</h2><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Maintain your streak for bonus EXP</p></div>
+            <div className="space-y-2"><h2 className="text-3xl font-black font-headline leading-tight text-gray-900">Daily Attendance</h2><p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Maintain your streak for bonuses</p></div>
             <div className="w-12 h-12 rounded-2xl bg-[#3BC1A8]/10 border border-[#3BC1A8]/20 flex items-center justify-center"><Trophy className="w-5 h-5 text-[#3BC1A8]" /></div>
           </div>
 

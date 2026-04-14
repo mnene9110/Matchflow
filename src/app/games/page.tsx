@@ -14,7 +14,6 @@ import {
 } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
-import { getVipLevelFromExp } from "@/app/profile/vip/page"
 
 const GAME_BETS = [20, 50, 100, 200, 500]
 
@@ -121,19 +120,8 @@ export default function GamesCenterPage() {
 
         const netChange = winAmount - selectedBet;
         
-        // Gaining coins (+) grants EXP
-        let expToGain = 0;
-        if (winAmount > selectedBet) {
-          expToGain = winAmount - selectedBet;
-        }
-
-        const currentExp = (currentData?.vipExp || 0) + expToGain;
-        const newLevel = getVipLevelFromExp(currentExp);
-
         transaction.update(meRef!, { 
           coinBalance: firestoreIncrement(netChange),
-          vipExp: firestoreIncrement(expToGain),
-          vipLevel: newLevel,
           updatedAt: new Date().toISOString()
         });
 
@@ -145,7 +133,7 @@ export default function GamesCenterPage() {
           bet: selectedBet,
           win: winAmount,
           transactionDate: new Date().toISOString(),
-          description: `Lucky Spin: Won ${winAmount} coins (+${expToGain} EXP)`
+          description: `Lucky Spin: Won ${winAmount} coins`
         });
       });
 
@@ -208,13 +196,12 @@ export default function GamesCenterPage() {
           <Button onClick={handleLuckySpin} disabled={!selectedBet || isSpinning || userCoins < (selectedBet || 0)} className={cn("w-full h-18 rounded-full text-white font-black text-lg shadow-2xl transition-all", selectedBet && userCoins >= selectedBet ? "bg-[#3BC1A8]" : "bg-white/5 text-zinc-700")}>
             {isSpinning ? "SPINNING..." : "PLACE BET"}
           </Button>
-          <p className="text-[8px] font-black text-zinc-600 uppercase text-center tracking-widest">Winning coins are added to your balance and VIP EXP</p>
         </section>
       </main>
 
       {gameResult && (
         <div className="fixed inset-0 z-[100] bg-black/95 backdrop-blur-md flex flex-col items-center justify-center p-8 animate-in fade-in duration-500 text-center space-y-6">
-          {gameResult.winner ? (<><div className="w-32 h-32 bg-[#3BC1A8]/20 rounded-full flex items-center justify-center mx-auto border-4 border-[#3BC1A8] animate-bounce"><Trophy className="w-16 h-16 text-[#3BC1A8]" /></div><div className="space-y-2"><h2 className="text-5xl font-black font-headline text-[#3BC1A8] uppercase">WON!</h2><p className="text-white font-bold text-xl">{gameResult.pot} COINS + EXP</p></div></>) : (<><div className="w-32 h-32 bg-red-500/10 rounded-full flex items-center justify-center mx-auto border-4 border-red-500/20"><Dice5 className="w-16 h-16 text-red-500/40" /></div><h2 className="text-4xl font-black font-headline text-white/40 uppercase">LOST</h2></>)}
+          {gameResult.winner ? (<><div className="w-32 h-32 bg-[#3BC1A8]/20 rounded-full flex items-center justify-center mx-auto border-4 border-[#3BC1A8] animate-bounce"><Trophy className="w-16 h-16 text-[#3BC1A8]" /></div><div className="space-y-2"><h2 className="text-5xl font-black font-headline text-[#3BC1A8] uppercase">WON!</h2><p className="text-white font-bold text-xl">{gameResult.pot} COINS</p></div></>) : (<><div className="w-32 h-32 bg-red-500/10 rounded-full flex items-center justify-center mx-auto border-4 border-red-500/20"><Dice5 className="w-16 h-16 text-red-500/40" /></div><h2 className="text-4xl font-black font-headline text-white/40 uppercase">LOST</h2></>)}
           <Button onClick={() => setGameResult(null)} className="mt-10 rounded-full bg-[#3BC1A8] text-white px-12 h-14 font-black uppercase text-xs tracking-widest">CONTINUE</Button>
         </div>
       )}
