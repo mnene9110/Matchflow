@@ -3,8 +3,16 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Send, Loader2, CheckCircle, UserX, ArrowUp, Zap, Headset } from "lucide-react"
-import Image from "next/image"
+import { 
+  ChevronLeft, 
+  Send, 
+  Loader2, 
+  CheckCircle, 
+  ArrowUp, 
+  Zap, 
+  Phone, 
+  Video 
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -179,10 +187,6 @@ function ChatDetailContent() {
     const textToUse = textOverride || inputText;
     if (!textToUse.trim() || !currentUser || !chatId || !firestore || !resolvedOtherUserId || !otherUser || isSending || !currentUserProfile) return
     
-    // Condition for free chatting:
-    // 1. Current user is Admin, Support, or Coinseller
-    // 2. The recipient is Admin, Support, or Coinseller
-    // 3. Current user is Female
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
                    currentUserProfile.isCoinseller || 
@@ -246,10 +250,7 @@ function ChatDetailContent() {
     if (!gift || !currentUser || !resolvedOtherUserId || isSendingGift || !currentUserProfile || !firestore || !otherUser) return;
     
     setIsSendingGift(true);
-    
     const finalPrice = gift.price;
-    
-    // Applying VIP Multiplier for Receiver
     const receiverMultiplier = getVipDiamondMultiplier(otherUser.vipLevel || 0);
     const diamondGain = Math.floor(gift.price * 0.6 * receiverMultiplier);
 
@@ -294,6 +295,36 @@ function ChatDetailContent() {
     } finally { setIsSendingGift(false) }
   }
 
+  const handleInitiateCall = async (type: 'audio' | 'video') => {
+    if (!currentUser || !resolvedOtherUserId || !firestore || !currentUserProfile) return;
+    
+    const cost = type === 'video' ? 160 : 80;
+    const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.gender?.toLowerCase() === 'female';
+
+    if (!isFree && (currentUserProfile.coinBalance || 0) < cost) {
+      toast({ variant: "destructive", title: "Insufficient Coins", description: `You need at least ${cost} coins to start a ${type} call.` });
+      return;
+    }
+
+    try {
+      const callData = {
+        callerId: currentUser.uid,
+        callerName: currentUserProfile.username,
+        receiverId: resolvedOtherUserId,
+        status: 'ringing',
+        callType: type,
+        timestamp: Date.now(),
+        costPerMin: cost,
+        isFree: isFree
+      };
+
+      await setDoc(doc(firestore, "calls", chatId), callData);
+      await updateDoc(doc(firestore, "userProfiles", resolvedOtherUserId), { incomingCallId: chatId });
+    } catch (e) {
+      toast({ variant: "destructive", title: "Call Failed" });
+    }
+  }
+
   if (isOtherUserLoading || isResolvingId) {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
@@ -301,28 +332,32 @@ function ChatDetailContent() {
   const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${resolvedOtherUserId}/200/200`
   const otherUserName = otherUser?.isSupport ? "Customer Support" : (otherUser?.username || "User")
   
-  // VIP Name Coloring
   const vipLevel = otherUser?.vipLevel || 0;
   const nameColor = vipLevel >= 3 ? "text-amber-500" : (vipLevel >= 1 ? "text-blue-500" : "text-white");
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
-      <header className="px-5 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 bg-[#3BC1A8] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
+      <header className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 bg-[#3BC1A8] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><ChevronLeft className="w-5 h-5" /></Button>
-        <div className="flex items-center gap-2.5 transition-opacity flex-1 justify-center cursor-pointer active:opacity-70" onClick={() => router.push(`/profile/${resolvedOtherUserId}`)}>
-          <Avatar className="w-8 h-8 border border-white/20 shadow-sm">
+        <div className="flex items-center gap-2.5 transition-opacity flex-1 justify-center cursor-pointer active:opacity-70 px-2 min-w-0" onClick={() => router.push(`/profile/${resolvedOtherUserId}`)}>
+          <Avatar className="w-8 h-8 border border-white/20 shadow-sm shrink-0">
             <AvatarImage src={otherUserImage} className="object-cover" />
             <AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback>
           </Avatar>
-          <div className="flex flex-col text-center">
-            <div className="flex items-center justify-center gap-1">
-              <h3 className={cn("font-black text-[12px] leading-tight", nameColor)}>{otherUserName}</h3>
+          <div className="flex flex-col truncate">
+            <div className="flex items-center gap-1">
+              <h3 className={cn("font-black text-[12px] leading-tight truncate", nameColor)}>{otherUserName}</h3>
               {otherUser?.isVerified && <CheckCircle className="w-2.5 h-2.5 text-white" />}
             </div>
             <span className="text-[8px] font-black uppercase tracking-widest text-white/40">{otherUser?.isOnline ? "Online" : "Offline"}</span>
           </div>
         </div>
-        <div className="w-9" />
+        {!otherUser?.isSupport ? (
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" onClick={() => handleInitiateCall('audio')} className="h-9 w-9 rounded-full bg-white/20 text-white active:scale-90 transition-transform"><Phone className="w-4 h-4" /></Button>
+            <Button variant="ghost" size="icon" onClick={() => handleInitiateCall('video')} className="h-9 w-9 rounded-full bg-white/20 text-white active:scale-90 transition-transform"><Video className="w-4 h-4" /></Button>
+          </div>
+        ) : <div className="w-9" />}
       </header>
 
       <ScrollArea className="flex-1 px-4 py-4 bg-white">
@@ -370,54 +405,51 @@ function ChatDetailContent() {
         </div>
       </ScrollArea>
 
-      <footer className="px-5 py-5 pb-8 space-y-4 bg-white border-t border-gray-50">
-        <div className="relative group">
-          <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px]" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
+      <footer className="px-5 py-5 pb-8 bg-white border-t border-gray-50 flex items-center gap-3">
+        {!otherUser?.isSupport && (
+          <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl bg-gray-50 text-amber-500 border border-gray-100 shrink-0 shadow-sm active:scale-90 transition-transform">
+                <Zap className="w-5 h-5 fill-current" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="bottom" className="rounded-t-[3rem] h-[75svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
+              <SheetHeader className="px-6 pt-8 pb-4 shrink-0"><SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Select a Gift</SheetTitle></SheetHeader>
+              <div className="flex-1 overflow-y-auto px-4 pb-32">
+                <div className="grid grid-cols-4 gap-2">
+                  {GIFTS.map((gift) => {
+                    return (
+                      <div key={gift.id} onClick={() => setSelectedGift(gift)} className={cn("flex flex-col items-center gap-2 p-2 rounded-2xl border transition-all cursor-pointer", selectedGift?.id === gift.id ? "bg-primary/20 border-primary" : "bg-transparent border-transparent")}>
+                        <div className="text-4xl">{gift.emoji}</div>
+                        <div className="flex flex-col items-center">
+                          <div className="flex items-center gap-1">
+                            <span className="text-[10px] font-black text-amber-400">{gift.price}</span>
+                          </div>
+                          <span className="text-[8px] font-bold text-zinc-400 truncate w-full text-center">{gift.name}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+              <footer className="absolute bottom-0 left-0 right-0 p-6 bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-800 flex items-center justify-between z-50">
+                <div className="flex items-center gap-1.5 bg-zinc-800 px-3 py-2 rounded-full border border-zinc-700">
+                  <div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[8px] font-black text-zinc-900 italic">S</div>
+                  <span className="text-xs font-black">{(currentUserProfile?.coinBalance || 0).toLocaleString()}</span>
+                </div>
+                <Button onClick={() => handleSendGift()} disabled={!selectedGift || isSendingGift} className="h-12 px-10 rounded-full bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl">
+                  {isSendingGift ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
+                </Button>
+              </footer>
+            </SheetContent>
+          </Sheet>
+        )}
+        <div className="relative flex-1 group">
+          <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
           <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
-        {!otherUser?.isSupport && (
-          <div className="grid grid-cols-1 gap-2">
-            <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
-              <SheetTrigger asChild>
-                <button className="flex items-center justify-center gap-2 bg-gray-50 h-14 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
-                  <Zap className="w-4 h-4 text-amber-500" />
-                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Send Virtual Gift</span>
-                </button>
-              </SheetTrigger>
-              <SheetContent side="bottom" className="rounded-t-[3rem] h-[75svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
-                <SheetHeader className="px-6 pt-8 pb-4 shrink-0"><SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Select a Gift</SheetTitle></SheetHeader>
-                <div className="flex-1 overflow-y-auto px-4 pb-32">
-                  <div className="grid grid-cols-4 gap-2">
-                    {GIFTS.map((gift) => {
-                      return (
-                        <div key={gift.id} onClick={() => setSelectedGift(gift)} className={cn("flex flex-col items-center gap-2 p-2 rounded-2xl border transition-all cursor-pointer", selectedGift?.id === gift.id ? "bg-primary/20 border-primary" : "bg-transparent border-transparent")}>
-                          <div className="text-4xl">{gift.emoji}</div>
-                          <div className="flex flex-col items-center">
-                            <div className="flex items-center gap-1">
-                              <span className="text-[10px] font-black text-amber-400">{gift.price}</span>
-                            </div>
-                            <span className="text-[8px] font-bold text-zinc-400 truncate w-full text-center">{gift.name}</span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-                <footer className="absolute bottom-0 left-0 right-0 p-6 bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-800 flex items-center justify-between z-50">
-                  <div className="flex items-center gap-1.5 bg-zinc-800 px-3 py-2 rounded-full border border-zinc-700">
-                    <div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[8px] font-black text-zinc-900 italic">S</div>
-                    <span className="text-xs font-black">{(currentUserProfile?.coinBalance || 0).toLocaleString()}</span>
-                  </div>
-                  <Button onClick={() => handleSendGift()} disabled={!selectedGift || isSendingGift} className="h-12 px-10 rounded-full bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl">
-                    {isSendingGift ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
-                  </Button>
-                </footer>
-              </SheetContent>
-            </Sheet>
-          </div>
-        )}
       </footer>
     </div>
   )
