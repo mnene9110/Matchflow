@@ -318,9 +318,15 @@ function ChatDetailContent() {
         isFree: isFree
       };
 
+      // Set the call document
       await setDoc(doc(firestore, "calls", chatId), callData);
+      
+      // Update BOTH profiles with the incomingCallId to trigger the GlobalCallOverlay for both users
       await updateDoc(doc(firestore, "userProfiles", resolvedOtherUserId), { incomingCallId: chatId });
+      await updateDoc(doc(firestore, "userProfiles", currentUser.uid), { incomingCallId: chatId });
+      
     } catch (e) {
+      console.error("Call initiation failed:", e);
       toast({ variant: "destructive", title: "Call Failed" });
     }
   }
