@@ -3,7 +3,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Gem, Coins, ArrowRightLeft, Loader2, Info, ArrowUpRight, History, ArrowDownLeft } from "lucide-center"
+import { ChevronLeft, Gem, Coins, ArrowRightLeft, Loader2, Info, ArrowUpRight, History, ArrowDownLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useUser, useMemoFirebase, useFirebase, useCollection, useDoc } from "@/firebase"
 import { doc, increment as firestoreIncrement, collection, query, where, orderBy, limit, runTransaction } from "firebase/firestore"
