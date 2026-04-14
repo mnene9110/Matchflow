@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { RotateCcw, Loader2, MessageSquare, RotateCw, Trophy } from "lucide-react"
+import { RotateCcw, Loader2, MessageSquare, Trophy } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, where, limit, getDocs, doc } from "firebase/firestore"
 import { cn } from "@/lib/utils"
@@ -116,9 +116,6 @@ export default function DiscoverPage() {
       <div className="sticky top-0 z-30 bg-[#3BC1A8] px-6 py-1.5 flex items-center justify-between shadow-sm">
         <h2 className="text-[10px] font-black text-white capitalize tracking-widest">Recommended</h2>
         <div className="flex items-center gap-2">
-          <button onClick={() => router.push('/chat')} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform">
-            <MessageSquare className="w-3.5 h-3.5" />
-          </button>
           <button onClick={handleRefresh} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform">
             {isInitialLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
           </button>
@@ -145,6 +142,18 @@ export default function DiscoverPage() {
                     <span className="text-[8px] font-black text-white">V{vipLevel}</span>
                   </div>
                 )}
+              </div>
+
+              <div className="absolute top-3 right-3 z-10">
+                <button 
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/chat/${user.id}`);
+                  }}
+                  className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg"
+                >
+                  <MessageSquare className="w-3.5 h-3.5 fill-current" />
+                </button>
               </div>
 
               <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
