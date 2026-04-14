@@ -17,15 +17,6 @@ export function clearDiscoverCache() {
   cachedInitialLoaded = false
 }
 
-function shuffleArray<T>(array: T[]): T[] {
-  const newArr = [...array];
-  for (let i = newArr.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [newArr[i], newArr[j]] = [newArr[j], newArr[i]];
-  }
-  return newArr;
-}
-
 export default function DiscoverPage() {
   const { firestore } = useFirebase()
   const { user: currentUser } = useUser()
@@ -69,7 +60,7 @@ export default function DiscoverPage() {
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((u: any) => u.isSupport !== true && u.id !== currentUser.uid);
       
-      // SORTING: VIP 15 -> VIP 14 -> ... -> Regular Users
+      // Sort: Highest VIP First, then Online status
       const sorted = allUsers.sort((a: any, b: any) => {
         const aLevel = a.vipLevel || 0;
         const bLevel = b.vipLevel || 0;
@@ -106,109 +97,60 @@ export default function DiscoverPage() {
     return age;
   }
 
-  const mappedUsers = users.map(u => ({
-    id: u.id,
-    name: u.username || "Match",
-    location: u.location || "Kenya",
-    age: calculateAge(u.dateOfBirth),
-    image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/400/600`,
-    vipLevel: u.vipLevel || 0
-  }))
-
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
       <div className="bg-[#3BC1A8] px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-3">
         <div className="grid grid-cols-2 gap-4">
-          <button 
-            onClick={() => router.push('/mystery-note')}
-            className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] active:scale-95 transition-all group"
-          >
-            <div className="w-12 h-12 relative">
-              <Image src="/mystery.png" alt="Mystery" fill className="object-contain" />
-            </div>
+          <button onClick={() => router.push('/mystery-note')} className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] active:scale-95 transition-all">
+            <div className="w-12 h-12 relative"><Image src="/mystery.png" alt="Mystery" fill className="object-contain" /></div>
             <span className="text-[10px] font-black uppercase tracking-widest text-white">Mystery Note</span>
           </button>
-          
-          <button 
-            onClick={() => router.push('/task-center')}
-            className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] active:scale-95 transition-all group"
-          >
-            <div className="w-12 h-12 relative">
-              <Image src="/task.png" alt="Tasks" fill className="object-contain" />
-            </div>
+          <button onClick={() => router.push('/task-center')} className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] active:scale-95 transition-all">
+            <div className="w-12 h-12 relative"><Image src="/task.png" alt="Tasks" fill className="object-contain" /></div>
             <span className="text-[10px] font-black uppercase tracking-widest text-white">Task Center</span>
           </button>
         </div>
       </div>
 
-      <div className="sticky top-0 z-30 bg-[#3BC1A8] px-6 py-1.5 flex items-center justify-between">
-        <h2 className="text-[10px] font-black text-white capitalize tracking-widest">Recommended for you</h2>
-        <button 
-          onClick={handleRefresh}
-          disabled={isInitialLoading}
-          className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:bg-white/10 transition-colors"
-        >
+      <div className="sticky top-0 z-30 bg-[#3BC1A8] px-6 py-1.5 flex items-center justify-between shadow-sm">
+        <h2 className="text-[10px] font-black text-white capitalize tracking-widest">Recommended</h2>
+        <button onClick={handleRefresh} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white">
           {isInitialLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
         </button>
       </div>
 
       <main className="px-4 grid grid-cols-2 gap-3 mt-4">
-        {mappedUsers.map((user) => (
-          <div 
-            key={user.id} 
-            className={cn(
-              "group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm transition-all active:opacity-80",
-              user.vipLevel >= 10 && "ring-2 ring-amber-400 ring-offset-2"
-            )}
-            onClick={() => router.push(`/profile/${user.id}`)}
-          >
-            <Image src={user.image} alt={user.name} fill className="object-cover" data-ai-hint="dating profile photo" />
-            <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+        {users.map((user) => {
+          const age = calculateAge(user.dateOfBirth);
+          const image = (user.profilePhotoUrls && user.profilePhotoUrls[0]) || `https://picsum.photos/seed/${user.id}/400/600`;
+          const vipLevel = user.vipLevel || 0;
+          const nameColor = vipLevel >= 3 ? "text-amber-400" : (vipLevel >= 1 ? "text-blue-400" : "text-white");
+          const hasGlow = vipLevel >= 3;
 
-            <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-              {user.vipLevel > 0 && (
-                <div className={cn(
-                  "px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg",
-                  user.vipLevel >= 10 ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-zinc-900/80"
-                )}>
-                  <Trophy className="w-2.5 h-2.5 text-amber-400 fill-current" />
-                  <span className="text-[8px] font-black text-white">VIP {user.vipLevel}</span>
-                </div>
-              )}
-            </div>
+          return (
+            <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className={cn("group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95", hasGlow && "shadow-[0_0_20px_rgba(59,193,168,0.4)] ring-2 ring-primary/20")}>
+              <Image src={image} alt={user.username} fill className="object-cover" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+              
+              <div className="absolute top-3 left-3 flex flex-col gap-1">
+                {vipLevel > 0 && (
+                  <div className={cn("px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg", vipLevel >= 10 ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-zinc-900/80")}>
+                    <Trophy className="w-2.5 h-2.5 text-amber-400 fill-current" />
+                    <span className="text-[8px] font-black text-white">V{vipLevel}</span>
+                  </div>
+                )}
+              </div>
 
-            <button 
-              onClick={(e) => { 
-                e.stopPropagation(); 
-                router.push(`/chat/${user.id}`); 
-              }}
-              className="absolute top-3 right-3 w-9 h-9 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center shadow-lg active:scale-90 transition-all z-10"
-            >
-              <MessageSquare className="w-4 h-4 text-white fill-current" />
-            </button>
-
-            <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
-              <h3 className={cn(
-                "text-xs tracking-wider truncate",
-                user.vipLevel >= 10 ? "text-amber-400 font-black" : "text-white font-black"
-              )}>
-                {user.name}
-              </h3>
-              <div className="flex items-center gap-1.5">
-                <div className="w-6 h-6 rounded-full bg-black flex items-center justify-center border border-white/20">
-                  <span className="text-[9px] font-black text-white">{user.age}</span>
-                </div>
-                <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20">
-                  <span className="text-[8px] font-black text-white uppercase tracking-tighter">{user.location}</span>
+              <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
+                <h3 className={cn("text-xs font-black truncate tracking-wide", nameColor)}>{user.username}</h3>
+                <div className="flex items-center gap-1.5">
+                  <div className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center border border-white/20"><span className="text-[9px] font-black text-white">{age}</span></div>
+                  <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20"><span className="text-[8px] font-black text-white uppercase">{user.location || "Kenya"}</span></div>
                 </div>
               </div>
             </div>
-          </div>
-        ))}
-
-        {isInitialLoading && Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="aspect-[3/3.8] rounded-[2rem] bg-gray-100 animate-pulse" />
-        ))}
+          )
+        })}
       </main>
     </div>
   )

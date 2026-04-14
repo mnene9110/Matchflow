@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -23,12 +24,13 @@ import {
   runTransaction,
   setDoc,
   where,
-  getDocs
+  getDocs 
 } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { getVipDiscount, getVipDiamondMultiplier } from "@/app/profile/vip/page"
 
 export const GIFTS = [
   { id: 'mask', name: 'Party mask 🎭', emoji: '🎭', price: 20 },
@@ -72,7 +74,6 @@ function ChatDetailContent() {
   const [resolvedOtherUserId, setResolvedOtherUserId] = useState<string | null>(null)
   const [isResolvingId, setIsResolvingId] = useState(false)
 
-  // Robust handling for 'customer_support' ID
   useEffect(() => {
     if (otherUserId === 'customer_support' || otherUserId === 'support_agent') {
       setIsResolvingId(true)
@@ -81,7 +82,7 @@ function ChatDetailContent() {
         if (!snap.empty) {
           setResolvedOtherUserId(snap.docs[0].id)
         } else {
-          setResolvedOtherUserId(otherUserId) // Fallback to current string
+          setResolvedOtherUserId(otherUserId)
         }
       }).finally(() => setIsResolvingId(false))
     } else {
@@ -153,94 +154,16 @@ function ChatDetailContent() {
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
-  const handleInitiateCall = async (type: 'video' | 'audio') => {
-    if (!firestore || !chatId || !currentUser || !currentUserProfile || !otherUser) return
-
-    if (otherUser.inCall) {
-      toast({ variant: "destructive", title: "User Busy", description: "This user is currently on another call." });
-      return;
-    }
-
-    const dndKey = type === 'video' ? 'dndVideo' : 'dndVoice';
-    if (otherUser.settings?.[dndKey]) {
-      toast({ variant: "destructive", title: "Do Not Disturb", description: `This user has enabled DND for ${type} calls.` });
-      return;
-    }
-
-    const costPerMin = type === 'video' ? 160 : 80;
-    const userCoins = currentUserProfile.coinBalance || 0;
-    const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.isCoinseller || otherUser.isSupport || otherUser.isCoinseller;
-
-    if (!isFree && userCoins < costPerMin) {
-      toast({
-        variant: "destructive",
-        title: "Insufficient Balance",
-        description: `You need at least ${costPerMin} coins to start this call.`,
-        action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button>
-      });
-      return;
-    }
-
-    const callRef = doc(firestore, "calls", chatId);
-    const callData = { 
-      callerId: currentUser.uid, 
-      receiverId: resolvedOtherUserId, 
-      status: 'ringing', 
-      callType: type, 
-      timestamp: Date.now(),
-      callerName: currentUserProfile.username || 'Someone',
-      costPerMin: costPerMin,
-      isFree: isFree
-    };
-
-    setDoc(callRef, callData).catch(async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: callRef.path,
-          operation: 'create',
-          requestResourceData: callData
-        }));
-      }
-    });
-
-    const otherUserDocRef = doc(firestore, "userProfiles", resolvedOtherUserId!);
-    updateDoc(otherUserDocRef, { incomingCallId: chatId }).catch(async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: otherUserDocRef.path,
-          operation: 'update',
-          requestResourceData: { incomingCallId: chatId }
-        }));
-      }
-    });
-
-    const myUserDocRef = doc(firestore, "userProfiles", currentUser.uid);
-    updateDoc(myUserDocRef, { incomingCallId: chatId }).catch(async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: myUserDocRef.path,
-          operation: 'update',
-          requestResourceData: { incomingCallId: chatId }
-        }));
-      }
-    });
-  }
-
   const handleSendMessage = async (textOverride?: string) => {
     const textToUse = textOverride || inputText;
     if (!textToUse.trim() || !currentUser || !chatId || !firestore || !resolvedOtherUserId || !otherUser || isSending || !currentUserProfile) return
-    
-    const isMemberOfMyAgency = currentUserProfile.agencyId && otherUser.memberOfAgencyId === currentUserProfile.agencyId;
-    const isMyAgent = currentUserProfile.memberOfAgencyId && otherUser.agencyId === currentUserProfile.memberOfAgencyId;
     
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
                    currentUserProfile.isCoinseller || 
                    otherUser.isSupport || 
                    otherUser.isCoinseller || 
-                   currentUserProfile.gender?.toLowerCase() === 'female' || 
-                   isMemberOfMyAgency || 
-                   isMyAgent;
+                   currentUserProfile.gender?.toLowerCase() === 'female';
 
     const messageCost = isFree ? 0 : 15;
     
@@ -286,20 +209,10 @@ function ChatDetailContent() {
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({ variant: "destructive", title: "Insufficient Coins", description: "Recharge to continue chatting.", action: <Button onClick={() => router.push('/recharge')} size="sm" className="bg-white text-primary">Recharge</Button> });
-      } else if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `chats/${chatId}`,
-          operation: 'write'
-        }));
       } else {
-        toast({ variant: "destructive", title: "Send Failed", description: "Check your connection." });
+        toast({ variant: "destructive", title: "Send Failed" });
       }
     } finally { setIsSending(false) }
-  }
-
-  const handleSendPackages = () => {
-    const packageMsg = `Hello! Here are our available coin packages:\n\n• 500 Coins\n- 1,000 Coins\n- 2,000 Coins\n- 5,000 Coins\n- 10,000 Coins\n- 12,500 Coins\n\nPlease let me know which one you would like to purchase!`;
-    handleSendMessage(packageMsg);
   }
 
   const handleSendGift = async (giftOverride?: typeof GIFTS[0]) => {
@@ -307,23 +220,27 @@ function ChatDetailContent() {
     if (!gift || !currentUser || !resolvedOtherUserId || isSendingGift || !currentUserProfile || !firestore || !otherUser) return;
     
     setIsSendingGift(true);
-    const giftPrice = gift.price;
-    const diamondGain = Math.floor(giftPrice * 0.6);
+    
+    const discount = getVipDiscount(currentUserProfile.vipLevel || 0);
+    const finalPrice = Math.floor(gift.price * (1 - discount));
+    
+    const receiverMultiplier = getVipDiamondMultiplier(otherUser.vipLevel || 0);
+    const diamondGain = Math.floor(gift.price * 0.6 * receiverMultiplier);
 
     try {
       await runTransaction(firestore, async (transaction) => {
         const myProfileSnap = await transaction.get(meRef!);
         const myBalance = myProfileSnap.data()?.coinBalance || 0;
-        if (myBalance < giftPrice) throw new Error("INSUFFICIENT_COINS");
+        if (myBalance < finalPrice) throw new Error("INSUFFICIENT_COINS");
 
-        transaction.update(meRef!, { coinBalance: increment(-giftPrice) });
+        transaction.update(meRef!, { coinBalance: increment(-finalPrice) });
         transaction.update(otherUserRef!, { diamondBalance: increment(diamondGain) });
 
         const senderLogRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
-        transaction.set(senderLogRef, { id: senderLogRef.id, type: "gift_sent", amount: -giftPrice, transactionDate: new Date().toISOString(), description: `Sent ${gift.name} to ${otherUser.username}` });
+        transaction.set(senderLogRef, { id: senderLogRef.id, type: "gift_sent", amount: -finalPrice, transactionDate: new Date().toISOString(), description: `Sent ${gift.name} (VIP Discount applied)` });
 
         const receiverLogRef = doc(collection(firestore, "userProfiles", resolvedOtherUserId, "transactions"));
-        transaction.set(receiverLogRef, { id: receiverLogRef.id, type: "gift_received", amount: diamondGain, transactionDate: new Date().toISOString(), description: `Received ${gift.name} from ${currentUserProfile.username}` });
+        transaction.set(receiverLogRef, { id: receiverLogRef.id, type: "gift_received", amount: diamondGain, transactionDate: new Date().toISOString(), description: `Received ${gift.name} from ${currentUserProfile.username} (VIP Bonus applied)` });
 
         const giftMessage = `🎁 Sent a gift: ${gift.name}`;
         const msgRef = doc(collection(firestore, "chats", chatId, "messages"));
@@ -339,19 +256,14 @@ function ChatDetailContent() {
         }, { merge: true });
       });
 
-      toast({ title: "Gift Sent!", description: `You sent a ${gift.name}.` });
+      toast({ title: "Gift Sent!", description: `Sent for ${finalPrice} coins.` });
       setIsGiftSheetOpen(false);
       setSelectedGift(null);
     } catch (error: any) {
       if (error.message === "INSUFFICIENT_COINS") {
-        toast({ variant: "destructive", title: "Insufficient Coins", description: "Please recharge to send this gift." });
-      } else if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `chats/${chatId}`,
-          operation: 'write'
-        }));
+        toast({ variant: "destructive", title: "Insufficient Coins" });
       } else {
-        toast({ variant: "destructive", title: "Gift Failed", description: "Could not deliver gift." });
+        toast({ variant: "destructive", title: "Gift Failed" });
       }
     } finally { setIsSendingGift(false) }
   }
@@ -360,81 +272,44 @@ function ChatDetailContent() {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
 
-  if (!otherUser && resolvedOtherUserId !== 'customer_support' && resolvedOtherUserId !== 'support_agent') {
-    return (
-      <div className="flex flex-col items-center justify-center h-svh bg-white p-6 text-center space-y-6">
-        <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100">
-          <UserX className="w-12 h-12 text-gray-300" />
-        </div>
-        <div className="space-y-2">
-          <h2 className="text-3xl font-black font-headline text-gray-900 tracking-tight">User logged out</h2>
-          <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">This account no longer exists or has been deactivated.</p>
-        </div>
-        <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">Go Back</Button>
-      </div>
-    )
-  }
-
-  // Handle support agents who might not have a profile yet but are assigned by role
-  const isGenericSupport = !otherUser && (resolvedOtherUserId === 'customer_support' || resolvedOtherUserId === 'support_agent');
-  const otherUserImage = isGenericSupport ? "" : ((otherUser.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${resolvedOtherUserId}/200/200`)
-  const otherUserName = isGenericSupport ? "Customer Support" : (otherUser.isSupport ? "Customer Support" : (otherUser.username || "User"))
-  const presenceText = otherUser?.isOnline ? "Online" : "Offline"
+  const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${resolvedOtherUserId}/200/200`
+  const otherUserName = otherUser?.isSupport ? "Customer Support" : (otherUser?.username || "User")
+  
+  const vipLevel = otherUser?.vipLevel || 0;
+  const nameColor = vipLevel >= 3 ? "text-amber-500" : (vipLevel >= 1 ? "text-blue-500" : "text-white");
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       <header className="px-5 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 bg-[#3BC1A8] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
-        <div className={cn("flex items-center gap-2.5 transition-opacity flex-1 justify-center", (otherUser?.isSupport || isGenericSupport) ? "cursor-default" : "cursor-pointer active:opacity-70")} onClick={() => (!otherUser?.isSupport && !isGenericSupport) && router.push(`/profile/${resolvedOtherUserId}`)}>
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><ChevronLeft className="w-5 h-5" /></Button>
+        <div className="flex items-center gap-2.5 transition-opacity flex-1 justify-center cursor-pointer active:opacity-70" onClick={() => router.push(`/profile/${resolvedOtherUserId}`)}>
           <Avatar className="w-8 h-8 border border-white/20 shadow-sm">
-            {isGenericSupport ? (
-              <AvatarFallback className="bg-white/20 text-white"><Headset className="w-4 h-4" /></AvatarFallback>
-            ) : (
-              <>
-                <AvatarImage src={otherUserImage} className="object-cover" />
-                <AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback>
-              </>
-            )}
+            <AvatarImage src={otherUserImage} className="object-cover" />
+            <AvatarFallback>{otherUserName[0] || '?'}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col text-center">
             <div className="flex items-center justify-center gap-1">
-              <h3 className="font-bold text-[12px] leading-tight">{otherUserName}</h3>
-              {otherUser?.isVerified && <CheckCircle className="w-2.5 h-2.5 text-white fill-white/10" />}
+              <h3 className={cn("font-black text-[12px] leading-tight", nameColor)}>{otherUserName}</h3>
+              {otherUser?.isVerified && <CheckCircle className="w-2.5 h-2.5 text-white" />}
             </div>
-            <span className={cn("text-[8px] font-black uppercase tracking-widest", otherUser?.isOnline ? "text-green-300" : "text-white/40")}>{presenceText}</span>
+            <span className="text-[8px] font-black uppercase tracking-widest text-white/40">{otherUser?.isOnline ? "Online" : "Offline"}</span>
           </div>
         </div>
-        <div className="flex items-center">
-          {currentUserProfile?.isCoinseller && (
-            <Button variant="ghost" size="icon" onClick={handleSendPackages} className="h-9 w-9 rounded-full bg-white/20 text-white border border-white/10 shadow-sm hover:bg-white/30">
-              <Zap className="w-4 h-4 fill-current" />
-            </Button>
-          )}
-          <div className={cn(!currentUserProfile?.isCoinseller && "w-9")} />
-        </div>
+        <div className="w-9" />
       </header>
 
       <ScrollArea className="flex-1 px-4 py-4 bg-white">
         <div className="flex flex-col gap-4">
           {hasMore && (
             <button onClick={() => setMsgLimit(prev => prev + 30)} className="py-4 flex flex-col items-center gap-1 group active:opacity-50 transition-all">
-              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center group-hover:bg-gray-100 transition-colors"><ArrowUp className="w-4 h-4 text-gray-400" /></div>
+              <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center"><ArrowUp className="w-4 h-4 text-gray-400" /></div>
               <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Load Earlier</span>
             </button>
           )}
 
-          {isGenericSupport && messages.length === 0 && (
-            <div className="py-10 flex flex-col items-center text-center opacity-40">
-              <Headset className="w-12 h-12 mb-2 text-gray-300" />
-              <p className="text-[10px] font-black uppercase tracking-widest max-w-[200px]">Connecting you to an agent... Send a message to begin.</p>
-            </div>
-          )}
-
           {messages.map((msg) => {
             const isMe = msg.senderId === currentUser?.uid
-            const isCallLog = msg.isCallLog === true
             const isGift = msg.isGift === true
-            const statusText = msg.status === 'seen' ? 'Seen' : 'Sent'
             
             return (
               <div key={msg.id} className="flex w-full flex-col">
@@ -442,8 +317,7 @@ function ChatDetailContent() {
                   <div className={cn(
                     "max-w-[80%] px-4 py-3 text-[13px] font-medium leading-relaxed shadow-sm transition-all", 
                     isMe ? "bg-primary text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none",
-                    isGift && "bg-white border border-gray-100 p-0 overflow-hidden rounded-2xl shadow-md min-w-[180px] text-gray-900",
-                    isCallLog && "bg-transparent shadow-none border-none py-1 px-2 font-black text-[10px] tracking-widest text-gray-300 uppercase"
+                    isGift && "bg-white border border-gray-100 p-0 overflow-hidden rounded-2xl shadow-md min-w-[180px] text-gray-900"
                   )}>
                     {isGift ? (
                       <div className="flex flex-col">
@@ -452,8 +326,8 @@ function ChatDetailContent() {
                           <div className="absolute bottom-4 right-4 italic font-black text-sky-500 text-2xl">x 1</div>
                         </div>
                         {isMe && (
-                          <button onClick={() => { const gift = GIFTS.find(g => g.id === msg.giftId); if (gift) handleSendGift(gift); }} disabled={isSendingGift} className="w-full h-12 bg-[#00AEEF] hover:bg-[#009EDF] text-white font-black text-sm uppercase tracking-widest transition-all active:scale-95 disabled:opacity-50 flex items-center justify-center gap-2">
-                            {isSendingGift ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send one more"}
+                          <button onClick={() => { const gift = GIFTS.find(g => g.id === msg.giftId); if (gift) handleSendGift(gift); }} disabled={isSendingGift} className="w-full h-12 bg-sky-500 text-white font-black text-xs uppercase tracking-widest">
+                            Send one more
                           </button>
                         )}
                       </div>
@@ -462,11 +336,6 @@ function ChatDetailContent() {
                     )}
                   </div>
                 </div>
-                {isMe && !isCallLog && (
-                  <div className="flex justify-end pr-2 mt-1">
-                    <span className="text-[8px] font-black uppercase text-gray-300 tracking-widest">{statusText}</span>
-                  </div>
-                )}
               </div>
             )
           })}
@@ -477,51 +346,47 @@ function ChatDetailContent() {
       <footer className="px-5 py-5 pb-8 space-y-4 bg-white border-t border-gray-50">
         <div className="relative group">
           <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px]" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
-          <Button size="icon" className={cn("absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9", inputText.trim() && !isSending ? "bg-primary text-white" : "bg-gray-200 text-gray-400")} onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
+          <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
             {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
           </Button>
         </div>
-        {!otherUser?.isSupport && !isGenericSupport && (
-          <div className="grid grid-cols-3 gap-2">
-            <button onClick={() => handleInitiateCall('audio')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
-              <div className="relative w-5 h-5">
-                <Image src="/voice.png" alt="Voice" fill className="object-contain opacity-60" />
-              </div>
-              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Voice</span>
-            </button>
-            <button onClick={() => handleInitiateCall('video')} className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
-              <div className="relative w-5 h-5">
-                <Image src="/video.png" alt="Video" fill className="object-contain opacity-60" />
-              </div>
-              <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Video</span>
-            </button>
+        {!otherUser?.isSupport && (
+          <div className="grid grid-cols-1 gap-2">
             <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
               <SheetTrigger asChild>
-                <button className="flex flex-col items-center justify-center gap-1.5 bg-gray-50 h-16 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
-                  <div className="relative w-5 h-5">
-                    <Image src="/gift.png" alt="Gift" fill className="object-contain" />
-                  </div>
-                  <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Gift</span>
+                <button className="flex items-center justify-center gap-2 bg-gray-50 h-14 rounded-2xl border border-gray-100 active:bg-gray-100 shadow-sm">
+                  <Zap className="w-4 h-4 text-amber-500" />
+                  <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Send Virtual Gift</span>
                 </button>
               </SheetTrigger>
               <SheetContent side="bottom" className="rounded-t-[3rem] h-[75svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
                 <SheetHeader className="px-6 pt-8 pb-4 shrink-0"><SheetTitle className="text-xs font-black uppercase tracking-widest text-zinc-400">Select a Gift</SheetTitle></SheetHeader>
                 <div className="flex-1 overflow-y-auto px-4 pb-32">
                   <div className="grid grid-cols-4 gap-2">
-                    {GIFTS.map((gift) => (
-                      <div key={gift.id} onClick={() => setSelectedGift(gift)} className={cn("flex flex-col items-center gap-2 p-2 rounded-2xl border transition-all cursor-pointer", selectedGift?.id === gift.id ? "bg-primary/20 border-primary shadow-lg" : "bg-transparent border-transparent")}>
-                        <div className="w-14 h-14 flex items-center justify-center text-4xl">{gift.emoji}</div>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-amber-500 flex items-center justify-center text-[6px] font-black text-zinc-900 italic">S</div><span className="text-[10px] font-black">{gift.price}</span></div>
-                          <span className="text-[8px] font-bold text-zinc-400 text-center truncate w-full">{gift.name}</span>
+                    {GIFTS.map((gift) => {
+                      const discount = getVipDiscount(currentUserProfile?.vipLevel || 0);
+                      const finalPrice = Math.floor(gift.price * (1 - discount));
+                      return (
+                        <div key={gift.id} onClick={() => setSelectedGift(gift)} className={cn("flex flex-col items-center gap-2 p-2 rounded-2xl border transition-all cursor-pointer", selectedGift?.id === gift.id ? "bg-primary/20 border-primary" : "bg-transparent border-transparent")}>
+                          <div className="text-4xl">{gift.emoji}</div>
+                          <div className="flex flex-col items-center">
+                            <div className="flex items-center gap-1">
+                              <span className="text-[10px] font-black text-amber-400">{finalPrice}</span>
+                              {discount > 0 && <span className="text-[7px] text-zinc-500 line-through">{gift.price}</span>}
+                            </div>
+                            <span className="text-[8px] font-bold text-zinc-400 truncate w-full text-center">{gift.name}</span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 <footer className="absolute bottom-0 left-0 right-0 p-6 bg-zinc-950/80 backdrop-blur-xl border-t border-zinc-800 flex items-center justify-between z-50">
-                  <div className="flex items-center gap-3"><div className="flex items-center gap-1.5 bg-zinc-800 px-3 py-2 rounded-full border border-zinc-700"><div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[8px] font-black text-zinc-900 italic">S</div><span className="text-xs font-black">{(currentUserProfile?.coinBalance || 0).toLocaleString()}</span></div></div>
-                  <Button onClick={() => handleSendGift()} disabled={!selectedGift || isSendingGift} className="h-12 px-10 rounded-full bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl active:scale-95 transition-all">
+                  <div className="flex items-center gap-1.5 bg-zinc-800 px-3 py-2 rounded-full border border-zinc-700">
+                    <div className="w-4 h-4 rounded-full bg-amber-500 flex items-center justify-center text-[8px] font-black text-zinc-900 italic">S</div>
+                    <span className="text-xs font-black">{(currentUserProfile?.coinBalance || 0).toLocaleString()}</span>
+                  </div>
+                  <Button onClick={() => handleSendGift()} disabled={!selectedGift || isSendingGift} className="h-12 px-10 rounded-full bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl">
                     {isSendingGift ? <Loader2 className="w-4 h-4 animate-spin" /> : "Send"}
                   </Button>
                 </footer>
