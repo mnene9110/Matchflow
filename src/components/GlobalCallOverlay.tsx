@@ -298,7 +298,8 @@ export function GlobalCallOverlay() {
     if (wasCallAcceptedRef.current && activeChatIdRef.current && !logRecordedRef.current) {
       const mins = Math.floor(callDurationRef.current / 60);
       const secs = callDurationRef.current % 60;
-      logCallInChat(activeChatIdRef.current, callDurationRef.current, `[${mins}:${secs.toString().padStart(2, '0')}]`);
+      const intimacyGain = Math.max(1, Math.floor(callDurationRef.current / 60) * 10)
+      logCallInChat(activeChatIdRef.current, callDurationRef.current, `[${mins}:${secs.toString().padStart(2, '0')}]`, intimacyGain);
     }
 
     if (currentUser && firestore) {
@@ -352,7 +353,7 @@ export function GlobalCallOverlay() {
     handleCleanup();
   }
 
-  const logCallInChat = async (chatId: string, duration: number, label: string) => {
+  const logCallInChat = async (chatId: string, duration: number, label: string, intimacyGain: number = 0) => {
     if (!firestore || !currentUser || logRecordedRef.current) return;
     
     logRecordedRef.current = true;
@@ -365,7 +366,8 @@ export function GlobalCallOverlay() {
     await setDoc(msgRef, { messageText: label, senderId: currentUser.uid, sentAt: serverTimestamp(), isCallLog: true });
     await updateDoc(chatRef, {
       lastMessage: label,
-      timestamp: serverTimestamp()
+      timestamp: serverTimestamp(),
+      intimacyScore: increment(intimacyGain)
     });
   };
 

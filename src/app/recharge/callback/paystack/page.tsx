@@ -8,7 +8,6 @@ import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
 import { doc, runTransaction, collection, query, where, getDocs, increment as firestoreIncrement } from "firebase/firestore"
 import { verifyPaystackTransaction } from "@/app/actions/paystack"
 import { useToast } from "@/hooks/use-toast"
-import { getVipLevelFromExp } from "@/app/profile/vip/page"
 
 function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> }) {
   const params = use(searchParams)
@@ -35,19 +34,13 @@ function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> 
         if (result.status === true && result.data.status === 'success') {
           const metadata = result.data.metadata;
           const coinsToGain = metadata?.packageAmount || (result.data.amount / 100);
-          const expToGain = coinsToGain;
 
           await runTransaction(firestore, async (transaction) => {
             const profileSnap = await transaction.get(userProfileDocRef);
             if (!profileSnap.exists()) return;
 
-            const currentExp = (profileSnap.data().vipExp || 0) + expToGain;
-            const newLevel = getVipLevelFromExp(currentExp);
-
             transaction.update(userProfileDocRef, {
               coinBalance: firestoreIncrement(coinsToGain),
-              vipExp: firestoreIncrement(expToGain),
-              vipLevel: newLevel,
               updatedAt: new Date().toISOString()
             });
 
@@ -58,11 +51,11 @@ function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> 
               amount: coinsToGain,
               orderTrackingId: reference,
               transactionDate: new Date().toISOString(),
-              description: `Recharge +${coinsToGain} EXP (VIP Level Up)`
+              description: `Recharge`
             });
           });
 
-          toast({ title: "Recharge Success!", description: "Coins and VIP EXP updated." });
+          toast({ title: "Recharge Success!", description: "Coins updated." });
           router.replace("/recharge?status=success");
         } else {
           router.replace("/recharge?status=error");

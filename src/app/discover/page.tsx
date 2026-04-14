@@ -56,16 +56,11 @@ export default function DiscoverPage() {
         return;
       }
 
-      // Explicitly filter out the current user by ID and also exclude support accounts from general discovery
       const allUsers = snap.docs
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((u: any) => u.id !== currentUser.uid && u.isSupport !== true);
       
-      // Sort: Highest VIP First, then Online status
       const sorted = allUsers.sort((a: any, b: any) => {
-        const aLevel = a.vipLevel || 0;
-        const bLevel = b.vipLevel || 0;
-        if (aLevel !== bLevel) return bLevel - aLevel;
         return (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0);
       }).slice(0, 50);
       
@@ -126,24 +121,12 @@ export default function DiscoverPage() {
         {users.map((user) => {
           const age = calculateAge(user.dateOfBirth);
           const image = (user.profilePhotoUrls && user.profilePhotoUrls[0]) || `https://picsum.photos/seed/${user.id}/400/600`;
-          const vipLevel = user.vipLevel || 0;
-          const nameColor = vipLevel >= 3 ? "text-amber-400" : (vipLevel >= 1 ? "text-blue-400" : "text-white");
-          const hasGlow = vipLevel >= 3;
 
           return (
-            <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className={cn("group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95", hasGlow && "shadow-[0_0_20px_rgba(59,193,168,0.4)] ring-2 ring-primary/20")}>
+            <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95">
               <Image src={image} alt={user.username} fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
               
-              <div className="absolute top-3 left-3 flex flex-col gap-1">
-                {vipLevel > 0 && (
-                  <div className={cn("px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg", vipLevel >= 10 ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-zinc-900/80")}>
-                    <Trophy className="w-2.5 h-2.5 text-amber-400 fill-current" />
-                    <span className="text-[8px] font-black text-white">V{vipLevel}</span>
-                  </div>
-                )}
-              </div>
-
               <div className="absolute top-3 right-3 z-10">
                 <button 
                   onClick={(e) => {
@@ -157,7 +140,7 @@ export default function DiscoverPage() {
               </div>
 
               <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
-                <h3 className={cn("text-xs font-black truncate tracking-wide", nameColor)}>{user.username}</h3>
+                <h3 className="text-xs font-black truncate tracking-wide text-white">{user.username}</h3>
                 <div className="flex items-center gap-1.5">
                   <div className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center border border-white/20"><span className="text-[9px] font-black text-white">{age}</span></div>
                   <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20"><span className="text-[8px] font-black text-white uppercase">{user.location || "Kenya"}</span></div>

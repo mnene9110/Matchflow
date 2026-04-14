@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Loader2, Eye, Lock, Trophy, ArrowRight } from "lucide-react"
+import { ChevronLeft, Loader2, Eye, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
@@ -21,8 +21,6 @@ export default function VisitorsPage() {
 
   const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: profile } = useDoc(meRef)
-
-  const isUnlocked = (profile?.vipLevel || 0) >= 2
 
   useEffect(() => {
     if (!firestore || !currentUser) return
@@ -61,15 +59,12 @@ export default function VisitorsPage() {
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
           </div>
         ) : visitors.length > 0 ? (
-          <div className={cn("space-y-4 relative", !isUnlocked && "max-h-[80svh] overflow-hidden")}>
+          <div className="space-y-4">
             {visitors.map((v) => (
               <div 
                 key={v.id} 
-                onClick={() => isUnlocked && router.push(`/profile/${v.userId}`)}
-                className={cn(
-                  "bg-gray-50 border border-gray-100 p-4 rounded-[2rem] flex items-center gap-4 transition-all active:scale-95",
-                  !isUnlocked && "blur-md select-none pointer-events-none"
-                )}
+                onClick={() => router.push(`/profile/${v.userId}`)}
+                className="bg-gray-50 border border-gray-100 p-4 rounded-[2rem] flex items-center gap-4 transition-all active:scale-95 cursor-pointer"
               >
                 <Avatar className="w-14 h-14 border-2 border-white shadow-sm">
                   <AvatarImage src={v.photo} className="object-cover" />
@@ -81,28 +76,9 @@ export default function VisitorsPage() {
                     {v.timestamp ? format(v.timestamp.toDate(), "MMM d, HH:mm") : "Recently"}
                   </p>
                 </div>
-                {isUnlocked && <ArrowRight className="w-4 h-4 text-gray-300" />}
+                <ArrowRight className="w-4 h-4 text-gray-300" />
               </div>
             ))}
-
-            {!isUnlocked && (
-              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-8 text-center bg-white/40 backdrop-blur-sm rounded-[3rem] border-2 border-dashed border-primary/20">
-                <div className="w-20 h-20 bg-zinc-900 rounded-[2.5rem] flex items-center justify-center mb-6 shadow-2xl">
-                  <Lock className="w-10 h-10 text-amber-400" />
-                </div>
-                <h2 className="text-2xl font-black font-headline text-gray-900 mb-2">Locked Feature</h2>
-                <p className="text-sm text-gray-500 font-medium leading-relaxed mb-8 max-w-[240px]">
-                  Reach <span className="text-primary font-black">VIP 2</span> to see who has been viewing your profile.
-                </p>
-                <Button 
-                  onClick={() => router.push('/profile/vip')}
-                  className="h-14 px-10 rounded-full bg-primary text-white font-black uppercase text-xs tracking-widest shadow-xl gap-3"
-                >
-                  <Trophy className="w-4 h-4" />
-                  Check VIP Progress
-                </Button>
-              </div>
-            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 opacity-30">

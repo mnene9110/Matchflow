@@ -4,11 +4,10 @@ import { getPesaPalTransactionStatus } from '@/app/actions/pesapal';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, runTransaction, collection, query, where, getDocs, increment } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
-import { getVipLevelFromExp } from '@/app/profile/vip/page';
 
 /**
  * @fileOverview Functional PesaPal IPN listener.
- * Receives payment notifications and updates Firestore reliably including VIP status.
+ * Receives payment notifications and updates Firestore reliably.
  */
 
 export async function POST(req: Request) {
@@ -34,9 +33,8 @@ export async function POST(req: Request) {
       const amount = result.amount;
       const merchantRef = result.merchant_reference;
       
-      // Calculate coins and EXP
+      // Calculate coins (Standard conversion)
       const coinsToGain = Math.round((amount / 120) * 1000);
-      const expToGain = coinsToGain;
 
       // Find the user associated with this merchant reference
       const usersSnap = await getDocs(collection(db, "userProfiles"));
@@ -63,13 +61,8 @@ export async function POST(req: Request) {
           const existingTx = await getDocs(txQuery);
           if (!existingTx.empty) return;
 
-          const currentExp = (profileSnap.data().vipExp || 0) + expToGain;
-          const newLevel = getVipLevelFromExp(currentExp);
-
           transaction.update(userRef, {
             coinBalance: increment(coinsToGain),
-            vipExp: increment(expToGain),
-            vipLevel: newLevel,
             updatedAt: new Date().toISOString()
           });
 
@@ -81,11 +74,11 @@ export async function POST(req: Request) {
             pesapal_tracking_id: orderTrackingId,
             merchant_reference: merchantRef,
             transactionDate: new Date().toISOString(),
-            description: `Auto-verified Recharge (${coinsToGain} coins) + VIP EXP`
+            description: `Auto-verified Recharge (${coinsToGain} coins)`
           });
         });
         
-        console.log(`✅ Credited ${coinsToGain} coins and EXP to user ${targetUserId} via IPN`);
+        console.log(`✅ Credited ${coinsToGain} coins to user ${targetUserId} via IPN`);
       }
     }
 
