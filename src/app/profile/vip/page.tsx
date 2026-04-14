@@ -11,16 +11,21 @@ import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
 export const VIP_CONFIG = [
-  { level: 1, exp: 1000, perks: ["Blue username", "Basic VIP badge"] },
-  { level: 2, exp: 3000, perks: ["Avatar frame", "Chat bubble"] },
-  { level: 3, exp: 7000, perks: ["5% gift discount", "Unique entry effect"] },
-  { level: 4, exp: 15000, perks: ["Priority Support", "Profile visitor list"] },
-  { level: 5, exp: 30000, perks: ["Gold Discover name", "10% gift discount"] },
-  { level: 6, exp: 60000, perks: ["Exclusive Crown", "Voice chat priority"] },
-  { level: 7, exp: 120000, perks: ["15% gift discount", "Hide location option"] },
-  { level: 8, exp: 250000, perks: ["Animated profile", "Global broadcast badge"] },
-  { level: 9, exp: 500000, perks: ["Invisibility mode", "20% gift discount"] },
-  { level: 10, exp: 1000000, perks: ["Legendary Status", "Personal manager"] },
+  { level: 1, exp: 5000, perks: ["Blue username", "Basic VIP badge"] },
+  { level: 2, exp: 20000, perks: ["Avatar frame", "Chat bubble"] },
+  { level: 3, exp: 50000, perks: ["5% gift discount", "Unique entry effect"] },
+  { level: 4, exp: 100000, perks: ["Priority Support", "Profile visitor list"] },
+  { level: 5, exp: 250000, perks: ["Gold Discover name", "10% gift discount"] },
+  { level: 6, exp: 500000, perks: ["Exclusive Crown", "Voice chat priority"] },
+  { level: 7, exp: 1000000, perks: ["15% gift discount", "Hide location option"] },
+  { level: 8, exp: 2000000, perks: ["Animated profile", "Global broadcast badge"] },
+  { level: 9, exp: 4000000, perks: ["Invisibility mode", "20% gift discount"] },
+  { level: 10, exp: 7000000, perks: ["Legendary Status", "Personal manager"] },
+  { level: 11, exp: 11000000, perks: ["Custom Entrance Video", "Elite Chat Glow"] },
+  { level: 12, exp: 16000000, perks: ["Anti-Kick Protection", "30% gift discount"] },
+  { level: 13, exp: 22000000, perks: ["Ghost Mode", "Unlimited Mystery Notes"] },
+  { level: 14, exp: 30000000, perks: ["Global Profile Glow", "Direct Admin Line"] },
+  { level: 15, exp: 40000000, perks: ["Platform God Status", "50% gift discount"] },
 ]
 
 export function getVipLevelFromExp(exp: number) {
@@ -48,7 +53,7 @@ export default function VIPCenterPage() {
 
   const currentExp = profile?.vipExp || 0;
   const currentLevel = profile?.vipLevel || 0;
-  const nextLevelIndex = currentLevel < 10 ? currentLevel : 9;
+  const nextLevelIndex = currentLevel < 15 ? currentLevel : 14;
   const nextLevelExp = VIP_CONFIG[nextLevelIndex].exp;
   const progress = Math.min((currentExp / nextLevelExp) * 100, 100);
 

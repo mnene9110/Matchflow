@@ -69,7 +69,7 @@ export default function DiscoverPage() {
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((u: any) => u.isSupport !== true && u.id !== currentUser.uid);
       
-      // SORTING: VIP 10 -> VIP 9 -> ... -> Regular Users
+      // SORTING: VIP 15 -> VIP 14 -> ... -> Regular Users
       const sorted = allUsers.sort((a: any, b: any) => {
         const aLevel = a.vipLevel || 0;
         const bLevel = b.vipLevel || 0;
@@ -158,7 +158,7 @@ export default function DiscoverPage() {
             key={user.id} 
             className={cn(
               "group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm transition-all active:opacity-80",
-              user.vipLevel >= 5 && "ring-2 ring-amber-400 ring-offset-2"
+              user.vipLevel >= 10 && "ring-2 ring-amber-400 ring-offset-2"
             )}
             onClick={() => router.push(`/profile/${user.id}`)}
           >
@@ -169,7 +169,7 @@ export default function DiscoverPage() {
               {user.vipLevel > 0 && (
                 <div className={cn(
                   "px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg",
-                  user.vipLevel >= 8 ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-zinc-900/80"
+                  user.vipLevel >= 10 ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-zinc-900/80"
                 )}>
                   <Trophy className="w-2.5 h-2.5 text-amber-400 fill-current" />
                   <span className="text-[8px] font-black text-white">VIP {user.vipLevel}</span>
@@ -190,7 +190,7 @@ export default function DiscoverPage() {
             <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
               <h3 className={cn(
                 "text-xs tracking-wider truncate",
-                user.vipLevel >= 5 ? "text-amber-400 font-black" : "text-white font-black"
+                user.vipLevel >= 10 ? "text-amber-400 font-black" : "text-white font-black"
               )}>
                 {user.name}
               </h3>

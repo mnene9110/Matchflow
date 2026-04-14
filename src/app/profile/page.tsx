@@ -106,7 +106,7 @@ export default function ProfilePage() {
             {isVerified && <CheckCircle className="w-4 h-4 text-white fill-white/20" />}
           </h1>
           <p className="text-white/60 text-[9px] font-black capitalize tracking-[0.2em]">
-            {vipLevel > 0 ? `VIP Level ${vipLevel}` : "Official Profile"}
+            {vipLevel > 0 ? `VIP ${vipLevel} Rank` : "Official Profile"}
           </p>
         </div>
 
@@ -171,10 +171,10 @@ export default function ProfilePage() {
               </div>
               <div className="flex-1 text-left">
                 <span className="text-white font-black tracking-tight text-[13px] block">VIP Center</span>
-                <span className="text-amber-400/60 text-[9px] font-bold mt-1 block">Level up to unlock elite perks</span>
+                <span className="text-amber-400/60 text-[9px] font-bold mt-1 block">Level up to VIP 15</span>
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black text-amber-400">LV.{vipLevel}</span>
+                <span className="text-xs font-black text-amber-400">VIP {vipLevel}</span>
                 <ChevronRight className="w-4 h-4 text-white/20" />
               </div>
             </button>
