@@ -34,9 +34,11 @@ export async function POST(req: Request) {
       const amount = result.amount;
       const merchantRef = result.merchant_reference;
       
+      // Calculate coins and EXP
       const coinsToGain = Math.round((amount / 120) * 1000);
       const expToGain = coinsToGain;
 
+      // Find the user associated with this merchant reference
       const usersSnap = await getDocs(collection(db, "userProfiles"));
       let targetUserId = null;
 
@@ -56,6 +58,7 @@ export async function POST(req: Request) {
           const profileSnap = await transaction.get(userRef);
           if (!profileSnap.exists()) return;
 
+          // Check if already processed
           const txQuery = query(collection(userRef, "transactions"), where("pesapal_tracking_id", "==", orderTrackingId));
           const existingTx = await getDocs(txQuery);
           if (!existingTx.empty) return;

@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft, Star, Check, Coins, Loader2, Gem, Trophy, Sparkles, Zap, ShieldCheck, Heart, MessageCircle, Crown, UserCheck, Shield, Flame, Target, Gift } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { doc, updateDoc } from "firebase/firestore"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
@@ -75,6 +75,19 @@ export default function VIPCenterPage() {
 
   const currentExp = profile?.vipExp || 0
   const currentLevel = profile?.vipLevel || 0
+
+  useEffect(() => {
+    // Only update the level in Firestore when the user opens this screen
+    if (profile && firestore) {
+      const calculatedLevel = getVipLevelFromExp(currentExp)
+      if (calculatedLevel !== currentLevel) {
+        updateDoc(doc(firestore, "userProfiles", profile.id), {
+          vipLevel: calculatedLevel,
+          updatedAt: new Date().toISOString()
+        })
+      }
+    }
+  }, [currentExp, currentLevel, !!profile, !!firestore])
 
   useEffect(() => {
     if (currentLevel > 0) setSelectedLevel(currentLevel)

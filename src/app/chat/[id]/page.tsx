@@ -221,9 +221,11 @@ function ChatDetailContent() {
     
     setIsSendingGift(true);
     
+    // Applying VIP Discount for Sender
     const discount = getVipDiscount(currentUserProfile.vipLevel || 0);
     const finalPrice = Math.floor(gift.price * (1 - discount));
     
+    // Applying VIP Multiplier for Receiver
     const receiverMultiplier = getVipDiamondMultiplier(otherUser.vipLevel || 0);
     const diamondGain = Math.floor(gift.price * 0.6 * receiverMultiplier);
 
@@ -275,6 +277,7 @@ function ChatDetailContent() {
   const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${resolvedOtherUserId}/200/200`
   const otherUserName = otherUser?.isSupport ? "Customer Support" : (otherUser?.username || "User")
   
+  // VIP Name Coloring
   const vipLevel = otherUser?.vipLevel || 0;
   const nameColor = vipLevel >= 3 ? "text-amber-500" : (vipLevel >= 1 ? "text-blue-500" : "text-white");
 

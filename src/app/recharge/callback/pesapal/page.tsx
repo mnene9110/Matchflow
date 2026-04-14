@@ -42,6 +42,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
             const profileSnap = await transaction.get(userProfileDocRef);
             if (!profileSnap.exists()) return;
 
+            // Check if already processed
             const txQuery = query(collection(userProfileDocRef, "transactions"), where("orderTrackingId", "==", orderTrackingId));
             const existingTx = await getDocs(txQuery);
             if (!existingTx.empty) return;
