@@ -114,9 +114,14 @@ export default function DiscoverPage() {
 
       <div className="sticky top-0 z-30 bg-[#3BC1A8] px-6 py-1.5 flex items-center justify-between shadow-sm">
         <h2 className="text-[10px] font-black text-white capitalize tracking-widest">Recommended</h2>
-        <button onClick={handleRefresh} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white">
-          {isInitialLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={() => router.push('/chat')} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform">
+            <MessageSquare className="w-3.5 h-3.5" />
+          </button>
+          <button onClick={handleRefresh} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform">
+            {isInitialLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+          </button>
+        </div>
       </div>
 
       <main className="px-4 grid grid-cols-2 gap-3 mt-4">
