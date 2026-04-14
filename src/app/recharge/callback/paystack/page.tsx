@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useRef, use, Suspense } from "react"
@@ -7,6 +8,7 @@ import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
 import { doc, runTransaction, collection, query, where, getDocs, updateDoc, increment as firestoreIncrement, setDoc } from "firebase/firestore"
 import { verifyPaystackTransaction } from "@/app/actions/paystack"
 import { useToast } from "@/hooks/use-toast"
+import { getVipLevelFromExp } from "@/app/profile/vip/page"
 
 function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> }) {
   const params = use(searchParams)
@@ -41,14 +43,23 @@ function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> 
           const amountInSubunits = result.data.amount;
           const metadata = result.data.metadata;
           const coinsToGain = metadata?.packageAmount || (amountInSubunits / 100);
+          const expToGain = coinsToGain; // 1 Coin = 1 EXP
 
           await runTransaction(firestore, async (transaction) => {
+            const profileSnap = await transaction.get(userProfileDocRef);
+            if (!profileSnap.exists()) return;
+
             const txQuery = query(collection(userProfileDocRef, "transactions"), where("orderTrackingId", "==", reference));
             const existingTx = await getDocs(txQuery);
             if (!existingTx.empty) return;
 
+            const currentExp = (profileSnap.data().vipExp || 0) + expToGain;
+            const newLevel = getVipLevelFromExp(currentExp);
+
             transaction.update(userProfileDocRef, {
               coinBalance: firestoreIncrement(coinsToGain),
+              vipExp: firestoreIncrement(expToGain),
+              vipLevel: newLevel,
               updatedAt: new Date().toISOString()
             });
 
@@ -59,7 +70,7 @@ function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> 
               amount: coinsToGain,
               orderTrackingId: reference,
               transactionDate: new Date().toISOString(),
-              description: `Coin Recharge (${coinsToGain} coins) via Paystack`
+              description: `Coin Recharge (${coinsToGain} coins) + VIP EXP gained`
             });
           });
 

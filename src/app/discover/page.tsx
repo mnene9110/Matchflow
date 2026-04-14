@@ -3,7 +3,7 @@
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { RotateCcw, Loader2, MessageSquare, Rocket, Star } from "lucide-react"
+import { RotateCcw, Loader2, MessageSquare, Rocket, Star, Trophy } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, where, limit, getDocs, doc, Timestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
@@ -69,30 +69,13 @@ export default function DiscoverPage() {
         .map(d => ({ id: d.id, ...d.data() }))
         .filter((u: any) => u.isSupport !== true && u.id !== currentUser.uid);
       
-      // PRIORITY SORTING: Boosted Users -> VIP Users -> Others
-      const now = Date.now();
-      const boosted = allUsers.filter((u: any) => {
-        const boostedUntil = u.boostedUntil?.toMillis ? u.boostedUntil.toMillis() : 0;
-        return boostedUntil > now;
-      });
-      const vips = allUsers.filter((u: any) => u.isVIP === true && !boosted.find(b => b.id === u.id));
-      const others = allUsers.filter((u: any) => !u.isVIP && !boosted.find(b => b.id === u.id));
-
-      const onlineBoosted = boosted.filter(u => u.isOnline);
-      const offlineBoosted = boosted.filter(u => !u.isOnline);
-      const onlineVips = vips.filter(u => u.isOnline);
-      const offlineVips = vips.filter(u => !u.isOnline);
-      const onlineOthers = others.filter(u => u.isOnline);
-      const offlineOthers = others.filter(u => !u.isOnline);
-
-      const sorted = [
-        ...shuffleArray(onlineBoosted),
-        ...shuffleArray(offlineBoosted),
-        ...shuffleArray(onlineVips),
-        ...shuffleArray(offlineVips),
-        ...shuffleArray(onlineOthers),
-        ...shuffleArray(offlineOthers)
-      ].slice(0, 50);
+      // SORTING: VIP 10 -> VIP 9 -> ... -> Regular Users
+      const sorted = allUsers.sort((a: any, b: any) => {
+        const aLevel = a.vipLevel || 0;
+        const bLevel = b.vipLevel || 0;
+        if (aLevel !== bLevel) return bLevel - aLevel;
+        return (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0);
+      }).slice(0, 50);
       
       setUsers(sorted);
       cachedUsers = sorted;
@@ -129,13 +112,11 @@ export default function DiscoverPage() {
     location: u.location || "Kenya",
     age: calculateAge(u.dateOfBirth),
     image: (u.profilePhotoUrls && u.profilePhotoUrls[0]) || `https://picsum.photos/seed/${u.id}/400/600`,
-    isBoosted: !!(u.boostedUntil?.toMillis ? u.boostedUntil.toMillis() > Date.now() : false),
-    isVIP: !!u.isVIP
+    vipLevel: u.vipLevel || 0
   }))
 
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
-      {/* Scrollable Top Section */}
       <div className="bg-[#3BC1A8] px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-3">
         <div className="grid grid-cols-2 gap-4">
           <button 
@@ -160,7 +141,6 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Sticky Recommended Header */}
       <div className="sticky top-0 z-30 bg-[#3BC1A8] px-6 py-1.5 flex items-center justify-between">
         <h2 className="text-[10px] font-black text-white capitalize tracking-widest">Recommended for you</h2>
         <button 
@@ -172,36 +152,31 @@ export default function DiscoverPage() {
         </button>
       </div>
 
-      {/* Grid Section */}
       <main className="px-4 grid grid-cols-2 gap-3 mt-4">
         {mappedUsers.map((user) => (
           <div 
             key={user.id} 
             className={cn(
               "group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 shadow-sm transition-all active:opacity-80",
-              user.isBoosted && "ring-2 ring-orange-500 ring-offset-2",
-              user.isVIP && "ring-2 ring-amber-400 ring-offset-2"
+              user.vipLevel >= 5 && "ring-2 ring-amber-400 ring-offset-2"
             )}
             onClick={() => router.push(`/profile/${user.id}`)}
           >
             <Image src={user.image} alt={user.name} fill className="object-cover" data-ai-hint="dating profile photo" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
 
-            {/* Status Icons */}
             <div className="absolute top-3 left-3 flex flex-col gap-1.5">
-              {user.isBoosted && (
-                <div className="w-7 h-7 rounded-lg bg-orange-500 flex items-center justify-center shadow-lg animate-pulse">
-                  <Rocket className="w-4 h-4 text-white fill-current" />
-                </div>
-              )}
-              {user.isVIP && (
-                <div className="w-7 h-7 rounded-lg bg-amber-400 flex items-center justify-center shadow-lg">
-                  <Star className="w-4 h-4 text-zinc-900 fill-current" />
+              {user.vipLevel > 0 && (
+                <div className={cn(
+                  "px-2 py-1 rounded-lg flex items-center gap-1 shadow-lg",
+                  user.vipLevel >= 8 ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-zinc-900/80"
+                )}>
+                  <Trophy className="w-2.5 h-2.5 text-amber-400 fill-current" />
+                  <span className="text-[8px] font-black text-white">VIP {user.vipLevel}</span>
                 </div>
               )}
             </div>
 
-            {/* Chat Icon */}
             <button 
               onClick={(e) => { 
                 e.stopPropagation(); 
@@ -212,9 +187,13 @@ export default function DiscoverPage() {
               <MessageSquare className="w-4 h-4 text-white fill-current" />
             </button>
 
-            {/* Info Overlay */}
             <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
-              <h3 className="text-white font-black text-xs tracking-wider truncate">{user.name}</h3>
+              <h3 className={cn(
+                "text-xs tracking-wider truncate",
+                user.vipLevel >= 5 ? "text-amber-400 font-black" : "text-white font-black"
+              )}>
+                {user.name}
+              </h3>
               <div className="flex items-center gap-1.5">
                 <div className="w-6 h-6 rounded-full bg-black flex items-center justify-center border border-white/20">
                   <span className="text-[9px] font-black text-white">{user.age}</span>

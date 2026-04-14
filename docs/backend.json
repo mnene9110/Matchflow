@@ -32,6 +32,8 @@
         },
         "coinBalance": { "type": "number" },
         "diamondBalance": { "type": "number" },
+        "vipLevel": { "type": "number", "default": 0 },
+        "vipExp": { "type": "number", "default": 0 },
         "lastCheckInDate": { "type": "string", "format": "date" },
         "checkInStreak": { "type": "number" },
         "isVerified": { "type": "boolean" },

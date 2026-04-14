@@ -21,7 +21,8 @@ import {
   Zap,
   UserCog,
   Star,
-  Rocket
+  Rocket,
+  Trophy
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
@@ -69,7 +70,7 @@ export default function ProfilePage() {
   const userImage = (userProfile?.profilePhotoUrls && userProfile?.profilePhotoUrls[0]) || ""
   const isVerified = !!userProfile?.isVerified
   const isFemale = userProfile?.gender?.toLowerCase() === 'female'
-  const isVIP = !!userProfile?.isVIP
+  const vipLevel = userProfile?.vipLevel || 0
 
   const hasManagementRole = userProfile?.isAdmin || userProfile?.isSupport || userProfile?.isCoinseller || (userProfile?.isAgent && isFemale);
 
@@ -81,7 +82,7 @@ export default function ProfilePage() {
         <div className="relative mb-4">
           <Avatar className={cn(
             "w-28 h-28 shadow-2xl bg-white/10 border-none transition-all",
-            isVIP && "ring-4 ring-amber-400 ring-offset-4 ring-offset-[#3BC1A8]"
+            vipLevel > 0 && "ring-4 ring-amber-400 ring-offset-4 ring-offset-[#3BC1A8]"
           )}>
             {userImage && <AvatarImage src={userImage} className="object-cover" />}
             <AvatarFallback className="bg-white/20 text-white font-black text-2xl uppercase border-none">{userProfile?.username?.[0]}</AvatarFallback>
@@ -92,9 +93,9 @@ export default function ProfilePage() {
           >
             <Pencil className="w-3.5 h-3.5 text-white" />
           </button>
-          {isVIP && (
+          {vipLevel > 0 && (
             <div className="absolute -top-2 -right-2 w-10 h-10 bg-amber-400 rounded-full flex items-center justify-center shadow-lg border-2 border-white animate-bounce">
-              <Star className="w-5 h-5 text-white fill-current" />
+              <span className="text-[10px] font-black text-zinc-950">V{vipLevel}</span>
             </div>
           )}
         </div>
@@ -105,7 +106,7 @@ export default function ProfilePage() {
             {isVerified && <CheckCircle className="w-4 h-4 text-white fill-white/20" />}
           </h1>
           <p className="text-white/60 text-[9px] font-black capitalize tracking-[0.2em]">
-            {isVIP ? "VIP Elite Member" : "Official Profile"}
+            {vipLevel > 0 ? `VIP Level ${vipLevel}` : "Official Profile"}
           </p>
         </div>
 
@@ -157,36 +158,25 @@ export default function ProfilePage() {
 
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2">
-            <h2 className="text-[10px] font-black text-primary capitalize tracking-[0.3em]">Growth & Status</h2>
+            <h2 className="text-[10px] font-black text-primary capitalize tracking-[0.3em]">Status & Perks</h2>
             <div className="h-px flex-1 bg-primary/10 ml-4" />
           </div>
           <div className="grid grid-cols-1 gap-2.5">
-            <button 
-              onClick={() => router.push('/profile/boost')} 
-              className="w-full h-16 rounded-[1.5rem] bg-gradient-to-r from-orange-500 to-amber-500 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-xl shadow-orange-500/20"
-            >
-              <div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center">
-                <Rocket className="w-5 h-5 text-white animate-pulse" />
-              </div>
-              <div className="flex-1 text-left text-white">
-                <span className="font-black tracking-tight text-[13px] block">Boost Profile</span>
-                <span className="opacity-60 text-[9px] font-bold mt-1 block">Get 10x more visitors now</span>
-              </div>
-              <ChevronRight className="w-4 h-4 text-white/40" />
-            </button>
-
             <button 
               onClick={() => router.push('/profile/vip')} 
               className="w-full h-16 rounded-[1.5rem] bg-zinc-900 flex items-center px-5 gap-4 active:scale-[0.98] transition-all shadow-xl"
             >
               <div className="w-11 h-11 rounded-xl bg-amber-400 flex items-center justify-center">
-                <Star className="w-5 h-5 text-zinc-900 fill-current" />
+                <Trophy className="w-5 h-5 text-zinc-900 fill-current" />
               </div>
               <div className="flex-1 text-left">
                 <span className="text-white font-black tracking-tight text-[13px] block">VIP Center</span>
-                <span className="text-amber-400/60 text-[9px] font-bold mt-1 block">Unlock exclusive elite perks</span>
+                <span className="text-amber-400/60 text-[9px] font-bold mt-1 block">Level up to unlock elite perks</span>
               </div>
-              <ChevronRight className="w-4 h-4 text-white/20" />
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black text-amber-400">LV.{vipLevel}</span>
+                <ChevronRight className="w-4 h-4 text-white/20" />
+              </div>
             </button>
           </div>
         </section>

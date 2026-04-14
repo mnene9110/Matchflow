@@ -1,12 +1,14 @@
+
 import { NextResponse } from 'next/server';
 import { getPesaPalTransactionStatus } from '@/app/actions/pesapal';
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, runTransaction, collection, query, where, getDocs, increment } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
+import { getVipLevelFromExp } from '@/app/profile/vip/page';
 
 /**
  * @fileOverview Functional PesaPal IPN listener.
- * Receives payment notifications and updates Firestore reliably.
+ * Receives payment notifications and updates Firestore reliably including VIP status.
  */
 
 export async function POST(req: Request) {
@@ -23,22 +25,18 @@ export async function POST(req: Request) {
       return new Response("OK", { status: 200 });
     }
 
-    // Initialize Firebase for the server-side environment
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
 
-    // 1. Fetch the latest status from PesaPal
     const result = await getPesaPalTransactionStatus(orderTrackingId);
     
     if (result.status_code === 1 || result.payment_status_description === 'Completed') {
       const amount = result.amount;
-      const merchantRef = result.merchant_reference; // This matches the MF... ID we generated
+      const merchantRef = result.merchant_reference;
       
-      // Calculate coins (120 KES = 1000 coins approx)
       const coinsToGain = Math.round((amount / 120) * 1000);
+      const expToGain = coinsToGain;
 
-      // 2. Find the user who owns this transaction
-      // We search for a transaction with this Merchant Reference (MF...)
       const usersSnap = await getDocs(collection(db, "userProfiles"));
       let targetUserId = null;
 
@@ -55,13 +53,20 @@ export async function POST(req: Request) {
         const userRef = doc(db, "userProfiles", targetUserId);
         
         await runTransaction(db, async (transaction) => {
-          // Check if already processed by the callback
+          const profileSnap = await transaction.get(userRef);
+          if (!profileSnap.exists()) return;
+
           const txQuery = query(collection(userRef, "transactions"), where("pesapal_tracking_id", "==", orderTrackingId));
           const existingTx = await getDocs(txQuery);
           if (!existingTx.empty) return;
 
+          const currentExp = (profileSnap.data().vipExp || 0) + expToGain;
+          const newLevel = getVipLevelFromExp(currentExp);
+
           transaction.update(userRef, {
             coinBalance: increment(coinsToGain),
+            vipExp: increment(expToGain),
+            vipLevel: newLevel,
             updatedAt: new Date().toISOString()
           });
 
@@ -73,11 +78,11 @@ export async function POST(req: Request) {
             pesapal_tracking_id: orderTrackingId,
             merchant_reference: merchantRef,
             transactionDate: new Date().toISOString(),
-            description: `Auto-verified Recharge (${coinsToGain} coins)`
+            description: `Auto-verified Recharge (${coinsToGain} coins) + VIP EXP`
           });
         });
         
-        console.log(`✅ Credited ${coinsToGain} coins to user ${targetUserId} via IPN`);
+        console.log(`✅ Credited ${coinsToGain} coins and EXP to user ${targetUserId} via IPN`);
       }
     }
 
