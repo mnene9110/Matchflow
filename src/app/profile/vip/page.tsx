@@ -59,6 +59,7 @@ export default function VIPCenterPage() {
   const currentExp = profile?.vipExp || 0
   const currentLevel = profile?.vipLevel || 0
 
+  // Cost-optimized: Only update level field when user opens the VIP screen
   useEffect(() => {
     if (profile && firestore) {
       const calculatedLevel = getVipLevelFromExp(currentExp)
@@ -83,11 +84,13 @@ export default function VIPCenterPage() {
   const tierRequirement = nextLevelExp - prevLevelExp
   const progress = Math.min((expInCurrentTier / tierRequirement) * 100, 100)
 
+  // Memoize cumulative perks for the selected tier
   const cumulativePerks = useMemo(() => {
     let perks: string[] = []
     for (let i = 0; i < selectedLevel; i++) {
       perks = [...perks, ...VIP_CONFIG[i].perks]
     }
+    // Remove duplicates
     return Array.from(new Set(perks))
   }, [selectedLevel])
 
@@ -103,6 +106,7 @@ export default function VIPCenterPage() {
       </header>
 
       <main className="flex-1 p-6 space-y-8">
+        {/* Progress Section */}
         <section className="bg-gradient-to-br from-zinc-900 to-zinc-950 p-8 rounded-[3rem] border border-[#3BC1A8]/20 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6 opacity-10"><Crown className="w-32 h-32 text-[#3BC1A8]" /></div>
           
@@ -128,6 +132,7 @@ export default function VIPCenterPage() {
           </div>
         </section>
 
+        {/* Level Switcher */}
         <section className="space-y-6">
           <div className="flex items-center gap-4 overflow-x-auto pb-4 no-scrollbar">
             {VIP_CONFIG.map((tier) => (
@@ -151,6 +156,7 @@ export default function VIPCenterPage() {
             ))}
           </div>
 
+          {/* Perks Grid */}
           <div className="bg-zinc-900/50 border border-white/5 rounded-[2.5rem] p-8 space-y-8 animate-in fade-in zoom-in duration-300">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
