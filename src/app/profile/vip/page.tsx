@@ -3,7 +3,7 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Star, Check, Coins, Loader2, Gem, Trophy, Sparkles, Zap, ShieldCheck, Heart, MessageCircle, Crown, UserCheck, Shield, Flame, Target, Gift, Eye } from "lucide-react"
+import { ChevronLeft, Star, Check, Loader2, Trophy, Sparkles, Zap, Crown, Eye, ShieldCheck, Ghost, Search, MapPin, Clock, Music, Heart, MessageSquare, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { doc, updateDoc } from "firebase/firestore"
@@ -11,21 +11,21 @@ import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
 export const VIP_CONFIG = [
-  { level: 1, exp: 5000, perks: ["Blue username", "Basic VIP badge", "Daily 10 Coins", "Priority Chat"] },
-  { level: 2, exp: 20000, perks: ["Visitor List", "Unblur Visitors", "Profile Badge", "Support Priority"] },
-  { level: 3, exp: 50000, perks: ["Gold Name", "Profile Glow", "2 Mystery Notes", "Unique Badge"] },
-  { level: 4, exp: 100000, perks: ["Elite Rank", "Hide Age", "Extra Interest", "Chat Bubble"] },
-  { level: 5, exp: 250000, perks: ["Global Broadcast", "Hide Location", "Exclusive Icon", "VIP Support"] },
-  { level: 6, exp: 500000, perks: ["Voice Priority", "Gold Badge+", "Daily 50 Coins", "Premium Status"] },
-  { level: 7, exp: 1000000, perks: ["Invisibility", "Direct Line", "Legendary Badge", "Secret Mode"] },
-  { level: 8, exp: 2000000, perks: ["Ghost Mode", "Unlimited Notes", "Global Glow+", "Elite Status"] },
-  { level: 9, exp: 4000000, perks: ["Custom Tags", "Personal Manager", "Elite Ring", "Admin Priority"] },
-  { level: 10, exp: 7000000, perks: ["Moderator Rights", "Legendary Status", "Diamond x1.2", "Official Crown"] },
-  { level: 11, exp: 11000000, perks: ["Elite Glow", "Exclusive ID", "Daily 100 Coins", "Super VIP"] },
-  { level: 12, exp: 16000000, perks: ["Ambassador", "Private Invites", "Diamond x1.5", "Global Icon"] },
-  { level: 13, exp: 22000000, perks: ["God Mode", "Report Immunity", "Gold Profile", "Ultimate Rank"] },
-  { level: 14, exp: 30000000, perks: ["Global Glow Max", "Admin Direct", "Daily 500 Coins", "Legacy Badge"] },
-  { level: 15, exp: 40000000, perks: ["Platform God", "Infinite Boost", "Diamond x2.0", "Crown of Honor"] },
+  { level: 1, exp: 5000, perks: ["Blue username", "Basic VIP badge", "Profile Tag", "Faster Matches"] },
+  { level: 2, exp: 20000, perks: ["Visitor List", "Unblur Visitors", "Support Badge", "Priority Help"] },
+  { level: 3, exp: 50000, perks: ["Gold Name", "Profile Glow", "2 Mystery Notes", "VIP Chat Badge"] },
+  { level: 4, exp: 100000, perks: ["Hide Age", "Hide Location", "Extra Photo slot", "Bio Font Style"] },
+  { level: 5, exp: 250000, perks: ["Global Broadcast", "Exclusive Icon", "5 Mystery Notes", "VIP Support Line"] },
+  { level: 6, exp: 500000, perks: ["Voice Priority", "Premium Frame", "Premium Badge", "Auto-Match Perk"] },
+  { level: 7, exp: 1000000, perks: ["Invisibility Mode", "Ghost Browsing", "Legendary Badge", "Private ID"] },
+  { level: 8, exp: 2000000, perks: ["Unlimited Notes", "Global Glow+", "Elite Status", "Hidden Distance"] },
+  { level: 9, exp: 4000000, perks: ["Custom Interests", "Elite Ring", "Profile Music", "Premium Wall"] },
+  { level: 10, exp: 7000000, perks: ["Official Crown", "Legendary Status", "Verified Plus", "Priority List"] },
+  { level: 11, exp: 11000000, perks: ["Super VIP", "Exclusive Emoji", "Elite Glow Max", "Priority Queue"] },
+  { level: 12, exp: 16000000, perks: ["Global Icon", "Private Party", "Exclusive Stickers", "Luxury Theme"] },
+  { level: 13, exp: 22000000, perks: ["Ultimate Rank", "Report Protection", "Gold Profile", "Elite Support"] },
+  { level: 14, exp: 30000000, perks: ["Legacy Badge", "Direct Support", "Platinum Name", "Special Animation"] },
+  { level: 15, exp: 40000000, perks: ["Platform God", "Crown of Honor", "Hall of Fame", "Infinite Discover"] },
 ]
 
 export function getVipLevelFromExp(exp: number) {
@@ -40,9 +40,7 @@ export function getVipLevelFromExp(exp: number) {
 }
 
 export function getVipDiamondMultiplier(level: number) {
-  if (level >= 15) return 2.0;
-  if (level >= 12) return 1.5;
-  if (level >= 10) return 1.2;
+  // Removed diamond benefits as per request
   return 1.0;
 }
 
@@ -59,7 +57,6 @@ export default function VIPCenterPage() {
   const currentExp = profile?.vipExp || 0
   const currentLevel = profile?.vipLevel || 0
 
-  // Cost-optimized: Only update level field when user opens the VIP screen
   useEffect(() => {
     if (profile && firestore) {
       const calculatedLevel = getVipLevelFromExp(currentExp)
@@ -84,14 +81,18 @@ export default function VIPCenterPage() {
   const tierRequirement = nextLevelExp - prevLevelExp
   const progress = Math.min((expInCurrentTier / tierRequirement) * 100, 100)
 
-  // Memoize cumulative perks for the selected tier
+  // Get cumulative perks for the current selected level
   const cumulativePerks = useMemo(() => {
     let perks: string[] = []
     for (let i = 0; i < selectedLevel; i++) {
       perks = [...perks, ...VIP_CONFIG[i].perks]
     }
-    // Remove duplicates
     return Array.from(new Set(perks))
+  }, [selectedLevel])
+
+  // Get only the perks introduced at the selected level
+  const currentLevelPerks = useMemo(() => {
+    return VIP_CONFIG[selectedLevel - 1]?.perks || []
   }, [selectedLevel])
 
   if (isLoading) {
@@ -106,7 +107,7 @@ export default function VIPCenterPage() {
       </header>
 
       <main className="flex-1 p-6 space-y-8">
-        {/* Progress Section */}
+        {/* Progress Card */}
         <section className="bg-gradient-to-br from-zinc-900 to-zinc-950 p-8 rounded-[3rem] border border-[#3BC1A8]/20 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6 opacity-10"><Crown className="w-32 h-32 text-[#3BC1A8]" /></div>
           
@@ -123,18 +124,18 @@ export default function VIPCenterPage() {
 
             <div className="space-y-2">
               <div className="flex justify-between items-end px-1">
-                <span className="text-[9px] font-black uppercase text-[#3BC1A8]/60">Upgrade Progress</span>
+                <span className="text-[9px] font-black uppercase text-[#3BC1A8]/60">Level Progress</span>
                 <span className="text-[10px] font-bold text-white/40">{currentExp.toLocaleString()} / {nextLevelExp.toLocaleString()}</span>
               </div>
               <Progress value={progress} className="h-3 bg-white/5" />
-              <p className="text-[9px] font-medium text-zinc-500 text-center pt-1">Gain 1 EXP for every 1 Coin earned (+)</p>
+              <p className="text-[9px] font-medium text-zinc-500 text-center pt-1">Gained from positive coin activities (+)</p>
             </div>
           </div>
         </section>
 
-        {/* Level Switcher */}
+        {/* Horizontal Selector */}
         <section className="space-y-6">
-          <div className="flex items-center gap-4 overflow-x-auto pb-4 no-scrollbar">
+          <div className="flex items-center gap-4 overflow-x-auto pb-4 no-scrollbar px-2">
             {VIP_CONFIG.map((tier) => (
               <button
                 key={tier.level}
@@ -156,47 +157,40 @@ export default function VIPCenterPage() {
             ))}
           </div>
 
-          {/* Perks Grid */}
-          <div className="bg-zinc-900/50 border border-white/5 rounded-[2.5rem] p-8 space-y-8 animate-in fade-in zoom-in duration-300">
-            <div className="flex items-center justify-between">
-              <div className="space-y-1">
-                <h3 className="text-2xl font-black font-headline text-[#3BC1A8]">VIP {selectedLevel} Benefits</h3>
-                <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
-                  {selectedLevel <= currentLevel ? "UNLOCKED" : `${(VIP_CONFIG[selectedLevel-1].exp - currentExp).toLocaleString()} EXP TO GO`}
-                </p>
-              </div>
-              <div className="w-14 h-14 rounded-2xl bg-[#3BC1A8]/10 flex items-center justify-center">
-                <Sparkles className="w-7 h-7 text-[#3BC1A8]" />
-              </div>
+          {/* New Perks Section */}
+          <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
+            <div className="flex items-center justify-between px-2">
+              <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#3BC1A8]">New at Level {selectedLevel}</h3>
+              <Sparkles className="w-4 h-4 text-[#3BC1A8]" />
             </div>
-
-            <div className="space-y-4">
-              <p className="text-[10px] font-black uppercase text-zinc-400 tracking-[0.2em] border-b border-white/5 pb-2">All Active Perks</p>
-              <div className="grid grid-cols-2 gap-3">
-                {cumulativePerks.map((perk, i) => {
-                  const isNewPerk = VIP_CONFIG[selectedLevel - 1].perks.includes(perk);
-                  return (
-                    <div key={i} className={cn(
-                      "flex flex-col gap-2 p-4 rounded-2xl transition-all border",
-                      isNewPerk ? "bg-[#3BC1A8]/5 border-[#3BC1A8]/20" : "bg-white/5 border-white/5 opacity-60"
-                    )}>
-                      <div className={cn(
-                        "w-8 h-8 rounded-lg flex items-center justify-center shadow-inner",
-                        isNewPerk ? "bg-[#3BC1A8]/20 text-[#3BC1A8]" : "bg-white/10 text-zinc-500"
-                      )}>
-                        <Zap className="w-4 h-4" />
-                      </div>
-                      <span className={cn(
-                        "text-[10px] font-bold leading-tight",
-                        isNewPerk ? "text-white" : "text-zinc-400"
-                      )}>{perk}</span>
-                      {isNewPerk && <span className="text-[7px] font-black uppercase text-[#3BC1A8]">New Perk</span>}
-                    </div>
-                  )
-                })}
-              </div>
+            <div className="grid grid-cols-2 gap-3">
+              {currentLevelPerks.map((perk, i) => (
+                <div key={i} className="bg-white/5 border border-[#3BC1A8]/30 p-4 rounded-2xl flex flex-col gap-2 shadow-sm">
+                  <div className="w-8 h-8 rounded-lg bg-[#3BC1A8]/20 flex items-center justify-center text-[#3BC1A8]">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <span className="text-[11px] font-black uppercase leading-tight tracking-tight">{perk}</span>
+                </div>
+              ))}
             </div>
           </div>
+
+          {/* Cumulative Perks Section */}
+          {selectedLevel > 1 && (
+            <div className="space-y-4 pt-4 border-t border-white/5">
+              <div className="flex items-center justify-between px-2">
+                <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-zinc-500">Includes Previous Benefits</h3>
+              </div>
+              <div className="grid grid-cols-2 gap-3 opacity-60">
+                {cumulativePerks.filter(p => !currentLevelPerks.includes(p)).map((perk, i) => (
+                  <div key={i} className="bg-zinc-900/50 border border-white/5 p-4 rounded-2xl flex items-center gap-3">
+                    <Check className="w-3.5 h-3.5 text-zinc-600" />
+                    <span className="text-[10px] font-bold text-zinc-400">{perk}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </section>
         
         <div className="h-32" />
@@ -207,7 +201,7 @@ export default function VIPCenterPage() {
           onClick={() => router.push('/recharge')}
           className="w-full h-16 rounded-full bg-[#3BC1A8] hover:bg-[#2DA08F] text-white font-black uppercase text-xs tracking-widest shadow-2xl active:scale-95 transition-all"
         >
-          Recharge to Level Up
+          {selectedLevel > currentLevel ? `Recharge for VIP ${selectedLevel}` : 'Keep Growing'}
         </Button>
       </footer>
     </div>
