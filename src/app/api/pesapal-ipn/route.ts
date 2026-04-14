@@ -5,20 +5,12 @@ import { initializeApp, getApps, getApp } from 'firebase/app';
 import { getFirestore, doc, runTransaction, collection, query, where, getDocs, increment } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
-/**
- * @fileOverview Functional PesaPal IPN listener.
- * Receives payment notifications and updates Firestore reliably.
- */
-
 export async function POST(req: Request) {
   try {
     const text = await req.text();
     const params = new URLSearchParams(text);
-    
     const orderTrackingId = params.get('OrderTrackingId');
     const notificationType = params.get('OrderNotificationType');
-
-    console.log("🔥 PESAPAL IPN RECEIVED:", { orderTrackingId, notificationType });
 
     if (!orderTrackingId || notificationType !== 'IPNCHANGE') {
       return new Response("OK", { status: 200 });
@@ -26,17 +18,13 @@ export async function POST(req: Request) {
 
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
-
     const result = await getPesaPalTransactionStatus(orderTrackingId);
     
     if (result.status_code === 1 || result.payment_status_description === 'Completed') {
       const amount = result.amount;
       const merchantRef = result.merchant_reference;
-      
-      // Calculate coins (Standard conversion)
       const coinsToGain = Math.round((amount / 120) * 1000);
 
-      // Find the user associated with this merchant reference
       const usersSnap = await getDocs(collection(db, "userProfiles"));
       let targetUserId = null;
 
@@ -51,12 +39,10 @@ export async function POST(req: Request) {
 
       if (targetUserId) {
         const userRef = doc(db, "userProfiles", targetUserId);
-        
         await runTransaction(db, async (transaction) => {
           const profileSnap = await transaction.get(userRef);
           if (!profileSnap.exists()) return;
 
-          // Check if already processed
           const txQuery = query(collection(userRef, "transactions"), where("pesapal_tracking_id", "==", orderTrackingId));
           const existingTx = await getDocs(txQuery);
           if (!existingTx.empty) return;
@@ -77,14 +63,10 @@ export async function POST(req: Request) {
             description: `Auto-verified Recharge (${coinsToGain} coins)`
           });
         });
-        
-        console.log(`✅ Credited ${coinsToGain} coins to user ${targetUserId} via IPN`);
       }
     }
-
     return new Response("OK", { status: 200 });
   } catch (err) {
-    console.error("IPN ERROR:", err);
     return new Response("ERROR", { status: 500 });
   }
 }

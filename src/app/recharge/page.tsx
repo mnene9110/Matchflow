@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, Suspense } from "react"
@@ -31,7 +32,6 @@ export const COUNTRY_CURRENCIES: Record<string, { code: string; symbol: string; 
   "Malawi": { code: "MWK", symbol: "MK", rate: 13.2 },
   "Mauritius": { code: "MUR", symbol: "₨", rate: 0.35 },
   "Mozambique": { code: "MZN", symbol: "MT", rate: 0.49 },
-  "Nigeria": { code: "NGN", symbol: "₦", rate: 12.4 },
   "Rwanda": { code: "RWF", symbol: "FRw", rate: 10.1 },
   "Seychelles": { code: "SCR", symbol: "SR", rate: 0.105 },
   "Somalia": { code: "SOS", symbol: "Sh.So.", rate: 4.4 },
@@ -58,17 +58,12 @@ function RechargeContent() {
   const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
   const isKenyan = profile?.location === "Kenya";
 
-  // CRITICAL FIX: Reset loading state when the user returns to the app
   useEffect(() => {
-    const resetLoading = () => {
-      setIsProcessing(false);
-    };
-    
+    const resetLoading = () => setIsProcessing(false);
     window.addEventListener("focus", resetLoading);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") resetLoading();
     });
-
     return () => {
       window.removeEventListener("focus", resetLoading);
       document.removeEventListener("visibilitychange", resetLoading);
@@ -87,7 +82,6 @@ function RechargeContent() {
 
   const handlePay = async () => {
     if (!selectedPackage || !user || isProcessing) return;
-    
     setIsProcessing(true);
     try {
       const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
@@ -95,20 +89,17 @@ function RechargeContent() {
         userId: user.uid,
         packageAmount: selectedPackage.amount
       })
-
       if (result.error) {
         toast({ variant: "destructive", title: "Payment Error", description: result.error })
         setIsProcessing(false)
         return
       }
-
       if (result.redirect_url) {
         window.location.href = result.redirect_url
       } else {
         setIsProcessing(false)
       }
     } catch (error) {
-      console.error("Payment initialization failed:", error)
       toast({ variant: "destructive", title: "Error", description: "Failed to connect to payment gateway." })
       setIsProcessing(false)
     }
@@ -142,15 +133,12 @@ function RechargeContent() {
             {STANDARD_PACKAGES.map((pkg) => {
               const isSelected = selectedPackage?.amount === pkg.amount;
               const localPrice = Math.round(pkg.priceKes * currencyInfo.rate);
-              
               return (
                 <Card key={pkg.amount} onClick={() => !isProcessing && setSelectedPackage(pkg)} className={cn("relative aspect-square flex flex-col items-center justify-center gap-1.5 border-2 transition-all cursor-pointer rounded-[1.5rem]", isSelected ? "border-primary bg-white shadow-xl scale-[1.05]" : "border-gray-50 bg-gray-50/50")}>
                   <div className={cn("w-7 h-7 rounded-lg flex items-center justify-center", isSelected ? "bg-primary" : "bg-primary/10")}><span className={cn("font-black text-xs italic", isSelected ? "text-white" : "text-primary")}>S</span></div>
                   <div className="text-center">
                     <p className={cn("text-xs font-black", isSelected ? "text-primary" : "text-gray-900")}>{pkg.amount.toLocaleString()}</p>
-                    <p className="text-[8px] font-bold text-gray-400">
-                      {currencyInfo.symbol} {localPrice.toLocaleString()}
-                    </p>
+                    <p className="text-[8px] font-bold text-gray-400">{currencyInfo.symbol} {localPrice.toLocaleString()}</p>
                   </div>
                   {isSelected && (<div className="absolute top-1.5 right-1.5 w-4 h-4 bg-primary rounded-full flex items-center justify-center shadow-lg"><Check className="w-2.5 h-2.5 text-white stroke-[4]" /></div>)}
                 </Card>
@@ -177,21 +165,8 @@ function RechargeContent() {
       </main>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white border-t border-gray-50 z-50">
-        <Button 
-          className="w-full h-14 rounded-full bg-primary text-white font-black text-base shadow-xl active:scale-95 transition-all" 
-          onClick={handlePay} 
-          disabled={!selectedPackage || isProcessing}
-        >
-          {isProcessing ? (
-            <div className="flex items-center gap-2">
-              <Loader2 className="w-5 h-5 animate-spin" />
-              <span>Redirecting...</span>
-            </div>
-          ) : selectedPackage ? (
-            `Pay ${currencyInfo.symbol} ${Math.round(selectedPackage.priceKes * currencyInfo.rate).toLocaleString()}`
-          ) : (
-            "Select a Package"
-          )}
+        <Button className="w-full h-14 rounded-full bg-primary text-white font-black text-base shadow-xl active:scale-95 transition-all" onClick={handlePay} disabled={!selectedPackage || isProcessing}>
+          {isProcessing ? (<div className="flex items-center gap-2"><Loader2 className="w-5 h-5 animate-spin" /><span>Redirecting...</span></div>) : selectedPackage ? (`Pay ${currencyInfo.symbol} ${Math.round(selectedPackage.priceKes * currencyInfo.rate).toLocaleString()}`) : ("Select a Package")}
         </Button>
       </footer>
     </div>

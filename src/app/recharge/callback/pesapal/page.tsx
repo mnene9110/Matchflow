@@ -16,7 +16,6 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
   const { firestore } = useFirebase()
   const { toast } = useToast()
   const processedRef = useRef(false)
-
   const orderTrackingId = params.OrderTrackingId
 
   const userProfileDocRef = useMemoFirebase(() => {
@@ -26,29 +25,23 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
 
   useEffect(() => {
     if (!orderTrackingId || !currentUser || !firestore || !userProfileDocRef || processedRef.current) return;
-
     const handleVerification = async () => {
       processedRef.current = true;
       try {
         const result = await getPesaPalTransactionStatus(orderTrackingId);
-        
         if (result.status_code === 1 || result.payment_status_description === 'Completed') {
           const amount = result.amount;
           const coinsToGain = Math.round((amount / 120) * 1000);
-
           await runTransaction(firestore, async (transaction) => {
             const profileSnap = await transaction.get(userProfileDocRef);
             if (!profileSnap.exists()) return;
-
             const txQuery = query(collection(userProfileDocRef, "transactions"), where("orderTrackingId", "==", orderTrackingId));
             const existingTx = await getDocs(txQuery);
             if (!existingTx.empty) return;
-
             transaction.update(userProfileDocRef, {
               coinBalance: firestoreIncrement(coinsToGain),
               updatedAt: new Date().toISOString()
             });
-
             const txRef = doc(collection(userProfileDocRef, "transactions"));
             transaction.set(txRef, {
               id: txRef.id,
@@ -59,27 +52,21 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
               description: `Coin Recharge (${coinsToGain} coins)`
             });
           });
-
           toast({ title: "Payment Verified", description: "Wallet updated!" });
           router.replace("/recharge?status=success");
         } else {
-          toast({ variant: "destructive", title: "Payment Pending", description: "Your payment is being processed or was cancelled." });
           router.replace("/recharge?status=error");
         }
       } catch (error) {
-        console.error("Payment error:", error);
         router.replace("/recharge?status=error");
       }
     };
-
     handleVerification();
   }, [orderTrackingId, currentUser, firestore, userProfileDocRef, router, toast]);
 
   return (
     <div className="min-h-svh bg-slate-50 flex flex-col items-center justify-center p-8 text-center">
-      <div className="w-24 h-24 bg-primary rounded-[2rem] flex items-center justify-center animate-pulse mb-8">
-        <Loader2 className="w-12 h-12 text-white animate-spin" />
-      </div>
+      <div className="w-24 h-24 bg-primary rounded-[2rem] flex items-center justify-center animate-pulse mb-8"><Loader2 className="w-12 h-12 text-white animate-spin" /></div>
       <h2 className="text-2xl font-black font-headline text-gray-900 mb-2">Verifying Transaction</h2>
       <p className="text-sm font-medium text-gray-400 uppercase tracking-widest">Returning to wallet soon...</p>
     </div>

@@ -8,15 +8,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
-import { 
-  doc, 
-  query, 
-  collection, 
-  where, 
-  getDocs, 
-  increment, 
-  runTransaction 
-} from "firebase/firestore"
+import { doc, query, collection, where, getDocs, increment, runTransaction } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 
 export default function AwardCoinsPage() {
@@ -44,11 +36,9 @@ export default function AwardCoinsPage() {
     if (!targetNumericId.trim() || !firestore) return
     setIsSearching(true)
     setFoundUser(null)
-    
     try {
       const q = query(collection(firestore, "userProfiles"), where("numericId", "==", Number(targetNumericId)))
       const snap = await getDocs(q)
-      
       if (snap.empty) {
         toast({ variant: "destructive", title: "User not found" })
       } else {
@@ -64,20 +54,15 @@ export default function AwardCoinsPage() {
   const handleAward = async () => {
     const amount = Number(awardAmount)
     if (!foundUser || !amount || amount <= 0 || isAwarding || !currentUser || !profile || !firestore) return
-
     setIsAwarding(true)
     try {
       await runTransaction(firestore, async (transaction) => {
         const targetRef = doc(firestore, "userProfiles", foundUser.docId);
-        
-        // 1. Deduct from Coinseller if not Admin
         if (profile.isCoinseller && !profile.isAdmin) {
           const myProfileSnap = await transaction.get(meRef!);
           const myBalance = myProfileSnap.data()?.coinBalance || 0;
           if (myBalance < amount) throw new Error("INSUFFICIENT_COINS");
-          
           transaction.update(meRef!, { coinBalance: increment(-amount) });
-          
           const myTxRef = doc(collection(meRef!, "transactions"));
           transaction.set(myTxRef, {
             id: myTxRef.id,
@@ -87,13 +72,10 @@ export default function AwardCoinsPage() {
             description: `Awarded coins to ID: ${foundUser.numericId}`
           });
         }
-
-        // 2. Grant to Target
         transaction.update(targetRef, { 
           coinBalance: increment(amount),
           updatedAt: new Date().toISOString()
         });
-        
         const targetTxRef = doc(collection(targetRef, "transactions"));
         transaction.set(targetTxRef, {
           id: targetTxRef.id,
@@ -103,11 +85,10 @@ export default function AwardCoinsPage() {
           description: `Received coins from ${profile.isAdmin ? 'Admin' : 'Coinseller'}`
         });
       });
-
       toast({ title: "Award Successful", description: `${amount} coins granted.` })
       router.back()
     } catch (error: any) {
-      const msg = error.message === "INSUFFICIENT_COINS" ? "Insufficient coins in your wallet." : "An error occurred.";
+      const msg = error.message === "INSUFFICIENT_COINS" ? "Insufficient coins." : "An error occurred.";
       toast({ variant: "destructive", title: "Award failed", description: msg })
     } finally {
       setIsAwarding(false)
@@ -120,20 +101,11 @@ export default function AwardCoinsPage() {
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Award Coins</h1>
       </header>
-
       <main className="flex-1 px-6 pb-20 space-y-8 pt-6">
-        <div className="space-y-4">
-          <div className="bg-zinc-900 rounded-[2.5rem] p-6 text-white shadow-xl">
-             <div className="flex items-center gap-3 mb-4">
-                <Coins className="w-5 h-5 text-amber-500" />
-                <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Balance</span>
-             </div>
-             <p className="text-3xl font-black font-headline">
-               {profile?.isAdmin ? "UNLIMITED" : (profile?.coinBalance || 0).toLocaleString()}
-             </p>
-          </div>
+        <div className="bg-zinc-900 rounded-[2.5rem] p-6 text-white shadow-xl">
+           <div className="flex items-center gap-3 mb-4"><Coins className="w-5 h-5 text-amber-500" /><span className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Balance</span></div>
+           <p className="text-3xl font-black font-headline">{profile?.isAdmin ? "UNLIMITED" : (profile?.coinBalance || 0).toLocaleString()}</p>
         </div>
-
         <section className="space-y-4">
           <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#3BC1A8] ml-1">Recipient Numeric ID</Label>
           <div className="flex gap-2">
@@ -144,25 +116,16 @@ export default function AwardCoinsPage() {
             <Button onClick={handleSearch} disabled={isSearching || !targetNumericId} className="h-14 w-14 rounded-2xl bg-zinc-900">{isSearching ? <Loader2 className="w-5 h-5 animate-spin" /> : <Search className="w-5 h-5" />}</Button>
           </div>
         </section>
-
         {foundUser && (
           <section className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
             <div className="p-6 bg-gray-50 border border-gray-100 rounded-[2.5rem] shadow-sm flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-[#3BC1A8]/10 flex items-center justify-center"><UserCheck className="w-8 h-8 text-[#3BC1A8]" /></div>
-              <div className="flex-1">
-                <h3 className="font-black text-lg text-gray-900 leading-tight">{foundUser.username}</h3>
-                <p className="text-[10px] font-bold text-[#3BC1A8] uppercase tracking-widest">ID: {foundUser.numericId}</p>
-              </div>
+              <div className="flex-1"><h3 className="font-black text-lg text-gray-900 leading-tight">{foundUser.username}</h3><p className="text-[10px] font-bold text-[#3BC1A8] uppercase tracking-widest">ID: {foundUser.numericId}</p></div>
             </div>
-
             <div className="space-y-4">
               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Award Amount</Label>
-              <div className="relative">
-                 <Award className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" />
-                 <Input type="number" placeholder="0" value={awardAmount} onChange={(e) => setAwardAmount(e.target.value)} className="h-16 pl-14 rounded-3xl bg-white border-2 border-amber-500/20 text-2xl font-black focus-visible:ring-amber-500/10" />
-              </div>
+              <div className="relative"><Award className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-amber-500" /><Input type="number" placeholder="0" value={awardAmount} onChange={(e) => setAwardAmount(e.target.value)} className="h-16 pl-14 rounded-3xl bg-white border-2 border-amber-500/20 text-2xl font-black focus-visible:ring-amber-500/10" /></div>
             </div>
-
             <Button className="w-full h-16 rounded-full bg-zinc-900 text-white font-black text-lg shadow-2xl active:scale-95 transition-all gap-3" onClick={handleAward} disabled={isAwarding || !awardAmount || Number(awardAmount) <= 0}>
               {isAwarding ? <Loader2 className="w-6 h-6 animate-spin" /> : <><span className="text-sm font-black uppercase tracking-widest">Grant Coins</span><ArrowRight className="w-5 h-5" /></>}
             </Button>
