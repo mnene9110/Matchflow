@@ -9,6 +9,9 @@ import { useAuth, useUser, initiateAnonymousSignIn, useFirebase } from "@/fireba
 import { doc, getDoc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 
+/**
+ * @fileOverview Refined Welcome screen with background video and centered branding.
+ */
 export default function WelcomePage() {
   const router = useRouter()
   const auth = useAuth()
@@ -64,7 +67,7 @@ export default function WelcomePage() {
     return (
       <div className="flex h-svh w-full flex-col items-center justify-center bg-[#3BC1A8]">
         <div className="flex flex-col items-center gap-6 animate-pulse">
-          <h1 className="text-6xl font-logo text-white drop-shadow-2xl">
+          <h1 className="text-5xl font-logo text-white drop-shadow-2xl">
             MatchFlow
           </h1>
         </div>
@@ -73,25 +76,25 @@ export default function WelcomePage() {
   }
 
   return (
-    <div className="flex flex-col h-svh bg-zinc-900 relative overflow-hidden">
+    <div className="flex flex-col h-svh bg-zinc-950 relative overflow-hidden">
       {/* Background Video */}
       <video
         autoPlay
         muted
         loop
         playsInline
-        className="absolute inset-0 w-full h-full object-cover opacity-60"
+        className="absolute inset-0 w-full h-full object-cover opacity-50"
       >
         <source src="/background.mp4" type="video/mp4" />
       </video>
 
-      {/* Dark Overlay for better text readability */}
-      <div className="absolute inset-0 bg-black/30 z-0" />
+      {/* Subtle Overlay */}
+      <div className="absolute inset-0 bg-black/20 z-0" />
 
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
-        <div className="space-y-2 mb-12">
-          <h1 className="text-4xl font-logo text-[#3BC1A8] drop-shadow-lg">MatchFlow</h1>
-          <p className="text-white/80 text-[13px] font-black uppercase tracking-[0.2em] leading-relaxed max-w-[240px]">
+        <div className="space-y-2 mb-16">
+          <h1 className="text-3xl font-logo text-[#3BC1A8]">MatchFlow</h1>
+          <p className="text-white/70 text-[11px] font-black uppercase tracking-[0.2em] leading-relaxed max-w-[240px] mx-auto">
             Connect with Heart
           </p>
         </div>
