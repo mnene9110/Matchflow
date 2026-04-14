@@ -73,25 +73,32 @@ export default function WelcomePage() {
   }
 
   return (
-    <div className="flex flex-col h-svh bg-white relative overflow-hidden">
-      <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
-        <div className="mb-10 relative">
-          <div className="w-48 h-48 bg-zinc-950 rounded-[3rem] shadow-2xl flex flex-col items-center justify-center border border-white/10 animate-float overflow-hidden relative">
-            <div className="relative w-24 h-24 mb-2 flex items-center justify-center">
-              <svg viewBox="0 0 24 24" className="w-full h-full text-[#3BC1A8] fill-current" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
-              </svg>
-            </div>
-            <h2 className="text-white font-logo text-3xl tracking-tight">MatchFlow</h2>
-          </div>
-        </div>
+    <div className="flex flex-col h-svh bg-zinc-900 relative overflow-hidden">
+      {/* Background Video */}
+      <video
+        autoPlay
+        muted
+        loop
+        playsInline
+        className="absolute inset-0 w-full h-full object-cover opacity-60"
+      >
+        <source src="/background.mp4" type="video/mp4" />
+      </video>
 
-        <h1 className="text-5xl font-logo text-[#3BC1A8] mb-2 drop-shadow-md">MatchFlow</h1>
-        <p className="text-gray-400 text-[15px] font-black uppercase tracking-[0.1em] leading-relaxed max-w-[240px] mb-12">Connect with Heart</p>
+      {/* Dark Overlay for better text readability */}
+      <div className="absolute inset-0 bg-black/30 z-0" />
+
+      <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
+        <div className="space-y-2 mb-12">
+          <h1 className="text-4xl font-logo text-[#3BC1A8] drop-shadow-lg">MatchFlow</h1>
+          <p className="text-white/80 text-[13px] font-black uppercase tracking-[0.2em] leading-relaxed max-w-[240px]">
+            Connect with Heart
+          </p>
+        </div>
 
         <div className="w-full space-y-4 max-w-xs">
           <Button 
-            className="w-full h-16 rounded-full bg-zinc-900 text-white hover:bg-zinc-800 text-lg font-black gap-3 shadow-xl transition-all active:scale-95 flex items-center justify-center" 
+            className="w-full h-16 rounded-full bg-[#3BC1A8] text-white hover:bg-[#34b098] text-lg font-black gap-3 shadow-xl transition-all active:scale-95 flex items-center justify-center border-none" 
             onClick={handleEmailClick}
             disabled={isNavigatingEmail || isLoggingIn}
           >
@@ -101,7 +108,7 @@ export default function WelcomePage() {
           
           <Button 
             variant="ghost" 
-            className="w-full h-16 rounded-full bg-gray-50 text-gray-900 border border-gray-100 hover:bg-gray-100 text-lg font-black gap-3 transition-all active:scale-95 shadow-sm flex items-center justify-center" 
+            className="w-full h-16 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/20 hover:bg-white/20 text-lg font-black gap-3 transition-all active:scale-95 shadow-sm flex items-center justify-center" 
             onClick={handleFastLogin} 
             disabled={isLoggingIn || isNavigatingEmail}
           >
