@@ -19,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/dialog"
+} from "@/components/ui/alert-dialog"
 
 export default function SettingsPage() {
   const router = useRouter()
