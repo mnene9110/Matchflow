@@ -9,9 +9,6 @@ import { useAuth, useUser, initiateAnonymousSignIn, useFirebase } from "@/fireba
 import { doc, getDoc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 
-/**
- * @fileOverview Refined Welcome screen with background video and centered branding.
- */
 export default function WelcomePage() {
   const router = useRouter()
   const auth = useAuth()
@@ -77,7 +74,6 @@ export default function WelcomePage() {
 
   return (
     <div className="flex flex-col h-svh bg-zinc-950 relative overflow-hidden">
-      {/* Background Video */}
       <video
         autoPlay
         muted
@@ -88,7 +84,6 @@ export default function WelcomePage() {
         <source src="/background.mp4" type="video/mp4" />
       </video>
 
-      {/* Subtle Overlay */}
       <div className="absolute inset-0 bg-black/20 z-0" />
 
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
@@ -120,6 +115,12 @@ export default function WelcomePage() {
           </Button>
         </div>
       </main>
+
+      <footer className="absolute bottom-10 left-0 right-0 z-20 px-8">
+        <p className="text-[10px] text-white/40 text-center leading-relaxed">
+          By signing up, you agree to our <span className="underline cursor-pointer">Terms of Service</span> and <span className="underline cursor-pointer">Privacy Policy</span>.
+        </p>
+      </footer>
     </div>
   )
 }

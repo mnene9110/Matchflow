@@ -5,7 +5,7 @@ import { useState, useEffect } from "react"
 import Image from "next/image"
 import { RotateCcw, Loader2, MessageSquare, Trophy } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { collection, query, where, limit, getDocs, doc } from "firebase/firestore"
+import { collection, query, where, limit, getDocs, doc, onSnapshot } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 
@@ -23,10 +23,21 @@ export default function DiscoverPage() {
   const router = useRouter()
 
   const [users, setUsers] = useState<any[]>(cachedUsers)
+  const [blockedUserIds, setBlockedUsersIds] = useState<Set<string>>(new Set())
   const [isInitialLoading, setIsInitialLoading] = useState(!cachedInitialLoaded)
   
   const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile } = useDoc(userProfileRef)
+
+  // Sync blocked users to filter them out of discover
+  useEffect(() => {
+    if (!firestore || !currentUser) return
+    const blockedRef = collection(firestore, "userProfiles", currentUser.uid, "blockedUsers")
+    return onSnapshot(blockedRef, (snap) => {
+      const ids = new Set(snap.docs.map(d => d.id))
+      setBlockedUsersIds(ids)
+    })
+  }, [firestore, currentUser])
 
   const fetchUsers = async (isRefresh = false) => {
     if (!firestore || !currentUser || !currentUserProfile) return;
@@ -93,6 +104,8 @@ export default function DiscoverPage() {
     return age;
   }
 
+  const filteredUsers = users.filter(u => !blockedUserIds.has(u.id))
+
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
       <div className="bg-[#3BC1A8] px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-3">
@@ -117,13 +130,13 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      <main className="px-4 grid grid-cols-2 gap-3 mt-0">
-        {users.map((user) => {
+      <main className="px-4 grid grid-cols-2 gap-3 mt-3">
+        {filteredUsers.map((user) => {
           const age = calculateAge(user.dateOfBirth);
           const image = (user.profilePhotoUrls && user.profilePhotoUrls[0]) || `https://picsum.photos/seed/${user.id}/400/600`;
 
           return (
-            <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95 first:mt-3 second:mt-3">
+            <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95">
               <Image src={image} alt={user.username} fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
               

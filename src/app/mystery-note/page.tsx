@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -52,9 +53,11 @@ export default function MysteryNotePage() {
       const batch = writeBatch(firestore);
       
       const targetGender = profile.gender?.toLowerCase() === 'male' ? 'female' : 'male'
+      // Strictly target users who are currently online
       const usersQuery = query(
         collection(firestore, "userProfiles"),
         where("gender", "==", targetGender),
+        where("isOnline", "==", true),
         limit(recipientCount + 20)
       );
       
@@ -64,7 +67,7 @@ export default function MysteryNotePage() {
         .slice(0, recipientCount);
 
       if (potentialTargets.length === 0) {
-        throw new Error("NO_USERS_FOUND")
+        throw new Error("NO_USERS_ONLINE")
       }
 
       // Update sender balance and logs
@@ -79,7 +82,7 @@ export default function MysteryNotePage() {
         type: "mystery_note",
         amount: -totalCost,
         transactionDate: new Date().toISOString(),
-        description: `Sent Mystery Note to ${potentialTargets.length} people`
+        description: `Sent Mystery Note to ${potentialTargets.length} online users`
       });
 
       for (const target of potentialTargets) {
@@ -107,11 +110,11 @@ export default function MysteryNotePage() {
 
       await batch.commit();
 
-      toast({ title: "Mystery Sent!", description: `Broadcasted to ${potentialTargets.length} people.` })
+      toast({ title: "Mystery Sent!", description: `Broadcasted to ${potentialTargets.length} online people.` })
       router.back()
     } catch (error: any) {
-      if (error.message === "NO_USERS_FOUND") {
-        toast({ variant: "destructive", title: "No users found", description: "Try again later when more users are online." })
+      if (error.message === "NO_USERS_ONLINE") {
+        toast({ variant: "destructive", title: "No users found", description: "There are currently no opposite gender users in 'Recommended' who are online." })
       } else {
         toast({ variant: "destructive", title: "Error", description: "Failed to send mystery note." })
       }
@@ -126,7 +129,7 @@ export default function MysteryNotePage() {
     <div className="flex flex-col h-svh bg-transparent text-gray-900 overflow-hidden relative font-body">
       <header className="px-4 py-8 flex items-center sticky top-0 z-50 shrink-0">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"><ChevronLeft className="w-6 h-6" /></Button>
-        <div className="ml-4 flex flex-col"><h1 className="text-xl font-black font-headline tracking-widest uppercase text-white drop-shadow-sm">Leave a message</h1><p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Share your thoughts anonymously</p></div>
+        <div className="ml-4 flex flex-col"><h1 className="text-xl font-black font-headline tracking-widest uppercase text-white drop-shadow-sm">Leave a message</h1><p className="text-[10px] font-bold text-white/60 uppercase tracking-widest">Targeting only online users</p></div>
       </header>
 
       <main className="flex-1 overflow-y-auto px-6 pt-4 pb-40 space-y-10 flex flex-col">

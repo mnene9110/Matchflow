@@ -11,7 +11,8 @@ import {
   ArrowUp, 
   Zap, 
   Phone, 
-  Video
+  Video,
+  ShieldAlert
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -32,7 +33,8 @@ import {
   runTransaction,
   setDoc,
   where,
-  getDocs 
+  getDocs,
+  getDoc
 } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
@@ -40,18 +42,6 @@ import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
 export const GIFTS = [
-  { id: 'mask', name: 'Party mask 🎭', emoji: '🎭', price: 20 },
-  { id: 'handbag', name: 'Luxury Bag 👜', emoji: '👜', price: 800 },
-  { id: 'tea', name: 'Strong Tea 🍵', emoji: '🍵', price: 100 },
-  { id: 'duck', name: 'Cute duck 🦆', emoji: '🦆', price: 20 },
-  { id: 'treasure', name: 'Treasure 💎', emoji: '💎', price: 500 },
-  { id: 'puppy', name: 'Puppy 🐶', emoji: '🐶', price: 150 },
-  { id: 'castle', name: 'Moon castle 🏰', emoji: '🏰', price: 800 },
-  { id: 'rabbit', name: 'Rabbit 🐰', emoji: '🐰', price: 150 },
-  { id: 'cat', name: 'Cat 🐱', emoji: '🐱', price: 150 },
-  { id: 'balloon', name: 'Balloon 🎈', emoji: '🎈', price: 20 },
-  { id: 'soulmate', name: 'Soul mate 💖', emoji: '💖', price: 30 },
-  { id: 'ufo', name: 'UFO 🛸', emoji: '🛸', price: 1990 },
   { id: 'roses', name: 'Rose Bouquet 🌹', emoji: '🌹', price: 500 },
   { id: 'ring', name: 'Diamond Ring 💍', emoji: '💍', price: 1000 },
   { id: 'champagne', name: 'Champagne 🍾', emoji: '🍾', price: 1200 },
@@ -90,6 +80,8 @@ function ChatDetailContent() {
   const [inputText, setInputText] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
+  const [isBlockedByOther, setIsBlockedByOther] = useState(false)
+  const [isCheckingBlock, setIsCheckingBlock] = useState(true)
   
   const [msgLimit, setMsgLimit] = useState(30)
   const [hasMore, setHasMore] = useState(true)
@@ -117,6 +109,16 @@ function ChatDetailContent() {
     }
   }, [otherUserId, firestore])
 
+  // Check if I am blocked by the other user
+  useEffect(() => {
+    if (!firestore || !currentUser || !resolvedOtherUserId) return
+    const blockRef = doc(firestore, "userProfiles", resolvedOtherUserId, "blockedUsers", currentUser.uid)
+    return onSnapshot(blockRef, (snap) => {
+      setIsBlockedByOther(snap.exists())
+      setIsCheckingBlock(false)
+    })
+  }, [firestore, currentUser, resolvedOtherUserId])
+
   const chatId = useMemo(() => {
     if (!currentUser || !resolvedOtherUserId) return ""
     return [currentUser.uid, resolvedOtherUserId].sort().join("_")
@@ -129,7 +131,7 @@ function ChatDetailContent() {
   const { data: currentUserProfile } = useDoc(meRef)
 
   useEffect(() => {
-    if (!firestore || !chatId) return
+    if (!firestore || !chatId || isBlockedByOther) return
     const msgQuery = query(
       collection(firestore, "chats", chatId, "messages"),
       orderBy("sentAt", "desc"),
@@ -151,10 +153,10 @@ function ChatDetailContent() {
     })
 
     return () => unsubscribe()
-  }, [firestore, chatId, msgLimit])
+  }, [firestore, chatId, msgLimit, isBlockedByOther])
 
   useEffect(() => {
-    if (initialMsg && currentUser && resolvedOtherUserId && otherUser && !isSending) {
+    if (initialMsg && currentUser && resolvedOtherUserId && otherUser && !isSending && !isBlockedByOther) {
       const timer = setTimeout(() => {
         handleSendMessage(initialMsg);
         const newUrl = window.location.pathname;
@@ -162,19 +164,19 @@ function ChatDetailContent() {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [initialMsg, !!currentUser, resolvedOtherUserId, !!otherUser]);
+  }, [initialMsg, !!currentUser, resolvedOtherUserId, !!otherUser, isBlockedByOther]);
 
   useEffect(() => {
-    if (!firestore || !currentUser || !chatId) return
+    if (!firestore || !currentUser || !chatId || isBlockedByOther) return
     const chatRef = doc(firestore, "chats", chatId)
     updateDoc(chatRef, { [`unreadCount_${currentUser.uid}`]: 0 }).catch(() => {})
-  }, [firestore, currentUser, chatId, messages.length])
+  }, [firestore, currentUser, chatId, messages.length, isBlockedByOther])
 
   useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
 
   const handleSendMessage = async (textOverride?: string) => {
     const textToUse = textOverride || inputText;
-    if (!textToUse.trim() || !currentUser || !chatId || !firestore || !resolvedOtherUserId || !otherUser || isSending || !currentUserProfile) return
+    if (!textToUse.trim() || !currentUser || !chatId || !firestore || !resolvedOtherUserId || !otherUser || isSending || !currentUserProfile || isBlockedByOther) return
     
     const isFree = currentUserProfile.isAdmin || 
                    currentUserProfile.isSupport || 
@@ -236,7 +238,7 @@ function ChatDetailContent() {
 
   const handleSendGift = async (giftOverride?: typeof GIFTS[0]) => {
     const gift = giftOverride || selectedGift;
-    if (!gift || !currentUser || !resolvedOtherUserId || isSendingGift || !currentUserProfile || !firestore || !otherUser) return;
+    if (!gift || !currentUser || !resolvedOtherUserId || isSendingGift || !currentUserProfile || !firestore || !otherUser || isBlockedByOther) return;
     
     setIsSendingGift(true);
     const finalPrice = gift.price;
@@ -284,7 +286,7 @@ function ChatDetailContent() {
   }
 
   const handleInitiateCall = async (type: 'audio' | 'video') => {
-    if (!currentUser || !resolvedOtherUserId || !firestore || !currentUserProfile) return;
+    if (!currentUser || !resolvedOtherUserId || !firestore || !currentUserProfile || isBlockedByOther) return;
     
     const cost = type === 'video' ? 160 : 80;
     const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.gender?.toLowerCase() === 'female';
@@ -315,13 +317,36 @@ function ChatDetailContent() {
     }
   }
 
-  if (isOtherUserLoading || isResolvingId) {
+  if (isOtherUserLoading || isResolvingId || isCheckingBlock) {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
 
   const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || `https://picsum.photos/seed/${resolvedOtherUserId}/200/200`
   const otherUserName = otherUser?.isSupport ? "Customer Support" : (otherUser?.username || "User")
   
+  if (isBlockedByOther) {
+    return (
+      <div className="flex flex-col h-svh bg-white">
+        <header className="px-4 py-6 bg-[#3BC1A8] flex items-center shadow-lg text-white">
+          <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><ChevronLeft className="w-5 h-5" /></Button>
+          <h1 className="text-lg font-black ml-4 uppercase tracking-widest">Chat Restricted</h1>
+        </header>
+        <main className="flex-1 flex flex-col items-center justify-center p-8 text-center space-y-6">
+          <div className="w-24 h-24 bg-red-50 rounded-[3rem] flex items-center justify-center border-4 border-red-100">
+            <ShieldAlert className="w-12 h-12 text-red-500" />
+          </div>
+          <div className="space-y-2">
+            <h2 className="text-2xl font-black font-headline text-gray-900">Communication Restricted</h2>
+            <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
+              You cannot send messages or call this user because you have been blocked.
+            </p>
+          </div>
+          <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-zinc-900 text-white font-black uppercase text-xs tracking-widest shadow-xl">Go Back</Button>
+        </main>
+      </div>
+    )
+  }
+
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       <header className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 bg-[#3BC1A8] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">

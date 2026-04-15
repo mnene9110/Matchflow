@@ -1,3 +1,4 @@
+
 "use client"
 
 import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, MessageSquare, Ban, Info, BellOff } from "lucide-react"
@@ -18,7 +19,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
   AlertDialogTrigger,
-} from "@/components/ui/alert-dialog"
+} from "@/components/ui/dialog"
 
 export default function SettingsPage() {
   const router = useRouter()
@@ -49,9 +50,7 @@ export default function SettingsPage() {
 
   const settingsItems = [
     { label: "Bind account", icon: ShieldCheck, badge: isGuest ? "Guest Mode" : "Verified", onClick: () => isGuest ? router.push("/settings/bind") : toast({ title: "Already verified", description: "Your account is linked." }) },
-    { label: "Call settings", icon: BellOff, onClick: () => router.push("/settings/calls") },
     { label: "Charge settings", icon: CreditCard, onClick: () => router.push("/settings/charges") },
-    { label: "Chat settings", icon: MessageSquare },
     { label: "Blocked List", icon: Ban, onClick: () => router.push("/settings/blocked") },
     { label: "About MatchFlow", icon: Info, onClick: () => router.push("/settings/about") },
   ]

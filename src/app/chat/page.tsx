@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -129,14 +130,23 @@ export default function ChatListPage() {
   const { firestore } = useFirebase()
   const { user: currentUser } = useUser()
   const [sessions, setSessions] = useState<any[]>([])
+  const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set())
   const [hasFetched, setHasFetched] = useState(false)
   const [hidingTarget, setHidingTarget] = useState<string | null>(null)
   const [isHiding, setIsHiding] = useState(false)
 
+  // Track blocked IDs to filter chat list
+  useEffect(() => {
+    if (!firestore || !currentUser) return
+    const blockedRef = collection(firestore, "userProfiles", currentUser.uid, "blockedUsers")
+    return onSnapshot(blockedRef, (snap) => {
+      setBlockedIds(new Set(snap.docs.map(d => d.id)))
+    })
+  }, [firestore, currentUser])
+
   useEffect(() => {
     if (!firestore || !currentUser) return
     
-    // Safety timeout: if Firestore takes too long, stop showing the spinner
     const timer = setTimeout(() => {
       setHasFetched(true)
     }, 8000)
@@ -151,16 +161,18 @@ export default function ChatListPage() {
       clearTimeout(timer)
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
       const filtered = list.filter((s: any) => {
+        const otherId = s.participants.find((p: string) => p !== currentUser.uid)
+        const isBlocked = otherId && blockedIds.has(otherId)
         const isHidden = s[`hidden_${currentUser.uid}`] === true
         const hasSent = s[`userHasSent_${currentUser.uid}`] === true
         const unread = s[`unreadCount_${currentUser.uid}`] > 0
-        return !isHidden && (hasSent || unread)
+        return !isHidden && (hasSent || unread) && !isBlocked
       })
       setSessions(filtered)
       setHasFetched(true)
     }, async (error) => {
       clearTimeout(timer)
-      setHasFetched(true) // Ensure we don't load forever even on error
+      setHasFetched(true)
       if (error.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'chats',
@@ -173,7 +185,7 @@ export default function ChatListPage() {
       clearTimeout(timer)
       unsubscribe()
     }
-  }, [firestore, currentUser])
+  }, [firestore, currentUser, blockedIds])
 
   const handleHideChat = async () => {
     if (!currentUser || !hidingTarget || !firestore) return
