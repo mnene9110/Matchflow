@@ -1,9 +1,9 @@
 
 "use client"
 
-import { useState, useEffect, Suspense } from "react"
+import { useState, useEffect, Suspense, useMemo } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
-import { ChevronLeft, Check, History, Loader2, Users } from "lucide-react"
+import { ChevronLeft, Check, History, Loader2, Users, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { useFirebase, useDoc, useUser, useMemoFirebase } from "@/firebase"
@@ -11,6 +11,7 @@ import { doc } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { initializePesaPalTransaction } from "@/app/actions/pesapal"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export const STANDARD_PACKAGES = [
   { amount: 500, priceKes: 70 },
@@ -51,12 +52,22 @@ function RechargeContent() {
   
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
+  const [selectedRegion, setSelectedRegion] = useState<string>("Kenya")
 
   const meRef = useMemoFirebase(() => user ? doc(firestore, "userProfiles", user.uid) : null, [firestore, user])
   const { data: profile } = useDoc(meRef)
 
-  const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
-  const isKenyan = profile?.location === "Kenya";
+  useEffect(() => {
+    if (profile?.location && COUNTRY_CURRENCIES[profile.location]) {
+      setSelectedRegion(profile.location);
+    }
+  }, [profile?.location]);
+
+  const currencyInfo = useMemo(() => {
+    return COUNTRY_CURRENCIES[selectedRegion] || COUNTRY_CURRENCIES["Kenya"];
+  }, [selectedRegion]);
+
+  const isKenyan = selectedRegion === "Kenya";
 
   useEffect(() => {
     const resetLoading = () => setIsProcessing(false);
@@ -125,6 +136,25 @@ function RechargeContent() {
               <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Available Coins</span>
             </div>
           </div>
+        </section>
+
+        <section className="mb-8 space-y-3">
+          <div className="flex items-center gap-2 px-2">
+            <Globe className="w-3.5 h-3.5 text-primary/40" />
+            <h2 className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">Select Payment Region</h2>
+          </div>
+          <Select value={selectedRegion} onValueChange={setSelectedRegion}>
+            <SelectTrigger className="h-14 rounded-2xl bg-gray-50 border-gray-100 text-sm font-bold shadow-sm px-6">
+              <SelectValue placeholder="Region" />
+            </SelectTrigger>
+            <SelectContent className="rounded-2xl max-h-[300px]">
+              {Object.keys(COUNTRY_CURRENCIES).map((country) => (
+                <SelectItem key={country} value={country} className="font-bold py-3">
+                  {country} ({COUNTRY_CURRENCIES[country].code})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </section>
 
         <section className="space-y-4">

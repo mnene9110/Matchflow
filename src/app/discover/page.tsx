@@ -117,13 +117,13 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      <main className="px-4 grid grid-cols-2 gap-3 mt-4">
+      <main className="px-4 grid grid-cols-2 gap-3 mt-0">
         {users.map((user) => {
           const age = calculateAge(user.dateOfBirth);
           const image = (user.profilePhotoUrls && user.profilePhotoUrls[0]) || `https://picsum.photos/seed/${user.id}/400/600`;
 
           return (
-            <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95">
+            <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95 first:mt-3 second:mt-3">
               <Image src={image} alt={user.username} fill className="object-cover" />
               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
               
