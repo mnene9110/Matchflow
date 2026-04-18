@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -78,19 +77,33 @@ export default function ProfileDetailPage() {
     }
   }, [currentUser?.uid, id, !!firestore, !!userProfile, !!currentUserProfile]);
 
+  // Handle browser back button to close fullscreen image
   useEffect(() => {
     const handlePopState = () => {
-      if (fullscreenImage) setFullscreenImage(null);
+      if (fullscreenImage) {
+        setFullscreenImage(null);
+      }
     };
+
     if (fullscreenImage) {
       window.history.pushState({ gallery: true }, "");
       window.addEventListener("popstate", handlePopState);
     }
-    return () => window.removeEventListener("popstate", handlePopState);
+
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+    };
   }, [fullscreenImage]);
 
-  const openFullscreen = (url: string) => setFullscreenImage(url);
-  const closeFullscreen = () => { if (fullscreenImage) window.history.back(); }
+  const openFullscreen = (url: string) => {
+    setFullscreenImage(url);
+  };
+
+  const closeFullscreen = () => {
+    if (fullscreenImage) {
+      window.history.back();
+    }
+  };
 
   const age = useMemo(() => {
     if (!userProfile?.dateOfBirth) return null;
@@ -308,9 +321,22 @@ export default function ProfileDetailPage() {
       </div>
 
       {fullscreenImage && (
-        <div className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center animate-in fade-in duration-300">
-          <div className="relative w-full flex-1"><Image src={fullscreenImage} alt="Fullscreen" fill className="object-contain" priority /></div>
-          <div className="p-10 shrink-0"><Button onClick={closeFullscreen} className="h-16 px-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all gap-3"><X className="w-5 h-5" />Close Viewer</Button></div>
+        <div className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center animate-in fade-in duration-300" onClick={closeFullscreen}>
+          <div className="relative w-full flex-1">
+            <Image 
+              src={fullscreenImage} 
+              alt="Fullscreen" 
+              fill 
+              className="object-contain cursor-pointer" 
+              priority 
+            />
+          </div>
+          <div className="p-10 shrink-0">
+            <Button onClick={(e) => { e.stopPropagation(); closeFullscreen(); }} className="h-16 px-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all gap-3">
+              <X className="w-5 h-5" />
+              Close Viewer
+            </Button>
+          </div>
         </div>
       )}
 
