@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -115,8 +114,9 @@ export async function initializePesaPalTransaction(email: string, amount: number
 
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
-    const txRef = doc(collection(db, "userProfiles", metadata.userId, "transactions"));
     
+    // 1. Log the pending transaction in user's profile
+    const txRef = doc(collection(db, "userProfiles", metadata.userId, "transactions"));
     await setDoc(txRef, {
       id: txRef.id,
       type: "recharge_pending",
@@ -124,6 +124,16 @@ export async function initializePesaPalTransaction(email: string, amount: number
       orderTrackingId: merchantRef,
       transactionDate: new Date().toISOString(),
       description: `Initiated Recharge (${metadata.packageAmount} coins)`,
+      status: "pending"
+    });
+
+    // 2. Create a mapping for background processing (IPN source of truth)
+    const mapRef = doc(db, "pendingPayments", merchantRef);
+    await setDoc(mapRef, {
+      userId: metadata.userId,
+      packageAmount: metadata.packageAmount,
+      merchantRef: merchantRef,
+      createdAt: new Date().toISOString(),
       status: "pending"
     });
 

@@ -1,9 +1,13 @@
-
 import { NextResponse } from 'next/server';
 import { getPesaPalTransactionStatus } from '@/app/actions/pesapal';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, runTransaction, collection, query, where, getDocs, increment } from 'firebase/firestore';
+import { getFirestore, doc, runTransaction, collection, query, where, getDocs, increment, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
+
+/**
+ * @fileOverview Background Payment Confirmation (IPN)
+ * Handles awarding coins even if the user leaves the app.
+ */
 
 export async function POST(req: Request) {
   try {
@@ -12,46 +16,58 @@ export async function POST(req: Request) {
     const orderTrackingId = params.get('OrderTrackingId');
     const notificationType = params.get('OrderNotificationType');
 
+    // PesaPal sends IPNCHANGE when status is updated
     if (!orderTrackingId || notificationType !== 'IPNCHANGE') {
       return new Response("OK", { status: 200 });
     }
 
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
+    
+    // 1. Verify status with PesaPal
     const result = await getPesaPalTransactionStatus(orderTrackingId);
     
     if (result.status_code === 1 || result.payment_status_description === 'Completed') {
-      const amount = result.amount;
       const merchantRef = result.merchant_reference;
-      const coinsToGain = Math.round((amount / 120) * 1000);
-
-      const usersSnap = await getDocs(collection(db, "userProfiles"));
-      let targetUserId = null;
-
-      for (const userDoc of usersSnap.docs) {
-        const txQuery = query(collection(db, "userProfiles", userDoc.id, "transactions"), where("orderTrackingId", "==", merchantRef));
-        const txSnap = await getDocs(txQuery);
-        if (!txSnap.empty) {
-          targetUserId = userDoc.id;
-          break;
-        }
+      
+      // 2. Use the map to find the user efficiently
+      const mapRef = doc(db, "pendingPayments", merchantRef);
+      const mapSnap = await getDoc(mapRef);
+      
+      if (!mapSnap.exists()) {
+        console.error("Payment mapping not found for:", merchantRef);
+        return new Response("OK", { status: 200 });
       }
+
+      const paymentData = mapSnap.data();
+      if (paymentData.status === 'completed') {
+        return new Response("OK", { status: 200 }); // Already processed
+      }
+
+      const targetUserId = paymentData.userId;
+      const coinsToGain = paymentData.packageAmount;
 
       if (targetUserId) {
         const userRef = doc(db, "userProfiles", targetUserId);
+        
         await runTransaction(db, async (transaction) => {
+          // Double check status inside transaction
+          const currentMapSnap = await transaction.get(mapRef);
+          if (currentMapSnap.data()?.status === 'completed') return;
+
           const profileSnap = await transaction.get(userRef);
           if (!profileSnap.exists()) return;
 
-          const txQuery = query(collection(userRef, "transactions"), where("pesapal_tracking_id", "==", orderTrackingId));
-          const existingTx = await getDocs(txQuery);
-          if (!existingTx.empty) return;
-
+          // Update user balance
           transaction.update(userRef, {
             coinBalance: increment(coinsToGain),
             updatedAt: new Date().toISOString()
           });
 
+          // Mark map as completed
+          transaction.update(mapRef, { status: 'completed', completedAt: new Date().toISOString() });
+
+          // Log the final transaction
           const txRef = doc(collection(userRef, "transactions"));
           transaction.set(txRef, {
             id: txRef.id,
@@ -65,8 +81,10 @@ export async function POST(req: Request) {
         });
       }
     }
+    
     return new Response("OK", { status: 200 });
   } catch (err) {
+    console.error("IPN Process Error:", err);
     return new Response("ERROR", { status: 500 });
   }
 }
