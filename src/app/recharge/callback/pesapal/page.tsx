@@ -19,10 +19,12 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
   const [coinsAwarded, setCoinsAwarded] = useState(0)
   const [errorMsg, setErrorMsg] = useState("")
+  const [countdown, setCountdown] = useState(5)
   
   const orderTrackingId = params.OrderTrackingId
   const processedRef = useRef(false)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
+  const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const userProfileDocRef = useMemoFirebase(() => {
     if (!firestore || !currentUser) return null;
@@ -128,6 +130,23 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     };
   }, [orderTrackingId, !!currentUser, !!firestore]);
 
+  // Handle automatic redirect on success
+  useEffect(() => {
+    if (status === 'success') {
+      const interval = setInterval(() => {
+        setCountdown(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            router.replace('/recharge');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+      return () => clearInterval(interval);
+    }
+  }, [status, router]);
+
   // Prevent back navigation via UI blocking
   return (
     <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center p-8 text-center overflow-hidden">
@@ -167,13 +186,18 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
             </div>
             <p className="text-sm text-gray-400 font-medium uppercase tracking-widest pt-2">Wallet Updated Successfully</p>
           </div>
-          <Button 
-            onClick={() => router.replace('/recharge')} 
-            className="h-16 w-full max-w-[240px] rounded-full bg-zinc-900 text-white font-black text-lg gap-3 shadow-xl active:scale-95 transition-all"
-          >
-            Continue to App
-            <ArrowRight className="w-5 h-5" />
-          </Button>
+          <div className="flex flex-col gap-4 items-center">
+            <Button 
+              onClick={() => router.replace('/recharge')} 
+              className="h-16 w-full max-w-[240px] rounded-full bg-zinc-900 text-white font-black text-lg gap-3 shadow-xl active:scale-95 transition-all"
+            >
+              Continue to App
+              <ArrowRight className="w-5 h-5" />
+            </Button>
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest animate-pulse">
+              Redirecting in {countdown}s...
+            </p>
+          </div>
         </div>
       )}
 
