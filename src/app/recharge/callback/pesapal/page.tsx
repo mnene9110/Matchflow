@@ -4,7 +4,7 @@ import { useEffect, useState, useRef, use, Suspense, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Coins } from "lucide-react"
 import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
-import { doc, runTransaction, collection, getDocs, query, where, increment as firestoreIncrement, getDoc } from "firebase/firestore"
+import { doc, runTransaction, collection, getDocs, query, where, increment as firestoreIncrement, getDoc, onSnapshot } from "firebase/firestore"
 import { getPesaPalTransactionStatus } from "@/app/actions/pesapal"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -18,7 +18,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
   const [coinsAwarded, setCoinsAwarded] = useState(0)
   const [errorMsg, setErrorMsg] = useState("")
-  const [countdown, setCountdown] = useState(5)
+  const [countdown, setCountdown] = useState(3)
   
   const orderTrackingId = params.OrderTrackingId
   const processedRef = useRef(false)
@@ -29,57 +29,54 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     return doc(firestore, "userProfiles", currentUser.uid);
   }, [firestore, currentUser]);
 
+  const handleManualReturn = useCallback(() => {
+    // replace() ensures this screen is wiped from history
+    router.replace('/recharge');
+  }, [router]);
+
   const verifyPayment = useCallback(async () => {
     if (!orderTrackingId || !currentUser || !firestore || !userProfileDocRef || processedRef.current) return;
 
     try {
       const result = await getPesaPalTransactionStatus(orderTrackingId);
       
-      // Status Code 1 is 'Completed' in PesaPal V3
       if (result.status_code === 1 || result.payment_status_description === 'Completed') {
         processedRef.current = true;
         if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
 
-        const amount = result.amount;
         const merchantRef = result.merchant_reference;
-        
-        // Use the map to find the correct package amount
         const mapRef = doc(firestore, "pendingPayments", merchantRef);
         const mapSnap = await getDoc(mapRef);
-        const packageAmount = mapSnap.exists() ? mapSnap.data().packageAmount : Math.round((amount / 120) * 1000);
+        const packageAmount = mapSnap.exists() ? mapSnap.data().packageAmount : 0;
 
         await runTransaction(firestore, async (transaction) => {
           const profileSnap = await transaction.get(userProfileDocRef);
           if (!profileSnap.exists()) return;
 
-          // Check if already awarded (idempotency)
+          // Idempotency: Check if already awarded
           const txQuery = query(collection(userProfileDocRef, "transactions"), where("orderTrackingId", "==", orderTrackingId));
           const existingTx = await getDocs(txQuery);
-          if (!existingTx.empty) {
-            setCoinsAwarded(packageAmount);
-            setStatus('success');
-            return;
-          }
-
-          transaction.update(userProfileDocRef, {
-            coinBalance: firestoreIncrement(packageAmount),
-            updatedAt: new Date().toISOString()
-          });
-
-          const txRef = doc(collection(userProfileDocRef, "transactions"));
-          transaction.set(txRef, {
-            id: txRef.id,
-            type: "recharge",
-            amount: packageAmount,
-            orderTrackingId: orderTrackingId,
-            merchant_reference: merchantRef,
-            transactionDate: new Date().toISOString(),
-            description: `Coin Recharge (${packageAmount} coins)`
-          });
           
-          // Mark the map as completed
-          if (mapSnap.exists()) {
-            transaction.update(mapRef, { status: 'completed', completedAt: new Date().toISOString() });
+          if (existingTx.empty) {
+            transaction.update(userProfileDocRef, {
+              coinBalance: firestoreIncrement(packageAmount),
+              updatedAt: new Date().toISOString()
+            });
+
+            const txRef = doc(collection(userProfileDocRef, "transactions"));
+            transaction.set(txRef, {
+              id: txRef.id,
+              type: "recharge",
+              amount: packageAmount,
+              orderTrackingId: orderTrackingId,
+              merchant_reference: merchantRef,
+              transactionDate: new Date().toISOString(),
+              description: `Coin Recharge (${packageAmount} coins)`
+            });
+            
+            if (mapSnap.exists()) {
+              transaction.update(mapRef, { status: 'completed', completedAt: new Date().toISOString() });
+            }
           }
         });
 
@@ -96,6 +93,27 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     }
   }, [orderTrackingId, currentUser, firestore, userProfileDocRef]);
 
+  // 1. Listen for background updates (IPN might have finished already)
+  useEffect(() => {
+    if (!firestore || !orderTrackingId || processedRef.current) return;
+
+    // Use the OrderTrackingId to find the pending payment map
+    // Since we don't have MerchantRef directly, we'll rely on the polling verifyPayment
+    // but we can also listen to the user profile's last transaction
+    const unsub = onSnapshot(query(collection(userProfileDocRef!, "transactions"), where("orderTrackingId", "==", orderTrackingId)), (snap) => {
+      if (!snap.empty && !processedRef.current) {
+        processedRef.current = true;
+        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+        const txData = snap.docs[0].data();
+        setCoinsAwarded(txData.amount);
+        setStatus('success');
+      }
+    });
+
+    return () => unsub();
+  }, [firestore, orderTrackingId, userProfileDocRef]);
+
+  // 2. Initial check and Polling
   useEffect(() => {
     if (!orderTrackingId) {
       setStatus('error');
@@ -103,39 +121,31 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
       return;
     }
 
-    // Start verification immediately
     verifyPayment();
+    pollingIntervalRef.current = setInterval(verifyPayment, 3000);
 
-    // Start polling every 2 seconds
-    pollingIntervalRef.current = setInterval(() => {
-      if (!processedRef.current) {
-        verifyPayment();
-      }
-    }, 2000);
-
-    // Timeout after 2 minutes
     const timeout = setTimeout(() => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-      if (!processedRef.current) {
+      if (!processedRef.current && status === 'verifying') {
         setStatus('error');
-        setErrorMsg("Verification timed out. If you paid, coins will be awarded in the background soon.");
+        setErrorMsg("Taking longer than usual. Please check your wallet in a moment.");
       }
-    }, 120000);
+    }, 60000);
 
     return () => {
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       clearTimeout(timeout);
     };
-  }, [orderTrackingId, verifyPayment]);
+  }, [orderTrackingId, verifyPayment, status]);
 
-  // Handle automatic replace-redirect on success
+  // 3. Automatic Redirect
   useEffect(() => {
     if (status === 'success') {
       const interval = setInterval(() => {
         setCountdown(prev => {
           if (prev <= 1) {
             clearInterval(interval);
-            router.replace('/recharge'); // replace() prevents loop back to this screen
+            handleManualReturn();
             return 0;
           }
           return prev - 1;
@@ -143,11 +153,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
       }, 1000);
       return () => clearInterval(interval);
     }
-  }, [status, router]);
-
-  const handleManualReturn = () => {
-    router.replace('/recharge'); // replace() ensures back button works correctly
-  };
+  }, [status, handleManualReturn]);
 
   return (
     <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center p-8 text-center overflow-hidden">
@@ -162,13 +168,9 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
             </div>
           </div>
           <div className="space-y-3">
-            <h2 className="text-2xl font-black font-headline text-gray-900">Verifying Payment</h2>
-            <div className="flex flex-col gap-1">
-              <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Tracking ID</p>
-              <p className="text-sm font-bold text-primary font-code">{orderTrackingId}</p>
-            </div>
-            <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto mt-4">
-              Please do not close this window. We are confirming your transaction with the bank.
+            <h2 className="text-2xl font-black font-headline text-gray-900">Finalizing Payment</h2>
+            <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
+              Checking your transaction status with PesaPal...
             </p>
           </div>
         </div>
@@ -180,23 +182,22 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
             <CheckCircle2 className="w-12 h-12 text-white" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-3xl font-black font-headline text-gray-900">Success!</h2>
+            <h2 className="text-3xl font-black font-headline text-gray-900">Payment Success!</h2>
             <div className="flex items-center justify-center gap-2 bg-amber-50 px-4 py-2 rounded-full border border-amber-100 mx-auto w-fit">
               <Coins className="w-4 h-4 text-amber-500" />
               <span className="text-lg font-black text-amber-700">+{coinsAwarded.toLocaleString()}</span>
             </div>
-            <p className="text-sm text-gray-400 font-medium uppercase tracking-widest pt-2">Wallet Updated Successfully</p>
           </div>
           <div className="flex flex-col gap-4 items-center">
             <Button 
               onClick={handleManualReturn} 
               className="h-16 w-full max-w-[240px] rounded-full bg-zinc-900 text-white font-black text-lg gap-3 shadow-xl active:scale-95 transition-all"
             >
-              Continue to App
+              Finish
               <ArrowRight className="w-5 h-5" />
             </Button>
-            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest animate-pulse">
-              Redirecting in {countdown}s...
+            <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
+              Closing in {countdown}s...
             </p>
           </div>
         </div>
@@ -208,9 +209,9 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
             <AlertCircle className="w-10 h-10 text-red-500" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-2xl font-black font-headline text-gray-900">Payment Issue</h2>
+            <h2 className="text-2xl font-black font-headline text-gray-900">Check Wallet</h2>
             <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-              {errorMsg}
+              {errorMsg || "We couldn't confirm the live status, but your coins may have already been awarded."}
             </p>
           </div>
           <Button 
@@ -218,7 +219,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
             variant="ghost"
             className="h-14 w-full max-w-[200px] rounded-full text-gray-400 font-black uppercase text-xs tracking-widest"
           >
-            Return to Wallet
+            Go to Wallet
           </Button>
         </div>
       )}

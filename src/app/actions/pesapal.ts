@@ -16,8 +16,13 @@ const CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
 
 // Simple in-memory cache for IPN ID to speed up transactions
 let cachedIpnId: string | null = null;
+let tokenCache: { token: string; expiry: number } | null = null;
 
 async function getAuthToken() {
+  if (tokenCache && Date.now() < tokenCache.expiry) {
+    return tokenCache.token;
+  }
+
   if (!CONSUMER_KEY || !CONSUMER_SECRET) {
     throw new Error('PesaPal Consumer Key or Secret is missing in environment variables.');
   }
@@ -39,6 +44,8 @@ async function getAuthToken() {
   if (!data.token) {
     throw new Error(data.message || 'Failed to get PesaPal token.');
   }
+  
+  tokenCache = { token: data.token, expiry: Date.now() + 25 * 60 * 1000 }; // Cache for 25 mins
   return data.token;
 }
 
@@ -49,7 +56,6 @@ async function registerIPN(token: string) {
   const ipnUrl = `${baseUrl}/api/pesapal-ipn`;
   
   try {
-    // Check list first to avoid duplicates and speed up the redirect
     const listResponse = await fetch(`${PESAPAL_URL}/api/URLSetup/GetIpnList`, {
       method: 'GET',
       headers: {
@@ -121,7 +127,8 @@ export async function initializePesaPalTransaction(email: string, amount: number
       id: txRef.id,
       type: "recharge_pending",
       amount: metadata.packageAmount,
-      orderTrackingId: merchantRef,
+      orderTrackingId: "PENDING", // This will be updated by callback or IPN
+      merchantRef: merchantRef,
       transactionDate: new Date().toISOString(),
       description: `Initiated Recharge (${metadata.packageAmount} coins)`,
       status: "pending"
