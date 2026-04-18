@@ -298,7 +298,8 @@ function ChatDetailContent() {
     if (!currentUser || !resolvedOtherUserId || !firestore || !currentUserProfile || isBlockedByOther) return;
     
     const cost = type === 'video' ? 160 : 80;
-    const isFree = currentUserProfile.isAdmin || currentUserProfile.isSupport || currentUserProfile.gender?.toLowerCase() === 'female';
+    // Only Admin is free for calls now. Female users and support are charged.
+    const isFree = currentUserProfile.isAdmin === true;
 
     if (!isFree && (currentUserProfile.coinBalance || 0) < cost) {
       toast({ variant: "destructive", title: "Insufficient Coins", description: `You need at least ${cost} coins to start a ${type} call.` });
