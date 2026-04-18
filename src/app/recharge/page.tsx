@@ -14,6 +14,7 @@ import { initializePesaPalTransaction } from "@/app/actions/pesapal"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 export const STANDARD_PACKAGES = [
+  { amount: 10, priceKes: 1 },
   { amount: 500, priceKes: 70 },
   { amount: 1000, priceKes: 120 },
   { amount: 2000, priceKes: 240 },
