@@ -43,7 +43,6 @@ export function GlobalCallOverlay() {
   const wasCallAcceptedRef = useRef(false)
   const activeChatIdRef = useRef<string | null>(null)
   const logRecordedRef = useRef(false)
-
   const statusRef = useRef<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
 
   useEffect(() => {
@@ -67,6 +66,7 @@ export function GlobalCallOverlay() {
         ringtoneRef.current.pause();
         ringtoneRef.current = null;
       }
+      handleCleanup();
     }
   }, []);
 
@@ -346,9 +346,9 @@ export function GlobalCallOverlay() {
     const receiverId = callData?.receiverId;
     const callerId = callData?.callerId;
 
-    await deleteDoc(doc(firestore, "calls", cid));
-    if (receiverId) await updateDoc(doc(firestore, "userProfiles", receiverId), { incomingCallId: null });
-    if (callerId) await updateDoc(doc(firestore, "userProfiles", callerId), { incomingCallId: null });
+    await deleteDoc(doc(firestore, "calls", cid)).catch(() => {});
+    if (receiverId) await updateDoc(doc(firestore, "userProfiles", receiverId), { incomingCallId: null }).catch(() => {});
+    if (callerId) await updateDoc(doc(firestore, "userProfiles", callerId), { incomingCallId: null }).catch(() => {});
     handleCleanup();
   }
 

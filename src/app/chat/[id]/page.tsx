@@ -109,7 +109,7 @@ function ChatDetailContent() {
     }
   }, [otherUserId, firestore])
 
-  // Check if I am blocked by the other user
+  // Check block status
   useEffect(() => {
     if (!firestore || !currentUser || !resolvedOtherUserId) return
     const blockRef = doc(firestore, "userProfiles", resolvedOtherUserId, "blockedUsers", currentUser.uid)
@@ -172,7 +172,11 @@ function ChatDetailContent() {
     updateDoc(chatRef, { [`unreadCount_${currentUser.uid}`]: 0 }).catch(() => {})
   }, [firestore, currentUser, chatId, messages.length, isBlockedByOther])
 
-  useEffect(() => { if (scrollRef.current) scrollRef.current.scrollIntoView({ behavior: 'smooth' }) }, [messages])
+  useEffect(() => { 
+    if (scrollRef.current) {
+      setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    } 
+  }, [messages])
 
   const handleSendMessage = async (textOverride?: string) => {
     const textToUse = textOverride || inputText;

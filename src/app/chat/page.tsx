@@ -28,6 +28,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
   
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const longPressedRef = useRef(false)
+  const touchStartPos = useRef<{ x: number, y: number } | null>(null)
 
   useEffect(() => {
     if (!firestore || !otherUserId) return
@@ -48,16 +49,32 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
     })
   }, [firestore, otherUserId])
 
-  const handleTouchStart = () => {
-    longPressedRef.current = false
+  const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
+    longPressedRef.current = false;
+    const clientX = 'touches' in e ? e.touches[0].clientX : e.clientX;
+    const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+    touchStartPos.current = { x: clientX, y: clientY };
+
     timerRef.current = setTimeout(() => {
-      longPressedRef.current = true
-      onLongPress(session.id)
-    }, 600)
+      longPressedRef.current = true;
+      onLongPress(session.id);
+    }, 800);
+  }
+
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStartPos.current) return;
+    const deltaX = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
+    const deltaY = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
+    
+    // If user scrolls more than 10px, cancel long press
+    if (deltaX > 10 || deltaY > 10) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    }
   }
 
   const handleTouchEnd = () => {
-    if (timerRef.current) clearTimeout(timerRef.current)
+    if (timerRef.current) clearTimeout(timerRef.current);
+    touchStartPos.current = null;
   }
 
   const handleItemClick = () => {
@@ -76,6 +93,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
       onMouseDown={handleTouchStart}
       onMouseUp={handleTouchEnd}
       onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       onContextMenu={(e) => e.preventDefault()}
       className="relative select-none"

@@ -17,18 +17,18 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
   const [coinsAwarded, setCoinsAwarded] = useState(0)
   const [errorMsg, setErrorMsg] = useState("")
-  const [countdown, setCountdown] = useState(2)
+  const [countdown, setCountdown] = useState(3)
   
   const orderTrackingId = params.OrderTrackingId
   const processedRef = useRef(false)
+  const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const handleManualReturn = useCallback(() => {
-    // Using replace to /profile ensures the payment screens are wiped from history
-    // and the user returns to the "Me" screen as requested.
+    if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
     router.replace('/profile');
   }, [router]);
 
-  // 1. Authoritative Server Check (Immediate + Fallback)
+  // Authoritative Server Check
   useEffect(() => {
     if (!orderTrackingId) {
       setStatus('error');
@@ -36,38 +36,32 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
       return;
     }
 
+    let interval: NodeJS.Timeout;
+
     const triggerServerConfirmation = async () => {
       if (processedRef.current) return;
       
-      const res = await processServerPaymentConfirmation(orderTrackingId);
-      
-      if (res.status === 'success' && !processedRef.current) {
-        processedRef.current = true;
-        setCoinsAwarded(res.coins || 0);
-        setStatus('success');
-      } else if (res.status === 'already_processed' && !processedRef.current) {
-        processedRef.current = true;
-        setStatus('success');
+      try {
+        const res = await processServerPaymentConfirmation(orderTrackingId);
+        if (res.status === 'success' || res.status === 'already_processed') {
+          processedRef.current = true;
+          if (res.coins) setCoinsAwarded(res.coins);
+          setStatus('success');
+        }
+      } catch (e) {
+        console.error("Verification failed, will retry...");
       }
     };
 
-    // Execute immediately on mount to reduce visible loading time
     triggerServerConfirmation();
+    interval = setInterval(triggerServerConfirmation, 2000);
 
-    // Fast polling fallback if IPN/First check is slightly delayed
-    const interval = setInterval(() => {
-      if (!processedRef.current && status === 'verifying') {
-        triggerServerConfirmation();
-      }
-    }, 1500);
-
-    // Hard timeout after 45 seconds
     const timeout = setTimeout(() => {
       if (!processedRef.current && status === 'verifying') {
         setStatus('error');
         setErrorMsg("Taking longer than usual. Please check your wallet in a moment.");
       }
-    }, 45000);
+    }, 40000);
 
     return () => {
       clearInterval(interval);
@@ -75,7 +69,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     };
   }, [orderTrackingId, status]);
 
-  // 2. Real-time Firestore Listener (Reactive Sync)
+  // Real-time Firestore Listener
   useEffect(() => {
     if (!firestore || !orderTrackingId || processedRef.current) return;
 
@@ -94,20 +88,20 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     return () => unsub();
   }, [firestore, orderTrackingId]);
 
-  // 3. Automatic Redirect to Profile
+  // Automatic Redirect
   useEffect(() => {
     if (status === 'success') {
-      const interval = setInterval(() => {
+      const timer = setInterval(() => {
         setCountdown(prev => {
           if (prev <= 1) {
-            clearInterval(interval);
+            clearInterval(timer);
             handleManualReturn();
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
-      return () => clearInterval(interval);
+      return () => clearInterval(timer);
     }
   }, [status, handleManualReturn]);
 
@@ -126,7 +120,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
           <div className="space-y-3">
             <h2 className="text-2xl font-black font-headline text-gray-900">Confirming...</h2>
             <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-              Finalizing your transaction on the server.
+              Finalizing your transaction.
             </p>
           </div>
         </div>
@@ -153,7 +147,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
               <ArrowRight className="w-5 h-5" />
             </Button>
             <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">
-              Returning to Profile in {countdown}s...
+              Auto-redirecting in {countdown}s...
             </p>
           </div>
         </div>

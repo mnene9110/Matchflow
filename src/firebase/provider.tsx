@@ -1,6 +1,7 @@
+
 'use client';
 
-import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect } from 'react';
+import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
 import { FirebaseApp } from 'firebase/app';
 import { Firestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
@@ -63,6 +64,8 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     userError: null,
   });
 
+  const lastStatusUpdateRef = useRef<number>(0);
+
   useEffect(() => {
     if (!auth) {
       setUserAuthState({ user: null, isUserLoading: false, userError: new Error("Auth service not provided.") });
@@ -87,25 +90,40 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 
     const userRef = doc(firestore, "userProfiles", userAuthState.user.uid);
     
-    // Set online initially
-    updateDoc(userRef, { 
-      isOnline: true, 
-      lastActiveAt: serverTimestamp() 
-    }).catch(() => {});
+    const updatePresence = (isOnline: boolean) => {
+      const now = Date.now();
+      // Throttling updates to every 2 seconds
+      if (now - lastStatusUpdateRef.current < 2000 && isOnline) return;
+      
+      lastStatusUpdateRef.current = now;
+      updateDoc(userRef, { 
+        isOnline, 
+        lastActiveAt: serverTimestamp() 
+      }).catch(() => {});
+    };
+
+    // Initial Online Set
+    updatePresence(true);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        updateDoc(userRef, { isOnline: true, lastActiveAt: serverTimestamp() }).catch(() => {});
+        updatePresence(true);
       } else {
-        updateDoc(userRef, { isOnline: false }).catch(() => {});
+        updatePresence(false);
       }
     };
 
+    const handleBeforeUnload = () => {
+      // Synchronous attempt to mark offline before tab closes
+      updateDoc(userRef, { isOnline: false }).catch(() => {});
+    };
+
     window.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
     
-    // Visibility state might change when closing tab or minimizing
     return () => {
       window.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       updateDoc(userRef, { isOnline: false }).catch(() => {});
     };
   }, [userAuthState.user, firestore]);
