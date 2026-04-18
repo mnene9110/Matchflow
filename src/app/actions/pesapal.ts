@@ -1,3 +1,4 @@
+
 'use server';
 
 /**
@@ -45,7 +46,7 @@ async function getAuthToken() {
 async function registerIPN(token: string) {
   if (cachedIpnId) return cachedIpnId;
 
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-12.vercel.app';
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-beta.vercel.app';
   const ipnUrl = `${baseUrl}/api/pesapal-ipn`;
   
   try {
@@ -108,7 +109,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
       return { error: 'PesaPal could not provide a Notification ID.' };
     }
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-12.vercel.app';
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-beta.vercel.app';
     const shortId = Date.now().toString().slice(-10);
     const merchantRef = `MF${shortId}`;
 
