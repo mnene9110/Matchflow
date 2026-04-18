@@ -4,10 +4,9 @@ import { useEffect, useState, useRef, use, Suspense, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Coins } from "lucide-react"
 import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
-import { doc, runTransaction, collection, getDocs, query, where, increment as firestoreIncrement, getDoc, onSnapshot } from "firebase/firestore"
-import { getPesaPalTransactionStatus } from "@/app/actions/pesapal"
+import { doc, collection, query, where, onSnapshot } from "firebase/firestore"
+import { processServerPaymentConfirmation } from "@/app/actions/pesapal"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
 
 function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }) {
   const params = use(searchParams)
@@ -22,98 +21,33 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
   
   const orderTrackingId = params.OrderTrackingId
   const processedRef = useRef(false)
-  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-
-  const userProfileDocRef = useMemoFirebase(() => {
-    if (!firestore || !currentUser) return null;
-    return doc(firestore, "userProfiles", currentUser.uid);
-  }, [firestore, currentUser]);
 
   const handleManualReturn = useCallback(() => {
     // replace() ensures this screen is wiped from history
     router.replace('/recharge');
   }, [router]);
 
-  const verifyPayment = useCallback(async () => {
-    if (!orderTrackingId || !currentUser || !firestore || !userProfileDocRef || processedRef.current) return;
-
-    try {
-      const result = await getPesaPalTransactionStatus(orderTrackingId);
-      
-      if (result.status_code === 1 || result.payment_status_description === 'Completed') {
-        processedRef.current = true;
-        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-
-        const merchantRef = result.merchant_reference;
-        const mapRef = doc(firestore, "pendingPayments", merchantRef);
-        const mapSnap = await getDoc(mapRef);
-        const packageAmount = mapSnap.exists() ? mapSnap.data().packageAmount : 0;
-
-        await runTransaction(firestore, async (transaction) => {
-          const profileSnap = await transaction.get(userProfileDocRef);
-          if (!profileSnap.exists()) return;
-
-          // Idempotency: Check if already awarded
-          const txQuery = query(collection(userProfileDocRef, "transactions"), where("orderTrackingId", "==", orderTrackingId));
-          const existingTx = await getDocs(txQuery);
-          
-          if (existingTx.empty) {
-            transaction.update(userProfileDocRef, {
-              coinBalance: firestoreIncrement(packageAmount),
-              updatedAt: new Date().toISOString()
-            });
-
-            const txRef = doc(collection(userProfileDocRef, "transactions"));
-            transaction.set(txRef, {
-              id: txRef.id,
-              type: "recharge",
-              amount: packageAmount,
-              orderTrackingId: orderTrackingId,
-              merchant_reference: merchantRef,
-              transactionDate: new Date().toISOString(),
-              description: `Coin Recharge (${packageAmount} coins)`
-            });
-            
-            if (mapSnap.exists()) {
-              transaction.update(mapRef, { status: 'completed', completedAt: new Date().toISOString() });
-            }
-          }
-        });
-
-        setCoinsAwarded(packageAmount);
-        setStatus('success');
-      } else if (result.status_code === 2 || result.payment_status_description === 'Failed') {
-        processedRef.current = true;
-        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-        setStatus('error');
-        setErrorMsg("The payment was cancelled or declined.");
-      }
-    } catch (error) {
-      console.error("Verification error:", error);
-    }
-  }, [orderTrackingId, currentUser, firestore, userProfileDocRef]);
-
-  // 1. Listen for background updates (IPN might have finished already)
+  // 1. Listen for background updates (The SERVER is the authority)
   useEffect(() => {
     if (!firestore || !orderTrackingId || processedRef.current) return;
 
-    // Use the OrderTrackingId to find the pending payment map
-    // Since we don't have MerchantRef directly, we'll rely on the polling verifyPayment
-    // but we can also listen to the user profile's last transaction
-    const unsub = onSnapshot(query(collection(userProfileDocRef!, "transactions"), where("orderTrackingId", "==", orderTrackingId)), (snap) => {
-      if (!snap.empty && !processedRef.current) {
-        processedRef.current = true;
-        if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
-        const txData = snap.docs[0].data();
-        setCoinsAwarded(txData.amount);
-        setStatus('success');
+    // Listen to the mapping collection for the status change triggered by the server IPN
+    const q = query(collection(firestore, "pendingPayments"), where("orderTrackingId", "==", orderTrackingId));
+    const unsub = onSnapshot(q, (snap) => {
+      if (!snap.empty) {
+        const data = snap.docs[0].data();
+        if (data.status === 'completed' && !processedRef.current) {
+          processedRef.current = true;
+          setCoinsAwarded(data.packageAmount);
+          setStatus('success');
+        }
       }
     });
 
     return () => unsub();
-  }, [firestore, orderTrackingId, userProfileDocRef]);
+  }, [firestore, orderTrackingId]);
 
-  // 2. Initial check and Polling
+  // 2. Initial Fallback Check (Trigger server logic if IPN is slow)
   useEffect(() => {
     if (!orderTrackingId) {
       setStatus('error');
@@ -121,11 +55,25 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
       return;
     }
 
-    verifyPayment();
-    pollingIntervalRef.current = setInterval(verifyPayment, 3000);
+    const triggerServerConfirmation = async () => {
+      if (processedRef.current) return;
+      const res = await processServerPaymentConfirmation(orderTrackingId);
+      if (res.status === 'success' && !processedRef.current) {
+        processedRef.current = true;
+        setCoinsAwarded(res.coins || 0);
+        setStatus('success');
+      } else if (res.status === 'error') {
+        // We don't set error immediately, let polling/IPN continue for a bit
+        console.warn("Server-side fallback check failed", res.error);
+      }
+    };
 
+    // Check once immediately, then once more after 5 seconds if not yet finished
+    triggerServerConfirmation();
+    const timer = setTimeout(triggerServerConfirmation, 5000);
+
+    // Timeout after 60 seconds
     const timeout = setTimeout(() => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       if (!processedRef.current && status === 'verifying') {
         setStatus('error');
         setErrorMsg("Taking longer than usual. Please check your wallet in a moment.");
@@ -133,10 +81,10 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     }, 60000);
 
     return () => {
-      if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
+      clearTimeout(timer);
       clearTimeout(timeout);
     };
-  }, [orderTrackingId, verifyPayment, status]);
+  }, [orderTrackingId, status]);
 
   // 3. Automatic Redirect
   useEffect(() => {
@@ -170,7 +118,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
           <div className="space-y-3">
             <h2 className="text-2xl font-black font-headline text-gray-900">Finalizing Payment</h2>
             <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-              Checking your transaction status with PesaPal...
+              Confirming through server... This will only take a moment.
             </p>
           </div>
         </div>

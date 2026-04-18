@@ -7,7 +7,7 @@
  */
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, collection, setDoc } from 'firebase/firestore';
+import { getFirestore, doc, collection, setDoc, updateDoc, runTransaction, increment, getDoc, getDocs, query, where } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
 const PESAPAL_URL = 'https://pay.pesapal.com/v3';
@@ -121,20 +121,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
-    // 1. Log the pending transaction in user's profile
-    const txRef = doc(collection(db, "userProfiles", metadata.userId, "transactions"));
-    await setDoc(txRef, {
-      id: txRef.id,
-      type: "recharge_pending",
-      amount: metadata.packageAmount,
-      orderTrackingId: "PENDING", // This will be updated by callback or IPN
-      merchantRef: merchantRef,
-      transactionDate: new Date().toISOString(),
-      description: `Initiated Recharge (${metadata.packageAmount} coins)`,
-      status: "pending"
-    });
-
-    // 2. Create a mapping for background processing (IPN source of truth)
+    // 1. Create a mapping for background processing (IPN source of truth)
     const mapRef = doc(db, "pendingPayments", merchantRef);
     await setDoc(mapRef, {
       userId: metadata.userId,
@@ -175,6 +162,9 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const result = await response.json();
     
     if (result.redirect_url) {
+      // Update the map with the real tracking ID so the client can find it easily
+      await updateDoc(mapRef, { orderTrackingId: result.order_tracking_id });
+      
       return { redirect_url: result.redirect_url, order_tracking_id: result.order_tracking_id };
     } else {
       return { error: result.message || 'Failed to submit order to PesaPal' };
@@ -201,5 +191,78 @@ export async function getPesaPalTransactionStatus(orderTrackingId: string) {
   } catch (error) {
     console.error('PesaPal Status Error:', error);
     return { error: 'Failed to verify PesaPal transaction status' };
+  }
+}
+
+/**
+ * Authoritative Server Confirmation
+ * This function can be called by either the IPN route or the UI callback.
+ * It performs the coin award logic purely on the server.
+ */
+export async function processServerPaymentConfirmation(orderTrackingId: string) {
+  const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
+  const db = getFirestore(app);
+
+  try {
+    const result = await getPesaPalTransactionStatus(orderTrackingId);
+    
+    // Status Code 1 is 'Completed'
+    if (result.status_code === 1 || result.payment_status_description === 'Completed') {
+      const merchantRef = result.merchant_reference;
+      const mapRef = doc(db, "pendingPayments", merchantRef);
+      const mapSnap = await getDoc(mapRef);
+      
+      if (!mapSnap.exists()) return { status: 'error', message: 'Mapping not found' };
+
+      const paymentData = mapSnap.data();
+      if (paymentData.status === 'completed') return { status: 'already_processed' };
+
+      const targetUserId = paymentData.userId;
+      const coinsToGain = paymentData.packageAmount;
+
+      if (targetUserId) {
+        const userRef = doc(db, "userProfiles", targetUserId);
+        
+        await runTransaction(db, async (transaction) => {
+          const currentMapSnap = await transaction.get(mapRef);
+          if (currentMapSnap.data()?.status === 'completed') return;
+
+          const profileSnap = await transaction.get(userRef);
+          if (!profileSnap.exists()) return;
+
+          // Update user balance
+          transaction.update(userRef, {
+            coinBalance: increment(coinsToGain),
+            updatedAt: new Date().toISOString()
+          });
+
+          // Mark map as completed
+          transaction.update(mapRef, { 
+            status: 'completed', 
+            orderTrackingId: orderTrackingId,
+            completedAt: new Date().toISOString() 
+          });
+
+          // Log the final transaction
+          const txRef = doc(collection(userRef, "transactions"));
+          transaction.set(txRef, {
+            id: txRef.id,
+            type: "recharge",
+            amount: coinsToGain,
+            orderTrackingId: orderTrackingId,
+            merchant_reference: merchantRef,
+            transactionDate: new Date().toISOString(),
+            description: `Coin Recharge (${coinsToGain} coins)`
+          });
+        });
+        
+        return { status: 'success', coins: coinsToGain };
+      }
+    }
+    
+    return { status: 'pending', result };
+  } catch (err) {
+    console.error("[Server Confirmation] Error:", err);
+    return { status: 'error', error: err };
   }
 }
