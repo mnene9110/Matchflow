@@ -1,7 +1,6 @@
-
 "use client"
 
-import { useEffect, useState, useRef, use, Suspense } from "react"
+import { useEffect, useState, useRef, use, Suspense, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Coins } from "lucide-react"
 import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
@@ -24,14 +23,13 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
   const orderTrackingId = params.OrderTrackingId
   const processedRef = useRef(false)
   const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null)
-  const redirectTimerRef = useRef<NodeJS.Timeout | null>(null)
 
   const userProfileDocRef = useMemoFirebase(() => {
     if (!firestore || !currentUser) return null;
     return doc(firestore, "userProfiles", currentUser.uid);
   }, [firestore, currentUser]);
 
-  const verifyPayment = async () => {
+  const verifyPayment = useCallback(async () => {
     if (!orderTrackingId || !currentUser || !firestore || !userProfileDocRef || processedRef.current) return;
 
     try {
@@ -96,7 +94,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     } catch (error) {
       console.error("Verification error:", error);
     }
-  };
+  }, [orderTrackingId, currentUser, firestore, userProfileDocRef]);
 
   useEffect(() => {
     if (!orderTrackingId) {
@@ -105,10 +103,10 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
       return;
     }
 
-    // Immediate check
+    // Start verification immediately
     verifyPayment();
 
-    // Start aggressive polling (every 2 seconds)
+    // Start polling every 2 seconds
     pollingIntervalRef.current = setInterval(() => {
       if (!processedRef.current) {
         verifyPayment();
@@ -128,16 +126,16 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
       if (pollingIntervalRef.current) clearInterval(pollingIntervalRef.current);
       clearTimeout(timeout);
     };
-  }, [orderTrackingId, !!currentUser, !!firestore]);
+  }, [orderTrackingId, verifyPayment]);
 
-  // Handle automatic redirect on success
+  // Handle automatic replace-redirect on success
   useEffect(() => {
     if (status === 'success') {
       const interval = setInterval(() => {
         setCountdown(prev => {
           if (prev <= 1) {
             clearInterval(interval);
-            router.replace('/recharge');
+            router.replace('/recharge'); // replace() prevents loop back to this screen
             return 0;
           }
           return prev - 1;
@@ -147,7 +145,10 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     }
   }, [status, router]);
 
-  // Prevent back navigation via UI blocking
+  const handleManualReturn = () => {
+    router.replace('/recharge'); // replace() ensures back button works correctly
+  };
+
   return (
     <div className="fixed inset-0 z-[9999] bg-white flex flex-col items-center justify-center p-8 text-center overflow-hidden">
       {status === 'verifying' && (
@@ -188,7 +189,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
           </div>
           <div className="flex flex-col gap-4 items-center">
             <Button 
-              onClick={() => router.replace('/recharge')} 
+              onClick={handleManualReturn} 
               className="h-16 w-full max-w-[240px] rounded-full bg-zinc-900 text-white font-black text-lg gap-3 shadow-xl active:scale-95 transition-all"
             >
               Continue to App
@@ -213,7 +214,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
             </p>
           </div>
           <Button 
-            onClick={() => router.replace('/recharge')} 
+            onClick={handleManualReturn} 
             variant="ghost"
             className="h-14 w-full max-w-[200px] rounded-full text-gray-400 font-black uppercase text-xs tracking-widest"
           >
