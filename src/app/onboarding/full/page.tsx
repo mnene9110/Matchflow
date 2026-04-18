@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -31,6 +31,12 @@ export default function FullOnboardingPage() {
   const { user } = useUser()
   const { firestore } = useFirebase()
   const { toast } = useToast()
+
+  // Calculate the maximum allowed date (must be at least 18 years ago)
+  const maxDobDate = useMemo(() => {
+    const today = new Date()
+    return new Date(today.getFullYear() - 18, today.getMonth(), today.getDate()).toISOString().split('T')[0]
+  }, [])
 
   const handleSave = useCallback(async () => {
     if (!user || !name || !dob || !gender || !country || !lookingFor || !firestore) return
@@ -113,9 +119,11 @@ export default function FullOnboardingPage() {
               <Input 
                 type="date"
                 value={dob}
+                max={maxDobDate}
                 onChange={(e) => setDob(e.target.value)}
                 className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm"
               />
+              <p className="text-[9px] text-[#5A1010]/60 font-bold uppercase ml-1">Must be at least 18 years old</p>
             </div>
 
             <div className="space-y-4">

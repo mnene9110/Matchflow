@@ -44,7 +44,6 @@ export function Navbar() {
     "/admin",
     "/support",
     "/task-center",
-    "/games",
     "/mystery-note",
     "/coinseller/award",
     "/admin/award"

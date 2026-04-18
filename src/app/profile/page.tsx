@@ -12,7 +12,6 @@ import {
   Loader2,
   CheckCircle,
   Gem,
-  Gamepad2,
   ClipboardList,
   Building2,
   Award,
@@ -27,8 +26,6 @@ import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import { useState, useEffect } from "react"
-import { errorEmitter } from "@/firebase/error-emitter"
-import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function ProfilePage() {
   const router = useRouter()
@@ -125,7 +122,6 @@ export default function ProfilePage() {
             {!isVerified && (<button onClick={() => router.push('/profile/verify')} className="w-full h-16 rounded-[1.5rem] bg-gradient-to-r from-blue-600 to-blue-500 flex items-center px-5 gap-4 shadow-lg"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><ShieldCheck className="w-5 h-5 text-white" /></div><div className="flex-1 text-left"><span className="text-white font-black text-[13px] block">Verify profile</span></div><ChevronRight className="w-4 h-4 text-white/40" /></button>)}
             <button onClick={() => router.push('/chat/customer_support')} className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center"><Headset className="w-5 h-5 text-green-600" /></div><div className="flex-1 text-left"><span className="text-gray-900 font-black text-[13px] block">Customer support</span></div><ChevronRight className="w-4 h-4 text-gray-200" /></button>
             {isFemale && (<button onClick={() => router.push('/profile/agency')} className="w-full h-16 rounded-[1.5rem] bg-white border border-purple-50 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-purple-50 flex items-center justify-center"><Building2 className="w-5 h-5 text-purple-600" /></div><div className="flex-1 text-left"><span className="text-gray-900 font-black text-[13px] block">Agency anchor</span></div><ChevronRight className="w-4 h-4 text-gray-200" /></button>)}
-            <button onClick={() => router.push('/games')} className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-gradient-to-br from-[#FF5722] to-[#FF8A65] flex items-center justify-center shadow-lg shadow-orange-500/20"><Gamepad2 className="w-5 h-5 text-white" /></div><div className="flex-1 text-left"><span className="text-gray-900 font-black text-[13px] block">Games center</span></div><ChevronRight className="w-4 h-4 text-gray-200" /></button>
             <button onClick={() => router.push('/settings')} className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100"><SettingsIcon className="w-5 h-5 text-gray-400" /></div><div className="flex-1 text-left"><span className="text-gray-900 font-black text-[13px] block">Settings</span></div><ChevronRight className="w-4 h-4 text-gray-200" /></button>
           </div>
         </section>
