@@ -1,7 +1,8 @@
+
 import { NextResponse } from 'next/server';
 import { getPesaPalTransactionStatus } from '@/app/actions/pesapal';
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, runTransaction, collection, query, where, getDocs, increment, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, runTransaction, collection, increment, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
 /**
@@ -16,9 +17,11 @@ export async function POST(req: Request) {
     const orderTrackingId = params.get('OrderTrackingId');
     const notificationType = params.get('OrderNotificationType');
 
+    console.log(`[IPN] Received notification: ${orderTrackingId} (${notificationType})`);
+
     // PesaPal sends IPNCHANGE when status is updated
     if (!orderTrackingId || notificationType !== 'IPNCHANGE') {
-      return new Response("OK", { status: 200 });
+      return NextResponse.json({ status: 200, message: "Handled" });
     }
 
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
@@ -27,6 +30,7 @@ export async function POST(req: Request) {
     // 1. Verify status with PesaPal
     const result = await getPesaPalTransactionStatus(orderTrackingId);
     
+    // Status Code 1 is 'Completed'
     if (result.status_code === 1 || result.payment_status_description === 'Completed') {
       const merchantRef = result.merchant_reference;
       
@@ -35,13 +39,14 @@ export async function POST(req: Request) {
       const mapSnap = await getDoc(mapRef);
       
       if (!mapSnap.exists()) {
-        console.error("Payment mapping not found for:", merchantRef);
-        return new Response("OK", { status: 200 });
+        console.error(`[IPN] Payment mapping not found for ref: ${merchantRef}`);
+        return NextResponse.json({ status: 200, message: "Mapping not found" });
       }
 
       const paymentData = mapSnap.data();
       if (paymentData.status === 'completed') {
-        return new Response("OK", { status: 200 }); // Already processed
+        console.log(`[IPN] Transaction ${orderTrackingId} already processed.`);
+        return NextResponse.json({ status: 200, message: "Already processed" });
       }
 
       const targetUserId = paymentData.userId;
@@ -65,7 +70,11 @@ export async function POST(req: Request) {
           });
 
           // Mark map as completed
-          transaction.update(mapRef, { status: 'completed', completedAt: new Date().toISOString() });
+          transaction.update(mapRef, { 
+            status: 'completed', 
+            orderTrackingId: orderTrackingId,
+            completedAt: new Date().toISOString() 
+          });
 
           // Log the final transaction
           const txRef = doc(collection(userRef, "transactions"));
@@ -73,19 +82,25 @@ export async function POST(req: Request) {
             id: txRef.id,
             type: "recharge_ipn",
             amount: coinsToGain,
-            pesapal_tracking_id: orderTrackingId,
+            orderTrackingId: orderTrackingId,
             merchant_reference: merchantRef,
             transactionDate: new Date().toISOString(),
             description: `Auto-verified Recharge (${coinsToGain} coins)`
           });
         });
+        
+        console.log(`[IPN] Successfully awarded ${coinsToGain} coins to ${targetUserId}`);
       }
     }
     
-    return new Response("OK", { status: 200 });
+    // PesaPal V3 expects a JSON response with status 200
+    return NextResponse.json({
+      order_tracking_id: orderTrackingId,
+      status: 200
+    });
   } catch (err) {
-    console.error("IPN Process Error:", err);
-    return new Response("ERROR", { status: 500 });
+    console.error("[IPN] Process Error:", err);
+    return NextResponse.json({ error: "Internal Error" }, { status: 500 });
   }
 }
 
