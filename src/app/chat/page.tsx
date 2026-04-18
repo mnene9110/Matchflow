@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -152,6 +151,9 @@ export default function ChatListPage() {
   const [hasFetched, setHasFetched] = useState(false)
   const [hidingTarget, setHidingTarget] = useState<string | null>(null)
   const [isHiding, setIsHiding] = useState(false)
+  
+  // Optimistic UI for hiding chats to remove lag
+  const [optimisticHiddenIds, setOptimisticHiddenIds] = useState<Set<string>>(new Set())
 
   // Track blocked IDs to filter chat list
   useEffect(() => {
@@ -184,7 +186,11 @@ export default function ChatListPage() {
         const isHidden = s[`hidden_${currentUser.uid}`] === true
         const hasSent = s[`userHasSent_${currentUser.uid}`] === true
         const unread = s[`unreadCount_${currentUser.uid}`] > 0
-        return !isHidden && (hasSent || unread) && !isBlocked
+        
+        // Respect both Firestore state and local optimistic state
+        const isOptimisticallyHidden = optimisticHiddenIds.has(s.id)
+
+        return !isHidden && !isOptimisticallyHidden && (hasSent || unread) && !isBlocked
       })
       setSessions(filtered)
       setHasFetched(true)
@@ -203,11 +209,15 @@ export default function ChatListPage() {
       clearTimeout(timer)
       unsubscribe()
     }
-  }, [firestore, currentUser, blockedIds])
+  }, [firestore, currentUser, blockedIds, optimisticHiddenIds])
 
   const handleHideChat = async () => {
     if (!currentUser || !hidingTarget || !firestore) return
     setIsHiding(true)
+    
+    // Add to optimistic hidden list immediately
+    setOptimisticHiddenIds(prev => new Set(prev).add(hidingTarget))
+
     try {
       const chatRef = doc(firestore, "chats", hidingTarget)
       await updateDoc(chatRef, { 
@@ -216,6 +226,13 @@ export default function ChatListPage() {
       })
       setHidingTarget(null)
     } catch (e: any) {
+      // Revert optimistic hide on error
+      setOptimisticHiddenIds(prev => {
+        const next = new Set(prev);
+        next.delete(hidingTarget);
+        return next;
+      });
+
       if (e.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `chats/${hidingTarget}`,
@@ -271,7 +288,7 @@ export default function ChatListPage() {
       </main>
 
       <Dialog open={!!hidingTarget} onOpenChange={(open) => !open && setHidingTarget(null)}>
-        <DialogContent className="rounded-[2.5rem] bg-white border-none p-8 max-w-[85%] mx-auto shadow-2xl">
+        <DialogContent hideClose className="rounded-[2.5rem] bg-white border-none p-8 max-w-[85%] mx-auto shadow-2xl">
           <DialogHeader>
             <DialogTitle className="text-2xl font-black font-headline text-gray-900 text-center">Delete Chat</DialogTitle>
           </DialogHeader>

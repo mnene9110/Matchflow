@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -226,7 +225,10 @@ function ChatDetailContent() {
           timestamp: serverTimestamp(),
           participants: [currentUser.uid, resolvedOtherUserId],
           [`unreadCount_${resolvedOtherUserId}`]: increment(1),
-          [`userHasSent_${currentUser.uid}`]: true
+          [`userHasSent_${currentUser.uid}`]: true,
+          // CLEAR HIDE STATUS: Ensure chat reappears for both on new message
+          [`hidden_${currentUser.uid}`]: false,
+          [`hidden_${resolvedOtherUserId}`]: false
         }, { merge: true });
       });
 
@@ -273,7 +275,10 @@ function ChatDetailContent() {
           timestamp: serverTimestamp(),
           participants: [currentUser.uid, resolvedOtherUserId],
           [`unreadCount_${resolvedOtherUserId}`]: increment(1),
-          [`userHasSent_${currentUser.uid}`]: true
+          [`userHasSent_${currentUser.uid}`]: true,
+          // CLEAR HIDE STATUS: Ensure chat reappears for both on new gift
+          [`hidden_${currentUser.uid}`]: false,
+          [`hidden_${resolvedOtherUserId}`]: false
         }, { merge: true });
       });
 
