@@ -57,7 +57,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
     timerRef.current = setTimeout(() => {
       longPressedRef.current = true;
       onLongPress(session.id);
-    }, 800);
+    }, 450);
   }
 
   const handleTouchMove = (e: React.TouchEvent) => {
