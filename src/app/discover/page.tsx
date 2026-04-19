@@ -15,7 +15,8 @@ import {
   orderBy, 
   startAfter,
   QueryDocumentSnapshot,
-  DocumentData
+  DocumentData,
+  Query
 } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
@@ -69,7 +70,7 @@ export default function DiscoverPage() {
     if (isRefresh || isTabChange) {
       setIsInitialLoading(true);
       cachedInitialLoaded = false;
-    } else if (cachedInitialLoaded) {
+    } else if (cachedInitialLoaded && users.length > 0) {
       setIsInitialLoading(false);
       return;
     }
@@ -78,12 +79,12 @@ export default function DiscoverPage() {
       const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
       const targetGender = currentGender === 'male' ? 'female' : 'male'
 
-      let q = query(
+      // Simplified query to reduce index dependency
+      let q: Query<DocumentData> = query(
         collection(firestore, "userProfiles"),
         where("gender", "==", targetGender),
         orderBy("isOnline", "desc"),
-        orderBy("lastActiveAt", "desc"),
-        limit(10)
+        limit(12)
       );
 
       if (activeTab === 'nearby') {
@@ -92,8 +93,7 @@ export default function DiscoverPage() {
           where("gender", "==", targetGender),
           where("location", "==", currentUserProfile.location || "Kenya"),
           orderBy("isOnline", "desc"),
-          orderBy("lastActiveAt", "desc"),
-          limit(10)
+          limit(12)
         );
       }
       
@@ -112,6 +112,7 @@ export default function DiscoverPage() {
       const rawUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const filtered = rawUsers.filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
       
+      // Shuffle within groups for variety
       const online = filtered.filter(u => u.isOnline).sort(() => Math.random() - 0.5);
       const offline = filtered.filter(u => !u.isOnline).sort(() => Math.random() - 0.5);
       const combined = [...online, ...offline];
@@ -119,11 +120,22 @@ export default function DiscoverPage() {
       setUsers(combined);
       cachedUsers = combined;
       cachedLastDoc = snap.docs[snap.docs.length - 1];
-      setHasMore(snap.docs.length >= 10);
-      cachedHasMore = snap.docs.length >= 10;
+      setHasMore(snap.docs.length >= 12);
+      cachedHasMore = snap.docs.length >= 12;
       cachedInitialLoaded = true;
     } catch (error) {
       console.error("Error fetching users:", error)
+      // Fallback: If filtered query fails due to index, try a simpler one
+      try {
+        const fallbackQ = query(collection(firestore, "userProfiles"), limit(10));
+        const fallbackSnap = await getDocs(fallbackQ);
+        const fallbackUsers = fallbackSnap.docs
+          .map(d => ({ id: d.id, ...d.data() }))
+          .filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
+        setUsers(fallbackUsers);
+      } catch (e) {
+        console.error("Fallback fetch failed", e);
+      }
     } finally {
       setIsInitialLoading(false)
     }
@@ -137,13 +149,12 @@ export default function DiscoverPage() {
       const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
       const targetGender = currentGender === 'male' ? 'female' : 'male'
 
-      let q = query(
+      let q: Query<DocumentData> = query(
         collection(firestore, "userProfiles"),
         where("gender", "==", targetGender),
         orderBy("isOnline", "desc"),
-        orderBy("lastActiveAt", "desc"),
         startAfter(cachedLastDoc),
-        limit(10)
+        limit(12)
       );
 
       if (activeTab === 'nearby') {
@@ -152,9 +163,8 @@ export default function DiscoverPage() {
           where("gender", "==", targetGender),
           where("location", "==", currentUserProfile.location || "Kenya"),
           orderBy("isOnline", "desc"),
-          orderBy("lastActiveAt", "desc"),
           startAfter(cachedLastDoc),
-          limit(10)
+          limit(12)
         );
       }
 
@@ -169,16 +179,12 @@ export default function DiscoverPage() {
       const rawUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const filtered = rawUsers.filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
       
-      const online = filtered.filter(u => u.isOnline).sort(() => Math.random() - 0.5);
-      const offline = filtered.filter(u => !u.isOnline).sort(() => Math.random() - 0.5);
-      const combinedBatch = [...online, ...offline];
-
-      const newUsers = [...users, ...combinedBatch];
+      const newUsers = [...users, ...filtered];
       setUsers(newUsers);
       cachedUsers = newUsers;
       cachedLastDoc = snap.docs[snap.docs.length - 1];
-      setHasMore(snap.docs.length >= 10);
-      cachedHasMore = snap.docs.length >= 10;
+      setHasMore(snap.docs.length >= 12);
+      cachedHasMore = snap.docs.length >= 12;
     } catch (error) {
       console.error("Error fetching more users:", error)
     } finally {
@@ -190,7 +196,7 @@ export default function DiscoverPage() {
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isInitialLoading) {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isInitialLoading && users.length > 0) {
           loadMore();
         }
       },
@@ -204,7 +210,7 @@ export default function DiscoverPage() {
     return () => {
       if (observerTarget.current) observer.unobserve(observerTarget.current);
     };
-  }, [hasMore, isLoadingMore, isInitialLoading]);
+  }, [hasMore, isLoadingMore, isInitialLoading, users.length]);
 
   useEffect(() => {
     if (currentUserProfile && !cachedInitialLoaded) {
@@ -283,66 +289,55 @@ export default function DiscoverPage() {
       </div>
 
       {/* Main Grid */}
-      <main className="px-4 grid grid-cols-2 gap-3 mt-3">
-        {users.map((user) => {
-          const age = calculateAge(user.dateOfBirth);
-          const image = (user.profilePhotoUrls && user.profilePhotoUrls[0]) || `https://picsum.photos/seed/${user.id}/400/600`;
+      {isInitialLoading && users.length === 0 ? (
+        <div className="flex-1 flex flex-col items-center justify-center py-40 gap-4">
+          <Loader2 className="w-10 h-10 animate-spin text-primary/40" />
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-300">Finding your matches...</p>
+        </div>
+      ) : users.length > 0 ? (
+        <main className="px-4 grid grid-cols-2 gap-3 mt-3">
+          {users.map((user) => {
+            const age = calculateAge(user.dateOfBirth);
+            const image = (user.profilePhotoUrls && user.profilePhotoUrls[0]) || `https://picsum.photos/seed/${user.id}/400/600`;
 
-          return (
-            <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95 shadow-sm">
-              <Image src={image} alt={user.username} fill className="object-cover" />
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
-              
-              <div className="absolute top-3 right-3 z-10">
-                <button 
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    router.push(`/chat/${user.id}`);
-                  }}
-                  className="h-7 px-4 rounded-full bg-[#3BC1A8] flex items-center justify-center shadow-lg active:scale-90 transition-transform border border-white/20"
-                >
-                  <span className="text-[9px] font-black uppercase tracking-widest text-white">Chat</span>
-                </button>
-              </div>
-
-              <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
-                <div className="flex items-center gap-1.5 truncate">
-                  <h3 className="text-xs font-black truncate tracking-wide text-white">{user.username}</h3>
-                  {user.isVerified && (
-                    <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />
-                  )}
+            return (
+              <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95 shadow-sm">
+                <Image src={image} alt={user.username} fill className="object-cover" />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                
+                <div className="absolute top-3 right-3 z-10">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      router.push(`/chat/${user.id}`);
+                    }}
+                    className="h-7 px-4 rounded-full bg-[#3BC1A8] flex items-center justify-center shadow-lg active:scale-90 transition-transform border border-white/20"
+                  >
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white">Chat</span>
+                  </button>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center border border-white/20"><span className="text-[9px] font-black text-white">{age}</span></div>
-                  <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20"><span className="text-[8px] font-black text-white uppercase">{user.location || "Kenya"}</span></div>
-                  {user.isOnline && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-50 animate-pulse" />
-                  )}
+
+                <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <h3 className="text-xs font-black truncate tracking-wide text-white">{user.username}</h3>
+                    {user.isVerified && (
+                      <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />
+                    )}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center border border-white/20"><span className="text-[9px] font-black text-white">{age}</span></div>
+                    <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20"><span className="text-[8px] font-black text-white uppercase">{user.location || "Kenya"}</span></div>
+                    {user.isOnline && (
+                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-50 animate-pulse" />
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          )
-        })}
-      </main>
-
-      {/* Loading & Pagination Sentinel */}
-      <div ref={observerTarget} className="py-12 flex flex-col items-center justify-center gap-4">
-        {isLoadingMore || isInitialLoading ? (
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
-            <span className="text-[9px] font-black text-gray-300 uppercase tracking-[0.3em]">Finding people...</span>
-          </div>
-        ) : !hasMore && users.length > 0 ? (
-          <div className="flex flex-col items-center gap-3 opacity-20">
-            <Sparkles className="w-5 h-5 text-gray-400" />
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">No more people in this area</span>
-          </div>
-        ) : null}
-      </div>
-
-      {/* Empty State */}
-      {users.length === 0 && !isInitialLoading && (
-        <div className="flex flex-col items-center justify-center py-32 text-gray-400 text-center space-y-6 px-10">
+            )
+          })}
+        </main>
+      ) : (
+        <div className="flex-1 flex flex-col items-center justify-center py-32 text-gray-400 text-center space-y-6 px-10">
           <div className="w-24 h-24 bg-gray-50 rounded-[3rem] flex items-center justify-center border border-gray-100 shadow-inner">
             <UserSearch className="w-10 h-10 text-gray-200" />
           </div>
@@ -355,6 +350,21 @@ export default function DiscoverPage() {
           </Button>
         </div>
       )}
+
+      {/* Loading & Pagination Sentinel */}
+      <div ref={observerTarget} className="py-12 flex flex-col items-center justify-center gap-4">
+        {isLoadingMore ? (
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
+            <span className="text-[9px] font-black text-gray-300 uppercase tracking-[0.3em]">Loading more...</span>
+          </div>
+        ) : !hasMore && users.length > 0 ? (
+          <div className="flex flex-col items-center gap-3 opacity-20">
+            <Sparkles className="w-5 h-5 text-gray-400" />
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">No more people in this area</span>
+          </div>
+        ) : null}
+      </div>
     </div>
   )
 }
