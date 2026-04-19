@@ -131,7 +131,7 @@ export default function ProfileDetailPage() {
   const handleBlock = async () => {
     if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin || !firestore) return
     try {
-      await addDoc(collection(firestore, "userProfiles", currentUser.uid, "blockedUsers"), {
+      await setDoc(doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", id as string), {
         blockedUserId: id,
         username: userProfile?.username || "Unknown",
         blockedAt: serverTimestamp()
@@ -259,7 +259,11 @@ export default function ProfileDetailPage() {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <h1 className="text-3xl font-black font-headline text-gray-900 leading-none">{userProfile?.username}</h1>
-              {isVerified && <CheckCircle className="w-6 h-6 text-blue-500 fill-blue-500/10" />}
+              {isVerified && (
+                <div className="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center shadow-md">
+                  <CheckCircle className="w-4 h-4 text-white fill-current" />
+                </div>
+              )}
             </div>
             <div className="flex flex-col gap-1.5">
               <p className="text-[13px] font-medium text-gray-500 capitalize leading-none font-body">{userProfile?.gender || "Not specified"} • {age ? `${age} years old` : 'Age hidden'}</p>

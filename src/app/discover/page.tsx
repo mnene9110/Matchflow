@@ -103,6 +103,7 @@ export default function DiscoverPage() {
     return age;
   }
 
+  // Only filter out people I have blocked. They can still see me (one-way).
   const filteredUsers = users.filter(u => !blockedUserIds.has(u.id))
 
   return (
@@ -152,9 +153,13 @@ export default function DiscoverPage() {
               </div>
 
               <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
-                <div className="flex items-center gap-1 truncate">
+                <div className="flex items-center gap-1.5 truncate">
                   <h3 className="text-xs font-black truncate tracking-wide text-white">{user.username}</h3>
-                  {user.isVerified && <CheckCircle className="w-3 h-3 text-blue-500 fill-blue-500/10 shrink-0" />}
+                  {user.isVerified && (
+                    <div className="w-3.5 h-3.5 bg-blue-500 rounded-full flex items-center justify-center shrink-0 shadow-sm border border-white/10">
+                      <CheckCircle className="w-2.5 h-2.5 text-white fill-current" />
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-1.5">
                   <div className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center border border-white/20"><span className="text-[9px] font-black text-white">{age}</span></div>

@@ -115,12 +115,19 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
 
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-baseline mb-1">
-            <h3 className={cn(
-              "font-black text-base truncate",
-              name === "User logged out" ? "text-gray-400 font-medium italic" : "text-[#3BC1A8]"
-            )}>
-              {name}
-            </h3>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <h3 className={cn(
+                "font-black text-base truncate",
+                name === "User logged out" ? "text-gray-400 font-medium italic" : "text-[#3BC1A8]"
+              )}>
+                {name}
+              </h3>
+              {otherUserData?.isVerified && (
+                <div className="w-3.5 h-3.5 bg-blue-500 rounded-full flex items-center justify-center shrink-0 shadow-sm">
+                  <CheckCircle className="w-2.5 h-2.5 text-white fill-current" />
+                </div>
+              )}
+            </div>
             {session.timestamp && (
               <span className="text-[10px] font-bold text-gray-400 uppercase">
                 {session.timestamp.toDate?.() ? session.timestamp.toDate().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true }) : "Just now"}
@@ -182,7 +189,8 @@ export default function ChatListPage() {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
       const filtered = list.filter((s: any) => {
         const otherId = s.participants.find((p: string) => p !== currentUser.uid)
-        const isBlocked = otherId && blockedIds.has(otherId)
+        // Filter out chats with users I have blocked
+        const isBlockedByMe = otherId && blockedIds.has(otherId)
         const isHidden = s[`hidden_${currentUser.uid}`] === true
         const hasSent = s[`userHasSent_${currentUser.uid}`] === true
         const unread = s[`unreadCount_${currentUser.uid}`] > 0
@@ -190,7 +198,7 @@ export default function ChatListPage() {
         // Respect both Firestore state and local optimistic state
         const isOptimisticallyHidden = optimisticHiddenIds.has(s.id)
 
-        return !isHidden && !isOptimisticallyHidden && (hasSent || unread) && !isBlocked
+        return !isHidden && !isOptimisticallyHidden && (hasSent || unread) && !isBlockedByMe
       })
       setSessions(filtered)
       setHasFetched(true)
