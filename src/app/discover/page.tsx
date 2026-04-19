@@ -1,9 +1,8 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
 import Image from "next/image"
-import { RotateCcw, Loader2, MessageSquare, CheckCircle } from "lucide-react"
+import { RotateCcw, Loader2, CheckCircle } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { collection, query, where, limit, getDocs, doc, onSnapshot } from "firebase/firestore"
 import { cn } from "@/lib/utils"
@@ -146,9 +145,9 @@ export default function DiscoverPage() {
                     e.stopPropagation();
                     router.push(`/chat/${user.id}`);
                   }}
-                  className="w-8 h-8 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform shadow-lg"
+                  className="h-7 px-4 rounded-full bg-[#3BC1A8] flex items-center justify-center shadow-lg active:scale-90 transition-transform border border-white/20"
                 >
-                  <MessageSquare className="w-3.5 h-3.5 fill-current" />
+                  <span className="text-[9px] font-black uppercase tracking-widest text-white">Chat</span>
                 </button>
               </div>
 
