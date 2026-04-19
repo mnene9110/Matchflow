@@ -156,9 +156,7 @@ export default function DiscoverPage() {
                 <div className="flex items-center gap-1.5 truncate">
                   <h3 className="text-xs font-black truncate tracking-wide text-white">{user.username}</h3>
                   {user.isVerified && (
-                    <div className="w-3.5 h-3.5 bg-blue-500 rounded-full flex items-center justify-center shrink-0 shadow-sm border border-white/10">
-                      <CheckCircle className="w-2.5 h-2.5 text-white fill-current" />
-                    </div>
+                    <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />
                   )}
                 </div>
                 <div className="flex items-center gap-1.5">

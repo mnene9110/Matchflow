@@ -363,9 +363,7 @@ function ChatDetailContent() {
             <div className="flex items-center gap-1">
               <h3 className="font-black text-[12px] leading-tight truncate">{otherUserName}</h3>
               {otherUser?.isVerified && (
-                <div className="w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center shadow-sm">
-                  <CheckCircle className="w-2.5 h-2.5 text-white fill-current" />
-                </div>
+                <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />
               )}
             </div>
             <span className="text-[8px] font-black uppercase tracking-widest text-white/40">{otherUser?.isOnline ? "Online" : "Offline"}</span>

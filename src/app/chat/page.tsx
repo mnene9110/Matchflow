@@ -123,9 +123,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
                 {name}
               </h3>
               {otherUserData?.isVerified && (
-                <div className="w-3.5 h-3.5 bg-blue-500 rounded-full flex items-center justify-center shrink-0 shadow-sm">
-                  <CheckCircle className="w-2.5 h-2.5 text-white fill-current" />
-                </div>
+                <CheckCircle className="w-4 h-4 text-blue-500 fill-current" />
               )}
             </div>
             {session.timestamp && (
