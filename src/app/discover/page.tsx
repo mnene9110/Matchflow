@@ -38,6 +38,16 @@ export function clearDiscoverCache() {
   cachedInitialLoaded = false
 }
 
+// Utility to shuffle an array
+const shuffleArray = (array: any[]) => {
+  const shuffled = [...array];
+  for (let i = shuffled.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+  }
+  return shuffled;
+};
+
 export default function DiscoverPage() {
   const { firestore } = useFirebase()
   const { user: currentUser } = useUser()
@@ -80,12 +90,9 @@ export default function DiscoverPage() {
     const targetGender = currentGender === 'male' ? 'female' : 'male'
 
     try {
-      // Primary Query: Strict gender filter + Online status
-      // Note: This requires a composite index: userProfiles (gender asc, isOnline desc)
       let q: Query<DocumentData> = query(
         collection(firestore, "userProfiles"),
         where("gender", "==", targetGender),
-        orderBy("isOnline", "desc"),
         limit(12)
       );
 
@@ -94,7 +101,6 @@ export default function DiscoverPage() {
           collection(firestore, "userProfiles"),
           where("gender", "==", targetGender),
           where("location", "==", currentUserProfile.location || "Kenya"),
-          orderBy("isOnline", "desc"),
           limit(12)
         );
       }
@@ -112,8 +118,13 @@ export default function DiscoverPage() {
       }
 
       const rawUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const filtered = rawUsers.filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
+      let filtered = rawUsers.filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
       
+      // Reshuffle on refresh to satisfy the requirement "all of them to change position"
+      if (isRefresh) {
+        filtered = shuffleArray(filtered);
+      }
+
       setUsers(filtered);
       cachedUsers = filtered;
       cachedLastDoc = snap.docs[snap.docs.length - 1];
@@ -122,24 +133,24 @@ export default function DiscoverPage() {
       cachedInitialLoaded = true;
     } catch (error) {
       console.error("Error fetching users:", error)
-      // Fallback: If index-based query fails, we do a simple query and filter locally
       try {
         const fallbackQ = query(collection(firestore, "userProfiles"), limit(40));
         const fallbackSnap = await getDocs(fallbackQ);
-        const fallbackUsers = fallbackSnap.docs
+        let fallbackUsers = fallbackSnap.docs
           .map(d => ({ id: d.id, ...d.data() }))
           .filter((u: any) => 
             u.id !== currentUser.uid && 
             !blockedUserIds.has(u.id) && 
-            u.gender?.toLowerCase() === targetGender // Enforce gender rule locally
+            u.gender?.toLowerCase() === targetGender
           );
         
-        // Sort fallback users by online status manually
-        fallbackUsers.sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
-        
+        if (isRefresh) {
+          fallbackUsers = shuffleArray(fallbackUsers);
+        }
+
         setUsers(fallbackUsers);
         cachedUsers = fallbackUsers;
-        setHasMore(false); // Can't reliably paginate fallback
+        setHasMore(false);
       } catch (e) {
         console.error("Fallback fetch failed", e);
       }
@@ -159,7 +170,6 @@ export default function DiscoverPage() {
       let q: Query<DocumentData> = query(
         collection(firestore, "userProfiles"),
         where("gender", "==", targetGender),
-        orderBy("isOnline", "desc"),
         startAfter(cachedLastDoc),
         limit(12)
       );
@@ -169,7 +179,6 @@ export default function DiscoverPage() {
           collection(firestore, "userProfiles"),
           where("gender", "==", targetGender),
           where("location", "==", currentUserProfile.location || "Kenya"),
-          orderBy("isOnline", "desc"),
           startAfter(cachedLastDoc),
           limit(12)
         );
@@ -320,7 +329,7 @@ export default function DiscoverPage() {
                     }}
                     className="h-7 px-4 rounded-full bg-[#3BC1A8] flex items-center justify-center shadow-lg active:scale-90 transition-transform border border-white/20"
                   >
-                    <span className="text-[9px] font-black uppercase tracking-widest text-white">Chat</span>
+                    <span className="text-[9px] font-black uppercase tracking-widest text-white">CHAT</span>
                   </button>
                 </div>
 
