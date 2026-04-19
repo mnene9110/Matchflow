@@ -41,6 +41,7 @@ import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
 export const GIFTS = [
+  { id: 'butterfly', name: 'Butterfly ✨', image: '/butterfly.png', price: 300 },
   { id: 'roses', name: 'Rose Bouquet 🌹', emoji: '🌹', price: 500 },
   { id: 'ring', name: 'Diamond Ring 💍', emoji: '💍', price: 1000 },
   { id: 'champagne', name: 'Champagne 🍾', emoji: '🍾', price: 1200 },
@@ -407,7 +408,13 @@ function ChatDetailContent() {
                     {isGift ? (
                       <div className="flex flex-col">
                         <div className="p-6 flex flex-col items-center justify-center bg-gray-50/50 relative">
-                          <div className="text-5xl mb-2 drop-shadow-sm">{GIFTS.find(g => g.id === msg.giftId)?.emoji || '🎁'}</div>
+                          <div className="text-5xl mb-2 drop-shadow-sm">
+                            {(() => {
+                              const gift = GIFTS.find(g => g.id === msg.giftId);
+                              if (gift?.image) return <img src={gift.image} alt={gift.name} className="w-16 h-16 object-contain" />;
+                              return gift?.emoji || '🎁';
+                            })()}
+                          </div>
                           <div className="absolute bottom-4 right-4 italic font-black text-sky-500 text-2xl">x 1</div>
                         </div>
                         {isMe && (
@@ -443,7 +450,13 @@ function ChatDetailContent() {
                   {GIFTS.map((gift) => {
                     return (
                       <div key={gift.id} onClick={() => setSelectedGift(gift)} className={cn("flex flex-col items-center gap-2 p-2 rounded-2xl border transition-all cursor-pointer", selectedGift?.id === gift.id ? "bg-primary/20 border-primary" : "bg-transparent border-transparent")}>
-                        <div className="text-4xl">{gift.emoji}</div>
+                        <div className="text-4xl flex items-center justify-center h-12">
+                          {gift.image ? (
+                            <img src={gift.image} alt={gift.name} className="w-10 h-10 object-contain" />
+                          ) : (
+                            gift.emoji
+                          )}
+                        </div>
                         <div className="flex flex-col items-center">
                           <div className="flex items-center gap-1">
                             <span className="text-[10px] font-black text-amber-400">{gift.price}</span>
