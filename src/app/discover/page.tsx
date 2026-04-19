@@ -1,8 +1,8 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
-import { RotateCcw, Loader2, CheckCircle, MapPin, Sparkles } from "lucide-react"
+import { RotateCcw, Loader2, CheckCircle, MapPin, Sparkles, UserSearch } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { 
   collection, 
@@ -48,6 +48,8 @@ export default function DiscoverPage() {
   const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [hasMore, setHasMore] = useState(cachedHasMore)
   
+  const observerTarget = useRef<HTMLDivElement>(null)
+
   const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile } = useDoc(userProfileRef)
 
@@ -102,13 +104,14 @@ export default function DiscoverPage() {
         cachedUsers = [];
         setHasMore(false);
         cachedHasMore = false;
+        setIsInitialLoading(false);
+        cachedInitialLoaded = true;
         return;
       }
 
       const rawUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const filtered = rawUsers.filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
       
-      // Reshuffle within status groups client-side
       const online = filtered.filter(u => u.isOnline).sort(() => Math.random() - 0.5);
       const offline = filtered.filter(u => !u.isOnline).sort(() => Math.random() - 0.5);
       const combined = [...online, ...offline];
@@ -116,8 +119,8 @@ export default function DiscoverPage() {
       setUsers(combined);
       cachedUsers = combined;
       cachedLastDoc = snap.docs[snap.docs.length - 1];
-      setHasMore(snap.docs.length === 10);
-      cachedHasMore = snap.docs.length === 10;
+      setHasMore(snap.docs.length >= 10);
+      cachedHasMore = snap.docs.length >= 10;
       cachedInitialLoaded = true;
     } catch (error) {
       console.error("Error fetching users:", error)
@@ -127,7 +130,7 @@ export default function DiscoverPage() {
   }
 
   const loadMore = async () => {
-    if (isLoadingMore || !hasMore || !cachedLastDoc || !firestore || !currentUserProfile) return;
+    if (isLoadingMore || !hasMore || !cachedLastDoc || !firestore || !currentUserProfile || isInitialLoading) return;
 
     setIsLoadingMore(true);
     try {
@@ -174,14 +177,34 @@ export default function DiscoverPage() {
       setUsers(newUsers);
       cachedUsers = newUsers;
       cachedLastDoc = snap.docs[snap.docs.length - 1];
-      setHasMore(snap.docs.length === 10);
-      cachedHasMore = snap.docs.length === 10;
+      setHasMore(snap.docs.length >= 10);
+      cachedHasMore = snap.docs.length >= 10;
     } catch (error) {
       console.error("Error fetching more users:", error)
     } finally {
       setIsLoadingMore(false);
     }
   }
+
+  // Infinite scroll observer
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isInitialLoading) {
+          loadMore();
+        }
+      },
+      { threshold: 0.1 }
+    );
+
+    if (observerTarget.current) {
+      observer.observe(observerTarget.current);
+    }
+
+    return () => {
+      if (observerTarget.current) observer.unobserve(observerTarget.current);
+    };
+  }, [hasMore, isLoadingMore, isInitialLoading]);
 
   useEffect(() => {
     if (currentUserProfile && !cachedInitialLoaded) {
@@ -193,7 +216,6 @@ export default function DiscoverPage() {
     if (tab === activeTab) return;
     setActiveTab(tab);
     cachedTab = tab;
-    // We clear cursors for tab change to start fresh
     cachedLastDoc = null;
     fetchUsers(false, true);
   }
@@ -294,7 +316,7 @@ export default function DiscoverPage() {
                   <div className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center border border-white/20"><span className="text-[9px] font-black text-white">{age}</span></div>
                   <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20"><span className="text-[8px] font-black text-white uppercase">{user.location || "Kenya"}</span></div>
                   {user.isOnline && (
-                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
+                    <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-50 animate-pulse" />
                   )}
                 </div>
               </div>
@@ -303,27 +325,34 @@ export default function DiscoverPage() {
         })}
       </main>
 
-      {/* Pagination Controls */}
-      {hasMore && (
-        <div className="px-6 pt-8 pb-4">
-          <Button 
-            onClick={loadMore} 
-            disabled={isLoadingMore}
-            className="w-full h-12 rounded-full bg-gray-50 text-gray-400 font-black uppercase text-[10px] tracking-[0.2em] border border-gray-100"
-          >
-            {isLoadingMore ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Sparkles className="w-4 h-4 mr-2" />}
-            {isLoadingMore ? "Loading..." : "Load More People"}
-          </Button>
-        </div>
-      )}
+      {/* Loading & Pagination Sentinel */}
+      <div ref={observerTarget} className="py-12 flex flex-col items-center justify-center gap-4">
+        {isLoadingMore || isInitialLoading ? (
+          <div className="flex flex-col items-center gap-3">
+            <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
+            <span className="text-[9px] font-black text-gray-300 uppercase tracking-[0.3em]">Finding people...</span>
+          </div>
+        ) : !hasMore && users.length > 0 ? (
+          <div className="flex flex-col items-center gap-3 opacity-20">
+            <Sparkles className="w-5 h-5 text-gray-400" />
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">No more people in this area</span>
+          </div>
+        ) : null}
+      </div>
 
       {/* Empty State */}
       {users.length === 0 && !isInitialLoading && (
-        <div className="flex flex-col items-center justify-center py-32 text-gray-400 opacity-30 text-center space-y-4 px-10">
-          <div className="w-20 h-20 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100">
-            <RotateCcw className="w-8 h-8" />
+        <div className="flex flex-col items-center justify-center py-32 text-gray-400 text-center space-y-6 px-10">
+          <div className="w-24 h-24 bg-gray-50 rounded-[3rem] flex items-center justify-center border border-gray-100 shadow-inner">
+            <UserSearch className="w-10 h-10 text-gray-200" />
           </div>
-          <p className="text-[10px] font-black uppercase tracking-widest">No users found in this region. Try refreshing or switching tabs.</p>
+          <div className="space-y-2">
+            <p className="text-xs font-black text-gray-900 uppercase tracking-widest">No users found</p>
+            <p className="text-[10px] font-bold text-gray-400 uppercase leading-relaxed">Try switching between Recommended and Nearby, or refresh the list.</p>
+          </div>
+          <Button onClick={handleRefresh} variant="outline" className="h-12 px-8 rounded-full border-gray-100 font-black text-[10px] uppercase tracking-[0.2em]">
+            Refresh List
+          </Button>
         </div>
       )}
     </div>
