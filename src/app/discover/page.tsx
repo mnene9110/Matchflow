@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -75,11 +76,12 @@ export default function DiscoverPage() {
       return;
     }
 
-    try {
-      const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
-      const targetGender = currentGender === 'male' ? 'female' : 'male'
+    const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
+    const targetGender = currentGender === 'male' ? 'female' : 'male'
 
-      // Simplified query to reduce index dependency
+    try {
+      // Primary Query: Strict gender filter + Online status
+      // Note: This requires a composite index: userProfiles (gender asc, isOnline desc)
       let q: Query<DocumentData> = query(
         collection(firestore, "userProfiles"),
         where("gender", "==", targetGender),
@@ -112,27 +114,32 @@ export default function DiscoverPage() {
       const rawUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       const filtered = rawUsers.filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
       
-      // Shuffle within groups for variety
-      const online = filtered.filter(u => u.isOnline).sort(() => Math.random() - 0.5);
-      const offline = filtered.filter(u => !u.isOnline).sort(() => Math.random() - 0.5);
-      const combined = [...online, ...offline];
-
-      setUsers(combined);
-      cachedUsers = combined;
+      setUsers(filtered);
+      cachedUsers = filtered;
       cachedLastDoc = snap.docs[snap.docs.length - 1];
       setHasMore(snap.docs.length >= 12);
       cachedHasMore = snap.docs.length >= 12;
       cachedInitialLoaded = true;
     } catch (error) {
       console.error("Error fetching users:", error)
-      // Fallback: If filtered query fails due to index, try a simpler one
+      // Fallback: If index-based query fails, we do a simple query and filter locally
       try {
-        const fallbackQ = query(collection(firestore, "userProfiles"), limit(10));
+        const fallbackQ = query(collection(firestore, "userProfiles"), limit(40));
         const fallbackSnap = await getDocs(fallbackQ);
         const fallbackUsers = fallbackSnap.docs
           .map(d => ({ id: d.id, ...d.data() }))
-          .filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
+          .filter((u: any) => 
+            u.id !== currentUser.uid && 
+            !blockedUserIds.has(u.id) && 
+            u.gender?.toLowerCase() === targetGender // Enforce gender rule locally
+          );
+        
+        // Sort fallback users by online status manually
+        fallbackUsers.sort((a, b) => (b.isOnline ? 1 : 0) - (a.isOnline ? 1 : 0));
+        
         setUsers(fallbackUsers);
+        cachedUsers = fallbackUsers;
+        setHasMore(false); // Can't reliably paginate fallback
       } catch (e) {
         console.error("Fallback fetch failed", e);
       }
@@ -145,10 +152,10 @@ export default function DiscoverPage() {
     if (isLoadingMore || !hasMore || !cachedLastDoc || !firestore || !currentUserProfile || isInitialLoading) return;
 
     setIsLoadingMore(true);
-    try {
-      const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
-      const targetGender = currentGender === 'male' ? 'female' : 'male'
+    const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
+    const targetGender = currentGender === 'male' ? 'female' : 'male'
 
+    try {
       let q: Query<DocumentData> = query(
         collection(firestore, "userProfiles"),
         where("gender", "==", targetGender),
