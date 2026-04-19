@@ -212,12 +212,19 @@ export default function ProfileDetailPage() {
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-y-auto scroll-smooth">
       <div className="relative aspect-[3/4] w-full shrink-0 bg-gray-100">
-        <Carousel setApi={setApi} className="w-full h-full">
-          <CarouselContent className="h-full ml-0">
+        <Carousel setApi={setApi} className="w-full h-full absolute inset-0">
+          <CarouselContent className="h-full ml-0 [&>div]:h-full">
             {userPhotos.map((url, idx) => (
               <CarouselItem key={idx} className="h-full pl-0 basis-full">
                 <div className="relative w-full h-full cursor-pointer active:opacity-90" onClick={() => openFullscreen(url)}>
-                  <Image src={url} alt={`${userProfile?.username || "User"} Photo ${idx + 1}`} fill className="object-cover" priority={idx === 0} />
+                  <Image 
+                    src={url} 
+                    alt={`${userProfile?.username || "User"} Photo ${idx + 1}`} 
+                    fill 
+                    className="object-cover" 
+                    priority={idx === 0}
+                    sizes="(max-width: 768px) 100vw, 600px"
+                  />
                 </div>
               </CarouselItem>
             ))}
@@ -356,7 +363,7 @@ export default function ProfileDetailPage() {
       {fullscreenImage && (
         <div className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center animate-in fade-in duration-300" onClick={closeFullscreen}>
           <div className="relative w-full flex-1">
-            <Image src={fullscreenImage} alt="Fullscreen" fill className="object-contain cursor-pointer" priority />
+            <Image src={fullscreenImage} alt="Fullscreen" fill className="object-contain cursor-pointer" priority unoptimized />
           </div>
           <div className="p-10 shrink-0">
             <Button onClick={(e) => { e.stopPropagation(); closeFullscreen(); }} className="h-16 px-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all gap-3">
