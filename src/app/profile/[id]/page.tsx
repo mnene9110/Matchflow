@@ -213,7 +213,7 @@ export default function ProfileDetailPage() {
     <div className="flex flex-col h-svh bg-white relative overflow-y-auto scroll-smooth">
       <div className="relative aspect-[3/4] w-full shrink-0 bg-gray-100">
         <Carousel setApi={setApi} className="w-full h-full absolute inset-0">
-          <CarouselContent className="h-full ml-0 [&>div]:h-full">
+          <CarouselContent className="h-full ml-0" viewportClassName="h-full">
             {userPhotos.map((url, idx) => (
               <CarouselItem key={idx} className="h-full pl-0 basis-full">
                 <div className="relative w-full h-full cursor-pointer active:opacity-90" onClick={() => openFullscreen(url)}>
