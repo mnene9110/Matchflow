@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -78,7 +77,7 @@ export function Navbar() {
               )}
             >
               <div className="relative">
-                <div className="relative w-6 h-6">
+                <div className="relative w-8 h-8">
                   <Image 
                     src={item.icon} 
                     alt={item.label} 

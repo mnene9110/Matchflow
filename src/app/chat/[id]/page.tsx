@@ -8,7 +8,7 @@ import {
   Loader2, 
   CheckCircle, 
   ArrowUp, 
-  Zap, 
+  Gift, 
   Phone, 
   Video,
   ShieldAlert
@@ -41,27 +41,27 @@ import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 
 export const GIFTS = [
-  { id: 'butterfly', name: 'Butterfly ✨', image: '/butterfly.png', price: 300 },
-  { id: 'roses', name: 'Rose Bouquet 🌹', image: '/bouquet.png', price: 500 },
-  { id: 'ring', name: 'Diamond Ring 💍', emoji: '💍', price: 1000 },
-  { id: 'champagne', name: 'Champagne 🍾', image: '/champagne.png', price: 1200 },
-  { id: 'trophy', name: 'Gold Trophy 🏆', image: '/trophy.png', price: 1500 },
-  { id: 'fireworks', name: 'Fireworks 🎆', image: '/fireworks.png', price: 2000 },
-  { id: 'goldbar', name: 'Gold Bar 🧱', image: '/goldbar.png', price: 2500 },
-  { id: 'crown', name: 'Royal Crown 👑', image: '/crown.png', price: 3000 },
-  { id: 'lamp', name: 'Magic Lamp 🪔', image: '/magiclamp.png', price: 4000 },
-  { id: 'car', name: 'Sport Car 🏎️', image: '/sportcar.png', price: 5000 },
-  { id: 'crystal', name: 'Crystal Ball 🔮', image: '/crystalball.png', price: 6000 },
-  { id: 'map', name: 'Treasure Map 🗺️', image: '/treasuremap.png', price: 8500 },
-  { id: 'scroll', name: 'Ancient Scroll 📜', image: '/scroll.png', price: 12000 },
-  { id: 'yacht', name: 'Luxury Yacht 🛥️', image: '/yatch.png', price: 20000 },
-  { id: 'phoenix', name: 'Phoenix 🐦‍🔥', image: '/phonix.png', price: 35000 },
-  { id: 'jet', name: 'Private Jet 🛩️', image: '/privatejet.png', price: 50000 },
-  { id: 'dragon', name: 'Flying Dragon 🐲', image: '/dragon.png', price: 75000 },
-  { id: 'supernova', name: 'Supernova 🌟', image: '/supernova.png', price: 100000 },
-  { id: 'galaxy', name: 'Galaxy 🌌', image: '/galaxy.png', price: 250000 },
-  { id: 'timemachine', name: 'Time Machine ⏳', image: '/timemachine.png', price: 450000 },
-  { id: 'universe', name: 'Universe Core 🌌✨', image: '/universe.png', price: 500000 },
+  { id: 'butterfly', name: 'Butterfly', image: '/butterfly.png', price: 300 },
+  { id: 'roses', name: 'Rose Bouquet', image: '/bouquet.png', price: 500 },
+  { id: 'ring', name: 'Diamond Ring', emoji: '💍', price: 1000 },
+  { id: 'champagne', name: 'Champagne', image: '/champagne.png', price: 1200 },
+  { id: 'trophy', name: 'Gold Trophy', image: '/trophy.png', price: 1500 },
+  { id: 'fireworks', name: 'Fireworks', image: '/fireworks.png', price: 2000 },
+  { id: 'goldbar', name: 'Gold Bar', image: '/goldbar.png', price: 2500 },
+  { id: 'crown', name: 'Royal Crown', image: '/crown.png', price: 3000 },
+  { id: 'lamp', name: 'Magic Lamp', image: '/magiclamp.png', price: 4000 },
+  { id: 'car', name: 'Sport Car', image: '/sportcar.png', price: 5000 },
+  { id: 'crystal', name: 'Crystal Ball', image: '/crystalball.png', price: 6000 },
+  { id: 'map', name: 'Treasure Map', image: '/treasuremap.png', price: 8500 },
+  { id: 'scroll', name: 'Ancient Scroll', image: '/scroll.png', price: 12000 },
+  { id: 'yacht', name: 'Luxury Yacht', image: '/yatch.png', price: 20000 },
+  { id: 'phoenix', name: 'Phoenix', image: '/phonix.png', price: 35000 },
+  { id: 'jet', name: 'Private Jet', image: '/privatejet.png', price: 50000 },
+  { id: 'dragon', name: 'Flying Dragon', image: '/dragon.png', price: 75000 },
+  { id: 'supernova', name: 'Supernova', image: '/supernova.png', price: 100000 },
+  { id: 'galaxy', name: 'Galaxy', image: '/galaxy.png', price: 250000 },
+  { id: 'timemachine', name: 'Time Machine', image: '/timemachine.png', price: 450000 },
+  { id: 'universe', name: 'Universe Core', image: '/universe.png', price: 500000 },
 ]
 
 function ChatDetailContent() {
@@ -440,7 +440,7 @@ function ChatDetailContent() {
           <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
             <SheetTrigger asChild>
               <Button variant="ghost" size="icon" className="h-12 w-12 rounded-2xl bg-gray-50 text-amber-500 border border-gray-100 shrink-0 shadow-sm active:scale-90 transition-transform">
-                <Zap className="w-5 h-5 fill-current" />
+                <Gift className="w-6 h-6 fill-current" />
               </Button>
             </SheetTrigger>
             <SheetContent side="bottom" className="rounded-t-[3rem] h-[75svh] p-0 border-none bg-zinc-900 text-white overflow-hidden flex flex-col">
@@ -483,7 +483,7 @@ function ChatDetailContent() {
         <div className="relative flex-1 group">
           <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
           <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
-            {isSending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           </Button>
         </div>
       </footer>
