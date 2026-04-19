@@ -16,7 +16,6 @@ import {
   CheckCircle,
   ShieldCheck,
   Compass,
-  Star,
   Calendar,
   Zap,
   Tag,
@@ -44,6 +43,12 @@ import {
 } from "@/components/ui/dialog"
 import { Textarea } from "@/components/ui/textarea"
 import { useToast } from "@/hooks/use-toast"
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  type CarouselApi,
+} from "@/components/ui/carousel"
 
 export default function ProfileDetailPage() {
   const { id } = useParams()
@@ -61,8 +66,18 @@ export default function ProfileDetailPage() {
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportDetails, setReportDetails] = useState("")
   const [isSubmittingReport, setIsSubmittingReport] = useState(false)
-  
   const [fullscreenImage, setFullscreenImage] = useState<string | null>(null)
+  
+  const [api, setApi] = useState<CarouselApi>()
+  const [current, setCurrent] = useState(0)
+
+  useEffect(() => {
+    if (!api) return
+    setCurrent(api.selectedScrollSnap())
+    api.on("select", () => {
+      setCurrent(api.selectedScrollSnap())
+    })
+  }, [api])
 
   // Record Visitor Logic
   useEffect(() => {
@@ -84,26 +99,17 @@ export default function ProfileDetailPage() {
         setFullscreenImage(null);
       }
     };
-
     if (fullscreenImage) {
       window.history.pushState({ gallery: true }, "");
       window.addEventListener("popstate", handlePopState);
     }
-
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
   }, [fullscreenImage]);
 
-  const openFullscreen = (url: string) => {
-    setFullscreenImage(url);
-  };
-
-  const closeFullscreen = () => {
-    if (fullscreenImage) {
-      window.history.back();
-    }
-  };
+  const openFullscreen = (url: string) => setFullscreenImage(url);
+  const closeFullscreen = () => fullscreenImage && window.history.back();
 
   const age = useMemo(() => {
     if (!userProfile?.dateOfBirth) return null;
@@ -161,7 +167,7 @@ export default function ProfileDetailPage() {
   const copyId = () => {
     if (userProfile?.numericId) {
       navigator.clipboard.writeText(userProfile.numericId.toString());
-      toast({ title: "ID Copied", description: "Numeric ID copied to clipboard." });
+      toast({ title: "ID Copied" });
     }
   }
 
@@ -194,17 +200,40 @@ export default function ProfileDetailPage() {
     )
   }
 
-  const userPhotos = userProfile?.profilePhotoUrls || []
-  const mainPhoto = userPhotos[0] || `https://picsum.photos/seed/${userProfile?.id}/600/800`
-  const extraPhotos = userPhotos.slice(1).filter(Boolean)
+  const userPhotos = (userProfile?.profilePhotoUrls || []).filter(Boolean)
+  if (userPhotos.length === 0) userPhotos.push(`https://picsum.photos/seed/${userProfile?.id}/600/800`)
+  
   const isVerified = !!userProfile?.isVerified
   const isProtected = userProfile?.isAdmin === true || userProfile?.isSupport === true;
 
+  const hasInterests = userProfile?.interests && userProfile.interests.length > 0;
+  const hasDetails = userProfile?.education || userProfile?.horoscope || userProfile?.relationshipGoal;
+
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-y-auto scroll-smooth">
-      <div className="relative aspect-[3/4] w-full shrink-0">
-        <Image src={mainPhoto} alt={userProfile?.username || "User"} fill className="object-cover cursor-pointer active:opacity-90" priority onClick={() => openFullscreen(mainPhoto)} />
-        <div className="absolute top-12 left-4 right-4 flex justify-between items-center z-30">
+      <div className="relative aspect-[3/4] w-full shrink-0 bg-gray-100">
+        <Carousel setApi={setApi} className="w-full h-full">
+          <CarouselContent className="h-full ml-0">
+            {userPhotos.map((url, idx) => (
+              <CarouselItem key={idx} className="h-full pl-0 basis-full">
+                <div className="relative w-full h-full cursor-pointer active:opacity-90" onClick={() => openFullscreen(url)}>
+                  <Image src={url} alt={`${userProfile?.username || "User"} Photo ${idx + 1}`} fill className="object-cover" priority={idx === 0} />
+                </div>
+              </CarouselItem>
+            ))}
+          </CarouselContent>
+        </Carousel>
+
+        {/* Carousel Indicators */}
+        {userPhotos.length > 1 && (
+          <div className="absolute bottom-14 left-0 right-0 flex justify-center gap-1.5 z-40">
+            {userPhotos.map((_, idx) => (
+              <div key={idx} className={cn("h-1 rounded-full transition-all duration-300", current === idx ? "w-6 bg-white shadow-sm" : "w-1.5 bg-white/40")} />
+            ))}
+          </div>
+        )}
+
+        <div className="absolute top-12 left-4 right-4 flex justify-between items-center z-50">
           <Button variant="ghost" size="icon" className="text-white bg-black/20 backdrop-blur-md hover:bg-black/30 rounded-full" onClick={() => router.back()}><ChevronLeft className="w-8 h-8" /></Button>
           {!isProtected && (
             <DropdownMenu>
@@ -216,10 +245,12 @@ export default function ProfileDetailPage() {
             </DropdownMenu>
           )}
         </div>
-        <div className="absolute bottom-20 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 z-30">
+        
+        <div className="absolute bottom-20 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 z-40">
           <div className={cn("w-2.5 h-2.5 rounded-full", userProfile?.isOnline ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
           <span className={cn("text-[10px] font-black uppercase tracking-tight", userProfile?.isOnline ? "text-white" : "text-white/60")}>{presenceText}</span>
         </div>
+        
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
       </div>
 
@@ -247,46 +278,56 @@ export default function ProfileDetailPage() {
             </div>
           )}
 
-          <div className="space-y-4">
-            <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">User Information</h3>
-            <div className="grid grid-cols-1 gap-3">
-              {userProfile?.bio && <div className="bg-gray-50/50 p-5 rounded-[1.5rem] border border-gray-100"><p className="text-sm font-medium text-gray-600 leading-relaxed italic">"{userProfile.bio}"</p></div>}
-              
-              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Calendar className="w-6 h-6" /></div>
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Age Status</p>
-                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{age ? `${age} years old` : "Private"}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Compass className="w-6 h-6" /></div>
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Zodiac Sign</p>
-                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.horoscope || "Not set"}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><GraduationCap className="w-6 h-6" /></div>
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Education</p>
-                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.education || "Private"}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
-                <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Target className="w-6 h-6" /></div>
-                <div className="flex-1">
-                  <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Looking For</p>
-                  <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile?.relationshipGoal || "Networking"}</p>
-                </div>
+          {/* User Bio - Only show if exists */}
+          {userProfile?.bio && (
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Biography</h3>
+              <div className="bg-gray-50/50 p-5 rounded-[1.5rem] border border-gray-100">
+                <p className="text-sm font-medium text-gray-600 leading-relaxed italic">"{userProfile.bio}"</p>
               </div>
             </div>
-          </div>
+          )}
 
-          {userProfile?.interests && userProfile.interests.length > 0 && (
+          {/* User Details - Only show if any exist */}
+          {hasDetails && (
+            <div className="space-y-4">
+              <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Profile Info</h3>
+              <div className="grid grid-cols-1 gap-3">
+                {userProfile?.horoscope && (
+                  <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Compass className="w-6 h-6" /></div>
+                    <div className="flex-1">
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Zodiac Sign</p>
+                      <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.horoscope}</p>
+                    </div>
+                  </div>
+                )}
+
+                {userProfile?.education && (
+                  <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><GraduationCap className="w-6 h-6" /></div>
+                    <div className="flex-1">
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Education</p>
+                      <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.education}</p>
+                    </div>
+                  </div>
+                )}
+
+                {userProfile?.relationshipGoal && (
+                  <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
+                    <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Target className="w-6 h-6" /></div>
+                    <div className="flex-1">
+                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Looking For</p>
+                      <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.relationshipGoal.replace('-', ' ')}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Interests - Only show if exist */}
+          {hasInterests && (
             <div className="space-y-4 pt-4">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Interests</h3>
               <div className="flex flex-wrap gap-2">
@@ -299,23 +340,13 @@ export default function ProfileDetailPage() {
               </div>
             </div>
           )}
-
-          {extraPhotos.length > 0 && (
-            <div className="space-y-4 pt-4">
-              <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Gallery</h3>
-              <div className="grid grid-cols-2 gap-3">
-                {extraPhotos.map((url, index) => (
-                  <div key={index} className="relative aspect-square rounded-[2rem] overflow-hidden border-2 border-white shadow-md cursor-pointer active:scale-[0.98] transition-transform" onClick={() => openFullscreen(url)}><Image src={url} alt={`Gallery ${index}`} fill className="object-cover" /></div>
-                ))}
-              </div>
-            </div>
-          )}
+          
           <div className="h-40" />
         </div>
       </div>
 
       <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-[60] flex flex-col items-center">
-        <div className="w-full max-w-md">
+        <div className="w-full max-md:max-w-none max-w-md">
           <Button className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3" onClick={() => router.push(`/chat/${id}`)}>Send Message</Button>
         </div>
       </div>
@@ -323,13 +354,7 @@ export default function ProfileDetailPage() {
       {fullscreenImage && (
         <div className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center animate-in fade-in duration-300" onClick={closeFullscreen}>
           <div className="relative w-full flex-1">
-            <Image 
-              src={fullscreenImage} 
-              alt="Fullscreen" 
-              fill 
-              className="object-contain cursor-pointer" 
-              priority 
-            />
+            <Image src={fullscreenImage} alt="Fullscreen" fill className="object-contain cursor-pointer" priority />
           </div>
           <div className="p-10 shrink-0">
             <Button onClick={(e) => { e.stopPropagation(); closeFullscreen(); }} className="h-16 px-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all gap-3">
