@@ -152,11 +152,18 @@ function ChatDetailContent() {
 
   useEffect(() => {
     // CRITICAL: We MUST wait for chatMeta to finish loading before starting the message snapshot.
-    // If we don't, 'myDeletedAt' will be undefined, causing the query to fetch all messages 
-    // before the filter is applied, resulting in the "blink" effect.
     if (!firestore || !chatId || isChatMetaLoading || (isBlockedByOther || haveIBlockedOther)) return
     
-    const myDeletedAt = chatMeta?.[`deletedAt_${currentUser?.uid}`]
+    // IF chatMeta is null, it means no chat document exists yet (no messages have ever been exchanged).
+    // Our Firestore rules for messages use a get() on the parent chat document.
+    // If the parent doesn't exist, rules will return Permission Denied.
+    if (!chatMeta) {
+      setMessages([]);
+      setHasMore(false);
+      return;
+    }
+
+    const myDeletedAt = chatMeta[`deletedAt_${currentUser?.uid}`]
     
     let msgQuery = query(
       collection(firestore, "chats", chatId, "messages"),
@@ -183,7 +190,7 @@ function ChatDetailContent() {
     })
 
     return () => unsubscribe()
-  }, [firestore, chatId, msgLimit, isChatMetaLoading, isBlockedByOther, haveIBlockedOther, chatMeta?.[`deletedAt_${currentUser?.uid}`]])
+  }, [firestore, chatId, msgLimit, isChatMetaLoading, isBlockedByOther, haveIBlockedOther, chatMeta, currentUser?.uid])
 
   useEffect(() => {
     if (initialMsg && currentUser && resolvedOtherUserId && otherUser && !isSending && !isBlockedByOther && !haveIBlockedOther) {
@@ -197,10 +204,10 @@ function ChatDetailContent() {
   }, [initialMsg, !!currentUser, resolvedOtherUserId, !!otherUser, isBlockedByOther, haveIBlockedOther]);
 
   useEffect(() => {
-    if (!firestore || !currentUser || !chatId || (isBlockedByOther || haveIBlockedOther)) return
+    if (!firestore || !currentUser || !chatId || (isBlockedByOther || haveIBlockedOther) || !chatMeta) return
     const chatRef = doc(firestore, "chats", chatId)
     updateDoc(chatRef, { [`unreadCount_${currentUser.uid}`]: 0 }).catch(() => {})
-  }, [firestore, currentUser, chatId, messages.length, isBlockedByOther, haveIBlockedOther])
+  }, [firestore, currentUser, chatId, messages.length, isBlockedByOther, haveIBlockedOther, !!chatMeta])
 
   useEffect(() => { 
     if (scrollRef.current) {
