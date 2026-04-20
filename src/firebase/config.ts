@@ -1,10 +1,10 @@
 export const firebaseConfig = {
-  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
-  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
-  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
-  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
-  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+  apiKey: "YOUR_FIREBASE_API_KEY",
+  authDomain: "YOUR_FIREBASE_AUTH_DOMAIN",
+  projectId: "YOUR_FIREBASE_PROJECT_ID",
+  storageBucket: "YOUR_FIREBASE_STORAGE_BUCKET",
+  messagingSenderId: "YOUR_FIREBASE_MESSAGING_SENDER_ID",
+  appId: "YOUR_FIREBASE_APP_ID"
 };
 
 /**
@@ -13,8 +13,8 @@ export const firebaseConfig = {
 export const isFirebaseConfigValid = () => {
   return !!(
     firebaseConfig.apiKey && 
-    firebaseConfig.apiKey !== 'undefined' &&
+    firebaseConfig.apiKey !== "YOUR_FIREBASE_API_KEY" &&
     firebaseConfig.projectId &&
-    firebaseConfig.projectId !== 'undefined'
+    firebaseConfig.projectId !== "YOUR_FIREBASE_PROJECT_ID"
   );
 };

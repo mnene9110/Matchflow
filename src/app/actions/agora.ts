@@ -1,4 +1,3 @@
-
 'use server';
 
 /**
@@ -8,8 +7,9 @@
 
 import { RtcTokenBuilder, RtcRole } from 'agora-access-token';
 
-const AGORA_APP_ID = process.env.NEXT_PUBLIC_AGORA_APP_ID;
-const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
+// Hardcoded Agora Config
+const AGORA_APP_ID = "YOUR_AGORA_APP_ID";
+const AGORA_APP_CERTIFICATE = "YOUR_AGORA_APP_CERTIFICATE";
 
 /**
  * Generates an RTC token for a specific channel and user.
@@ -17,8 +17,8 @@ const AGORA_APP_CERTIFICATE = process.env.AGORA_APP_CERTIFICATE;
  * @param uid The numeric or string ID of the user (Firebase UID).
  */
 export async function getAgoraToken(channelName: string, uid: string) {
-  if (!AGORA_APP_ID || !AGORA_APP_CERTIFICATE) {
-    throw new Error('Agora configuration is missing on the server. Please check your environment variables.');
+  if (!AGORA_APP_ID || AGORA_APP_ID === "YOUR_AGORA_APP_ID" || !AGORA_APP_CERTIFICATE) {
+    throw new Error('Agora configuration is missing on the server. Please check your config.');
   }
 
   // Token expires in 1 hour
@@ -27,7 +27,6 @@ export async function getAgoraToken(channelName: string, uid: string) {
   const privilegeExpiredTs = currentTimestamp + expirationTimeInSeconds;
 
   // We use string UIDs because Firebase UIDs are alphanumeric.
-  // buildTokenWithAccount supports string UIDs.
   const token = RtcTokenBuilder.buildTokenWithAccount(
     AGORA_APP_ID,
     AGORA_APP_CERTIFICATE,

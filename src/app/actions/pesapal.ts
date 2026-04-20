@@ -1,20 +1,18 @@
 'use server';
 
 /**
- * @fileOverview Optimized Server actions for PesaPal V3 integration.
+ * @fileOverview Server actions for PesaPal V3 integration.
  * Handles authentication, IPN registration, and order submission.
- * Saves a 'pending' record to Firestore before redirecting.
  */
 
 import { initializeApp, getApps, getApp } from 'firebase/app';
-import { getFirestore, doc, collection, setDoc, updateDoc, runTransaction, increment, getDoc, getDocs, query, where } from 'firebase/firestore';
+import { getFirestore, doc, collection, setDoc, updateDoc, runTransaction, increment, getDoc } from 'firebase/firestore';
 import { firebaseConfig } from '@/firebase/config';
 
 const PESAPAL_URL = 'https://pay.pesapal.com/v3';
-const CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY;
-const CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
+const CONSUMER_KEY = "YOUR_PESAPAL_CONSUMER_KEY";
+const CONSUMER_SECRET = "YOUR_PESAPAL_CONSUMER_SECRET";
 
-// Simple in-memory cache for IPN ID to speed up transactions
 let cachedIpnId: string | null = null;
 let tokenCache: { token: string; expiry: number } | null = null;
 
@@ -23,8 +21,8 @@ async function getAuthToken() {
     return tokenCache.token;
   }
 
-  if (!CONSUMER_KEY || !CONSUMER_SECRET) {
-    throw new Error('PesaPal Consumer Key or Secret is missing in environment variables.');
+  if (!CONSUMER_KEY || CONSUMER_KEY === "YOUR_PESAPAL_CONSUMER_KEY") {
+    throw new Error('PesaPal Consumer Key is missing.');
   }
 
   const response = await fetch(`${PESAPAL_URL}/api/Auth/RequestToken`, {
@@ -45,37 +43,15 @@ async function getAuthToken() {
     throw new Error(data.message || 'Failed to get PesaPal token.');
   }
   
-  tokenCache = { token: data.token, expiry: Date.now() + 25 * 60 * 1000 }; // Cache for 25 mins
+  tokenCache = { token: data.token, expiry: Date.now() + 25 * 60 * 1000 };
   return data.token;
 }
 
 async function registerIPN(token: string) {
   if (cachedIpnId) return cachedIpnId;
-
-  const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-beta.vercel.app';
-  const ipnUrl = `${baseUrl}/api/pesapal-ipn`;
+  const ipnUrl = `https://matchflow-beta.vercel.app/api/pesapal-ipn`; // Update if needed
   
   try {
-    const listResponse = await fetch(`${PESAPAL_URL}/api/URLSetup/GetIpnList`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Accept': 'application/json',
-      },
-      cache: 'no-store',
-    });
-
-    if (listResponse.ok) {
-      const ipns = await listResponse.json();
-      if (Array.isArray(ipns)) {
-        const existing = ipns.find((item: any) => item.url === ipnUrl);
-        if (existing && existing.ipn_id) {
-          cachedIpnId = existing.ipn_id;
-          return existing.ipn_id;
-        }
-      }
-    }
-
     const response = await fetch(`${PESAPAL_URL}/api/URLSetup/RegisterIPN`, {
       method: 'POST',
       headers: {
@@ -91,42 +67,33 @@ async function registerIPN(token: string) {
     });
 
     const data = await response.json();
-    if (data.ipn_id) {
-      cachedIpnId = data.ipn_id;
-    }
+    if (data.ipn_id) cachedIpnId = data.ipn_id;
     return data.ipn_id || null;
   } catch (error) {
-    console.error('PesaPal IPN Registration Error:', error);
     return null;
   }
 }
 
 export async function initializePesaPalTransaction(email: string, amount: number, metadata: any) {
   try {
-    if (!CONSUMER_KEY) {
+    if (!CONSUMER_KEY || CONSUMER_KEY === "YOUR_PESAPAL_CONSUMER_KEY") {
       return { error: 'PesaPal API keys are not configured.' };
     }
 
     const token = await getAuthToken();
     const ipnId = await registerIPN(token);
 
-    if (!ipnId) {
-      return { error: 'PesaPal could not provide a Notification ID.' };
-    }
+    if (!ipnId) return { error: 'PesaPal could not provide a Notification ID.' };
 
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://matchflow-beta.vercel.app';
-    const shortId = Date.now().toString().slice(-10);
-    const merchantRef = `MF${shortId}`;
-
+    const merchantRef = `MF${Date.now().toString().slice(-10)}`;
     const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
     const db = getFirestore(app);
     
-    // 1. Create a mapping for background processing (IPN source of truth)
     const mapRef = doc(db, "pendingPayments", merchantRef);
     await setDoc(mapRef, {
       userId: metadata.userId,
       packageAmount: metadata.packageAmount,
-      merchantRef: merchantRef,
+      merchantRef,
       createdAt: new Date().toISOString(),
       status: "pending"
     });
@@ -136,7 +103,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
       currency: 'KES',
       amount: Number(amount),
       description: `MatchFlow Coin Recharge (${metadata.packageAmount} coins)`,
-      callback_url: `${baseUrl}/recharge/callback/pesapal`,
+      callback_url: `https://matchflow-beta.vercel.app/recharge/callback/pesapal`,
       notification_id: ipnId,
       billing_address: {
         email_address: email,
@@ -162,15 +129,12 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const result = await response.json();
     
     if (result.redirect_url) {
-      // Update the map with the real tracking ID so the client can find it easily
       await updateDoc(mapRef, { orderTrackingId: result.order_tracking_id });
-      
       return { redirect_url: result.redirect_url, order_tracking_id: result.order_tracking_id };
     } else {
       return { error: result.message || 'Failed to submit order to PesaPal' };
     }
   } catch (error: any) {
-    console.error('PesaPal Transaction Error:', error);
     return { error: error.message || 'An unexpected error occurred.' };
   }
 }
@@ -189,16 +153,10 @@ export async function getPesaPalTransactionStatus(orderTrackingId: string) {
 
     return await response.json();
   } catch (error) {
-    console.error('PesaPal Status Error:', error);
     return { error: 'Failed to verify PesaPal transaction status' };
   }
 }
 
-/**
- * Authoritative Server Confirmation
- * This function can be called by either the IPN route or the UI callback.
- * It performs the coin award logic purely on the server.
- */
 export async function processServerPaymentConfirmation(orderTrackingId: string) {
   const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
   const db = getFirestore(app);
@@ -206,7 +164,6 @@ export async function processServerPaymentConfirmation(orderTrackingId: string) 
   try {
     const result = await getPesaPalTransactionStatus(orderTrackingId);
     
-    // Status Code 1 is 'Completed'
     if (result.status_code === 1 || result.payment_status_description === 'Completed') {
       const merchantRef = result.merchant_reference;
       const mapRef = doc(db, "pendingPayments", merchantRef);
@@ -227,23 +184,17 @@ export async function processServerPaymentConfirmation(orderTrackingId: string) 
           const currentMapSnap = await transaction.get(mapRef);
           if (currentMapSnap.data()?.status === 'completed') return;
 
-          const profileSnap = await transaction.get(userRef);
-          if (!profileSnap.exists()) return;
-
-          // Update user balance
           transaction.update(userRef, {
             coinBalance: increment(coinsToGain),
             updatedAt: new Date().toISOString()
           });
 
-          // Mark map as completed
           transaction.update(mapRef, { 
             status: 'completed', 
             orderTrackingId: orderTrackingId,
             completedAt: new Date().toISOString() 
           });
 
-          // Log the final transaction
           const txRef = doc(collection(userRef, "transactions"));
           transaction.set(txRef, {
             id: txRef.id,
@@ -262,7 +213,6 @@ export async function processServerPaymentConfirmation(orderTrackingId: string) 
     
     return { status: 'pending', result };
   } catch (err) {
-    console.error("[Server Confirmation] Error:", err);
     return { status: 'error', error: err };
   }
 }

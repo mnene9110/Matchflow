@@ -5,11 +5,11 @@
  * Handles transaction initialization and verification.
  */
 
-const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
+const PAYSTACK_SECRET_KEY = "YOUR_PAYSTACK_SECRET_KEY";
 
 export async function initializePaystackTransaction(email: string, amount: number, metadata: any) {
-  if (!PAYSTACK_SECRET_KEY) {
-    return { error: 'Paystack Secret Key is missing in environment variables.' };
+  if (!PAYSTACK_SECRET_KEY || PAYSTACK_SECRET_KEY === "YOUR_PAYSTACK_SECRET_KEY") {
+    return { error: 'Paystack Secret Key is missing.' };
   }
 
   try {
@@ -22,7 +22,7 @@ export async function initializePaystackTransaction(email: string, amount: numbe
       body: JSON.stringify({
         email,
         amount: amount * 100, // Paystack expects amount in subunits
-        callback_url: `${process.env.NEXT_PUBLIC_APP_URL}/recharge/callback/paystack`,
+        callback_url: `http://localhost:9002/recharge/callback/paystack`, // Update for prod
         metadata,
       }),
       cache: 'no-store',
