@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useState, useEffect } from 'react';
@@ -10,6 +9,7 @@ import {
   QuerySnapshot,
   CollectionReference,
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -72,8 +72,9 @@ export function useCollection<T = any>(
             ? (memoizedTargetRefOrQuery as CollectionReference).path
             : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
 
-        // Only emit the global permission error if it's actually a permission issue
-        if (error.code === 'permission-denied') {
+        const auth = getAuth();
+        // Only report as a contextual error if there is an active user.
+        if (error.code === 'permission-denied' && auth.currentUser) {
           const contextualError = new FirestorePermissionError({
             operation: 'list',
             path,
@@ -81,8 +82,9 @@ export function useCollection<T = any>(
           setError(contextualError);
           errorEmitter.emit('permission-error', contextualError);
         } else {
-          // Report other errors (like missing indexes) normally
-          console.error("Firestore Collection Error:", error);
+          if (error.code !== 'permission-denied') {
+            console.error("Firestore Collection Error:", error);
+          }
           setError(error);
         }
         

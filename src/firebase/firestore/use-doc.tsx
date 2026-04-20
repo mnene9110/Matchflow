@@ -1,4 +1,3 @@
-
 'use client';
     
 import { useState, useEffect } from 'react';
@@ -9,6 +8,7 @@ import {
   FirestoreError,
   DocumentSnapshot,
 } from 'firebase/firestore';
+import { getAuth } from 'firebase/auth';
 import { errorEmitter } from '@/firebase/error-emitter';
 import { FirestorePermissionError } from '@/firebase/errors';
 
@@ -61,7 +61,10 @@ export function useDoc<T = any>(
         setIsLoading(false);
       },
       (error: FirestoreError) => {
-        if (error.code === 'permission-denied') {
+        const auth = getAuth();
+        // Only report as a contextual error if there is an active user.
+        // If auth.currentUser is null, a permission error is expected during state transition/logout.
+        if (error.code === 'permission-denied' && auth.currentUser) {
           const contextualError = new FirestorePermissionError({
             operation: 'get',
             path: memoizedDocRef.path,
@@ -69,7 +72,9 @@ export function useDoc<T = any>(
           setError(contextualError);
           errorEmitter.emit('permission-error', contextualError);
         } else {
-          console.error("Firestore Doc Error:", error);
+          if (error.code !== 'permission-denied') {
+            console.error("Firestore Doc Error:", error);
+          }
           setError(error);
         }
         

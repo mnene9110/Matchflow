@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -151,12 +150,8 @@ function ChatDetailContent() {
   const { data: chatMeta, isLoading: isChatMetaLoading } = useDoc(chatMetaRef)
 
   useEffect(() => {
-    // CRITICAL: We MUST wait for chatMeta to finish loading before starting the message snapshot.
-    if (!firestore || !chatId || isChatMetaLoading || (isBlockedByOther || haveIBlockedOther)) return
+    if (!firestore || !chatId || isChatMetaLoading || (isBlockedByOther || haveIBlockedOther) || !currentUser) return
     
-    // IF chatMeta is null, it means no chat document exists yet (no messages have ever been exchanged).
-    // Our Firestore rules for messages use a get() on the parent chat document.
-    // If the parent doesn't exist, rules will return Permission Denied.
     if (!chatMeta) {
       setMessages([]);
       setHasMore(false);
@@ -181,7 +176,7 @@ function ChatDetailContent() {
       setMessages(list)
       setHasMore(snapshot.docs.length >= msgLimit)
     }, async (error) => {
-      if (error.code === 'permission-denied') {
+      if (error.code === 'permission-denied' && currentUser) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `chats/${chatId}/messages`,
           operation: 'list'
@@ -190,7 +185,7 @@ function ChatDetailContent() {
     })
 
     return () => unsubscribe()
-  }, [firestore, chatId, msgLimit, isChatMetaLoading, isBlockedByOther, haveIBlockedOther, chatMeta, currentUser?.uid])
+  }, [firestore, chatId, msgLimit, isChatMetaLoading, isBlockedByOther, haveIBlockedOther, chatMeta, currentUser])
 
   useEffect(() => {
     if (initialMsg && currentUser && resolvedOtherUserId && otherUser && !isSending && !isBlockedByOther && !haveIBlockedOther) {
@@ -346,6 +341,7 @@ function ChatDetailContent() {
         callerId: currentUser.uid,
         callerName: currentUserProfile.username,
         receiverId: resolvedOtherUserId,
+        participants: [currentUser.uid, resolvedOtherUserId],
         status: 'ringing',
         callType: type,
         timestamp: Date.now(),

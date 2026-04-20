@@ -1,130 +1,171 @@
-
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    
-    // --- Helper Functions ---
-    
+
+    // -------------------------
+    // HELPERS
+    // -------------------------
+
     function isAuthenticated() {
       return request.auth != null;
     }
-    
-    function getUserData() {
-      return get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
     }
-    
+
+    function getUser(userId) {
+      return get(/databases/$(database)/documents/userProfiles/$(userId)).data;
+    }
+
     function isAdmin() {
-      return isAuthenticated() && 
-        exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid)) &&
-        getUserData().isAdmin == true;
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid))
+        && getUser(request.auth.uid).isAdmin == true;
     }
 
     function isSupport() {
-      return isAuthenticated() && (
-        (exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid)) &&
-         getUserData().isSupport == true) || 
-        isAdmin()
-      );
+      return isAdmin() ||
+        (isAuthenticated()
+        && exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid))
+        && getUser(request.auth.uid).isSupport == true);
     }
 
-    // --- User Profiles ---
+    function isChatMember(chatData) {
+      return isAuthenticated() && request.auth.uid in chatData.participants;
+    }
+
+    // -------------------------
+    // USER PROFILES
+    // -------------------------
 
     match /userProfiles/{userId} {
+
       allow read: if isAuthenticated();
-      
-      // Allow creation during onboarding
-      allow create: if isAuthenticated() && request.auth.uid == userId;
-      
-      // Protect sensitive fields from self-update
-      allow update: if isAuthenticated() && (
-        isAdmin() || 
-        // Users can update their own non-sensitive fields
-        (request.auth.uid == userId && 
-         !request.resource.data.diff(resource.data).affectedKeys()
-           .hasAny(['isAdmin', 'isSupport', 'isCoinseller', 'isAgent', 'isPartyAdmin', 'coinBalance', 'diamondBalance', 'numericId'])) ||
-        // Allow updates to state/handshake fields
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['isOnline', 'lastActiveAt', 'incomingCallId', 'inCall', 'lastCheckInDate', 'checkInStreak', 'boostedUntil', 'visitorsUnlocked', 'agencyJoinStatus', 'memberOfAgencyId', 'agencyId'])
-      );
-      
+
+      allow create: if isOwner(userId);
+
+      allow update: if isOwner(userId) || isAdmin();
+
+      allow delete: if isAdmin();
+
+      // Transactions (coins history)
       match /transactions/{transactionId} {
-        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-        allow write: if isAuthenticated() && (isAdmin() || getUserData().isCoinseller == true);
-      }
-      
-      match /blockedUsers/{blockedId} {
-        allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow read: if isOwner(userId) || isAdmin();
+        allow write: if isAdmin();
       }
 
+      // Block list
+      match /blockedUsers/{blockedId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      // Visitors
       match /visitors/{visitorId} {
-        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow read: if isOwner(userId) || isAdmin();
         allow write: if isAuthenticated();
       }
     }
 
-    // --- Private Chats ---
+    // -------------------------
+    // CHATS (SECURED)
+    // -------------------------
 
     match /chats/{chatId} {
-      allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
-      allow create: if isAuthenticated() && request.auth.uid in request.resource.data.participants;
-      allow update: if isAuthenticated() && (
-        request.auth.uid in resource.data.participants || 
-        request.auth.uid in request.resource.data.participants
-      );
-      
+
+      allow read: if isAuthenticated()
+        && isChatMember(resource.data);
+
+      allow create: if isAuthenticated()
+        && request.resource.data.participants.size() == 2
+        && request.auth.uid in request.resource.data.participants;
+
+      allow update: if isAuthenticated()
+        && isChatMember(resource.data)
+        && request.resource.data.participants == resource.data.participants;
+
+      allow delete: if isAuthenticated()
+        && isChatMember(resource.data);
+
       match /messages/{messageId} {
-        allow read: if isAuthenticated() && 
-          request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.participants;
-        allow create: if isAuthenticated();
+
+        allow read: if isAuthenticated()
+          && isChatMember(
+            get(/databases/$(database)/documents/chats/$(chatId)).data
+          );
+
+        allow create: if isAuthenticated()
+          && isChatMember(
+            get(/databases/$(database)/documents/chats/$(chatId)).data
+          );
+
+        allow update, delete: if false;
       }
     }
 
-    // --- Calls & Signaling ---
+    // -------------------------
+    // CALLS (SECURED)
+    // -------------------------
 
     match /calls/{callId} {
-      allow read, write: if isAuthenticated();
+      allow read, write: if isAuthenticated()
+        && request.auth.uid in resource.data.participants;
     }
 
-    // --- Safety & Support ---
+    // -------------------------
+    // REPORTS / MODERATION
+    // -------------------------
 
     match /reports/{reportId} {
       allow create: if isAuthenticated();
       allow read, update, delete: if isSupport();
     }
 
-    // --- Agencies ---
+    // -------------------------
+    // AGENCIES (LOCKED DOWN)
+    // -------------------------
 
     match /agencies/{agencyId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
-      
+
+      allow write: if isAuthenticated() && isAdmin();
+
       match /{allPaths=**} {
-        allow read, write: if isAuthenticated();
+        allow read, write: if isAdmin();
       }
     }
 
-    // --- Party Rooms ---
+    // -------------------------
+    // PARTY ROOMS (LOCKED)
+    // -------------------------
 
     match /partyRooms/{roomId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
-      
+
+      allow write: if isAuthenticated()
+        && request.auth.uid == resource.data.hostId;
+
       match /{allPaths=**} {
         allow read, write: if isAuthenticated();
       }
     }
 
-    // --- Internal Payment Tracking ---
+    // -------------------------
+    // PAYMENTS (SECURED)
+    // -------------------------
 
     match /pendingPayments/{orderId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated();
+
+      allow write: if isAdmin(); // ONLY backend should confirm payments
     }
 
-    // --- Global List Access ---
+    // -------------------------
+    // DEFAULT LOCKDOWN (IMPORTANT FIX)
+    // -------------------------
 
-    match /{path=**} {
-      allow list: if isAuthenticated();
+    match /{document=**} {
+      allow read, write: if false;
     }
   }
 }
