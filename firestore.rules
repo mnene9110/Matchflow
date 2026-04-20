@@ -3,23 +3,31 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
     
+    // --- Helper Functions ---
+    
     function isAuthenticated() {
       return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data;
     }
     
     function isAdmin() {
       return isAuthenticated() && 
         exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid)) &&
-        get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.isAdmin == true;
+        getUserData().isAdmin == true;
     }
 
     function isSupport() {
       return isAuthenticated() && (
         (exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid)) &&
-         get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.isSupport == true) || 
+         getUserData().isSupport == true) || 
         isAdmin()
       );
     }
+
+    // --- User Profiles ---
 
     match /userProfiles/{userId} {
       allow read: if isAuthenticated();
@@ -29,30 +37,32 @@ service cloud.firestore {
       
       // Protect sensitive fields from self-update
       allow update: if isAuthenticated() && (
-        // Admins can update everything
         isAdmin() || 
-        
         // Users can update their own non-sensitive fields
         (request.auth.uid == userId && 
          !request.resource.data.diff(resource.data).affectedKeys()
            .hasAny(['isAdmin', 'isSupport', 'isCoinseller', 'isAgent', 'isPartyAdmin', 'coinBalance', 'diamondBalance', 'numericId'])) ||
-        
-        // Anyone can update call handshake and presence fields
+        // Allow updates to state/handshake fields
         request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['isOnline', 'lastActiveAt', 'incomingCallId', 'inCall'])
+          .hasOnly(['isOnline', 'lastActiveAt', 'incomingCallId', 'inCall', 'lastCheckInDate', 'checkInStreak', 'boostedUntil', 'visitorsUnlocked', 'agencyJoinStatus', 'memberOfAgencyId', 'agencyId'])
       );
       
       match /transactions/{transactionId} {
         allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
-        // Only Admins or Coinsellers (via code logic) should be writing to transactions
-        allow write: if isAuthenticated() && (isAdmin() || 
-          get(/databases/$(database)/documents/userProfiles/$(request.auth.uid)).data.isCoinseller == true);
+        allow write: if isAuthenticated() && (isAdmin() || getUserData().isCoinseller == true);
       }
       
       match /blockedUsers/{blockedId} {
         allow read, write: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
       }
+
+      match /visitors/{visitorId} {
+        allow read: if isAuthenticated() && (request.auth.uid == userId || isAdmin());
+        allow write: if isAuthenticated();
+      }
     }
+
+    // --- Private Chats ---
 
     match /chats/{chatId} {
       allow read: if isAuthenticated() && request.auth.uid in resource.data.participants;
@@ -69,14 +79,20 @@ service cloud.firestore {
       }
     }
 
+    // --- Calls & Signaling ---
+
     match /calls/{callId} {
       allow read, write: if isAuthenticated();
     }
+
+    // --- Safety & Support ---
 
     match /reports/{reportId} {
       allow create: if isAuthenticated();
       allow read, update, delete: if isSupport();
     }
+
+    // --- Agencies ---
 
     match /agencies/{agencyId} {
       allow read: if isAuthenticated();
@@ -87,6 +103,8 @@ service cloud.firestore {
       }
     }
 
+    // --- Party Rooms ---
+
     match /partyRooms/{roomId} {
       allow read: if isAuthenticated();
       allow write: if isAuthenticated();
@@ -95,6 +113,15 @@ service cloud.firestore {
         allow read, write: if isAuthenticated();
       }
     }
+
+    // --- Internal Payment Tracking ---
+
+    match /pendingPayments/{orderId} {
+      allow read: if isAuthenticated();
+      allow write: if isAuthenticated();
+    }
+
+    // --- Global List Access ---
 
     match /{path=**} {
       allow list: if isAuthenticated();
