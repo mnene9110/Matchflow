@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -31,7 +30,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
   const touchStartPos = useRef<{ x: number, y: number } | null>(null)
 
   useEffect(() => {
-    if (!firestore || !otherUserId) return
+    if (!firestore || !otherUserId || !currentUser) return
     const userRef = doc(firestore, "userProfiles", otherUserId)
     return onSnapshot(userRef, (snap) => {
       if (snap.exists()) {
@@ -39,15 +38,13 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
       } else {
         setOtherUserData({ username: "User logged out", profilePhotoUrls: [] })
       }
-    }, async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: userRef.path,
-          operation: 'get'
-        }));
+    }, (error) => {
+      // Silence permission-denied during auth transitions
+      if (error.code !== 'permission-denied') {
+        console.error("Profile snapshot error:", error)
       }
     })
-  }, [firestore, otherUserId])
+  }, [firestore, otherUserId, currentUser])
 
   const handleTouchStart = (e: React.TouchEvent | React.MouseEvent) => {
     longPressedRef.current = false;
@@ -167,6 +164,10 @@ export default function ChatListPage() {
     const blockedRef = collection(firestore, "userProfiles", currentUser.uid, "blockedUsers")
     return onSnapshot(blockedRef, (snap) => {
       setBlockedIds(new Set(snap.docs.map(d => d.id)))
+    }, (error) => {
+      if (error.code !== 'permission-denied') {
+        console.error("Blocked users snapshot error:", error)
+      }
     })
   }, [firestore, currentUser])
 
@@ -201,10 +202,11 @@ export default function ChatListPage() {
       })
       setSessions(filtered)
       setHasFetched(true)
-    }, async (error) => {
+    }, (error) => {
       clearTimeout(timer)
       setHasFetched(true)
-      if (error.code === 'permission-denied') {
+      // Only report if it's a legitimate error while still logged in
+      if (error.code === 'permission-denied' && currentUser) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'chats',
           operation: 'list'

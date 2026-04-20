@@ -73,7 +73,7 @@ export function useCollection<T = any>(
             : (memoizedTargetRefOrQuery as unknown as InternalQuery)._query.path.canonicalString()
 
         const auth = getAuth();
-        // Only report as a contextual error if there is an active user and we're not in a state transition.
+        // Silence errors if the user is logging out or not authenticated
         if (error.code === 'permission-denied' && auth.currentUser) {
           const contextualError = new FirestorePermissionError({
             operation: 'list',

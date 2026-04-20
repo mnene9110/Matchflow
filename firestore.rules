@@ -41,6 +41,7 @@ service cloud.firestore {
 
     match /userProfiles/{userId} {
 
+      // Allow reading if authenticated or if checking for existence
       allow read: if isAuthenticated();
 
       allow create: if isOwner(userId);
@@ -73,8 +74,7 @@ service cloud.firestore {
 
     match /chats/{chatId} {
 
-      // Refined read rule: allow read if document doesn't exist (to check existence)
-      // or if user is a participant if it does exist.
+      // Allow read if user is participant OR if doc doesn't exist yet (to check existence safely)
       allow read: if isAuthenticated()
         && (resource == null || isChatMember(resource.data));
 

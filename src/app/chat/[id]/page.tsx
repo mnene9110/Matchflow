@@ -121,12 +121,16 @@ function ChatDetailContent() {
     const unsubMe = onSnapshot(blockedMeRef, (snap) => {
       setIsBlockedByOther(snap.exists())
       setIsCheckingBlock(false)
+    }, (error) => {
+      if (error.code !== 'permission-denied') console.error(error)
     })
 
     // Check if I blocked other user
     const iBlockedRef = doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", resolvedOtherUserId)
     const unsubThem = onSnapshot(iBlockedRef, (snap) => {
       setHaveIBlockedOther(snap.exists())
+    }, (error) => {
+      if (error.code !== 'permission-denied') console.error(error)
     })
 
     return () => {
@@ -152,6 +156,7 @@ function ChatDetailContent() {
   useEffect(() => {
     if (!firestore || !chatId || isChatMetaLoading || (isBlockedByOther || haveIBlockedOther) || !currentUser) return
     
+    // If chatMeta is not loaded yet (useDoc handled loading), or if doc doesn't exist, we treat it as empty
     if (!chatMeta) {
       setMessages([]);
       setHasMore(false);
@@ -175,7 +180,8 @@ function ChatDetailContent() {
       list.sort((a: any, b: any) => (a.sentAt?.seconds || 0) - (b.sentAt?.seconds || 0))
       setMessages(list)
       setHasMore(snapshot.docs.length >= msgLimit)
-    }, async (error) => {
+    }, (error) => {
+      // Silence permission-denied during logout transitions
       if (error.code === 'permission-denied' && currentUser) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `chats/${chatId}/messages`,
