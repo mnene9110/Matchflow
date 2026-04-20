@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react"
 import Image from "next/image"
-import { RotateCcw, Loader2, CheckCircle, MapPin, Sparkles, UserSearch } from "lucide-react"
+import { RotateCcw, Loader2, CheckCircle, MapPin, UserSearch } from "lucide-react"
 import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
 import { 
   collection, 
@@ -371,8 +371,7 @@ export default function DiscoverPage() {
           </div>
         ) : !hasMore && users.length > 0 ? (
           <div className="flex flex-col items-center gap-3 opacity-20">
-            <Sparkles className="w-5 h-5 text-gray-400" />
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">No more people in this area</span>
+            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">No more users</span>
           </div>
         ) : null}
       </div>
