@@ -81,6 +81,9 @@ function ChatDetailContent() {
   const [isSending, setIsSending] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
   
+  // Guard for listeners
+  const [isChatReady, setIsChatReady] = useState(false)
+  
   // Blocking State
   const [isBlockedByOther, setIsBlockedByOther] = useState(false)
   const [haveIBlockedOther, setHaveIBlockedOther] = useState(false)
@@ -112,6 +115,42 @@ function ChatDetailContent() {
     }
   }, [otherUserId, firestore])
 
+  const chatId = useMemo(() => {
+    if (!currentUser || !resolvedOtherUserId) return ""
+    return [currentUser.uid, resolvedOtherUserId].sort().join("_")
+  }, [currentUser?.uid, resolvedOtherUserId])
+
+  // HARD FIX: Initialization Effect
+  useEffect(() => {
+    if (!firestore || !currentUser || !chatId || !resolvedOtherUserId) return
+
+    const initChat = async () => {
+      try {
+        const chatRef = doc(firestore, "chats", chatId)
+        const snap = await getDoc(chatRef)
+
+        if (!snap.exists()) {
+          // Create chat FIRST so security rules recognize participants
+          await setDoc(chatRef, {
+            participants: [currentUser.uid, resolvedOtherUserId],
+            createdAt: serverTimestamp(),
+            timestamp: serverTimestamp(),
+            [`unreadCount_${currentUser.uid}`]: 0,
+            [`unreadCount_${resolvedOtherUserId}`]: 0,
+            [`userHasSent_${currentUser.uid}`]: false,
+            [`userHasSent_${resolvedOtherUserId}`]: false
+          }, { merge: true })
+        }
+        setIsChatReady(true)
+      } catch (e) {
+        console.error("Failed to sync chat metadata:", e)
+        // If we get permission denied here, it might be due to blocking
+      }
+    }
+
+    initChat()
+  }, [firestore, currentUser?.uid, chatId, resolvedOtherUserId])
+
   // Check block status (both directions)
   useEffect(() => {
     if (!firestore || !currentUser || !resolvedOtherUserId) return
@@ -139,22 +178,18 @@ function ChatDetailContent() {
     }
   }, [firestore, currentUser, resolvedOtherUserId])
 
-  const chatId = useMemo(() => {
-    if (!currentUser || !resolvedOtherUserId) return ""
-    return [currentUser.uid, resolvedOtherUserId].sort().join("_")
-  }, [currentUser?.uid, resolvedOtherUserId])
-
   const otherUserRef = useMemoFirebase(() => resolvedOtherUserId ? doc(firestore, "userProfiles", resolvedOtherUserId) : null, [firestore, resolvedOtherUserId])
   const { data: otherUser, isLoading: isOtherUserLoading } = useDoc(otherUserRef)
 
   const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
   const { data: currentUserProfile } = useDoc(meRef)
 
-  const chatMetaRef = useMemoFirebase(() => chatId ? doc(firestore, "chats", chatId) : null, [firestore, chatId])
+  // Meta listener only runs when chat is confirmed ready
+  const chatMetaRef = useMemoFirebase(() => (chatId && isChatReady) ? doc(firestore, "chats", chatId) : null, [firestore, chatId, isChatReady])
   const { data: chatMeta, isLoading: isChatMetaLoading } = useDoc(chatMetaRef)
 
   useEffect(() => {
-    if (!firestore || !chatId || isChatMetaLoading || (isBlockedByOther || haveIBlockedOther) || !currentUser) return
+    if (!firestore || !chatId || !isChatReady || isChatMetaLoading || (isBlockedByOther || haveIBlockedOther) || !currentUser) return
     
     // If chatMeta is not loaded yet (useDoc handled loading), or if doc doesn't exist, we treat it as empty
     if (!chatMeta) {
@@ -191,10 +226,10 @@ function ChatDetailContent() {
     })
 
     return () => unsubscribe()
-  }, [firestore, chatId, msgLimit, isChatMetaLoading, isBlockedByOther, haveIBlockedOther, chatMeta, currentUser])
+  }, [firestore, chatId, isChatReady, msgLimit, isChatMetaLoading, isBlockedByOther, haveIBlockedOther, chatMeta, currentUser])
 
   useEffect(() => {
-    if (initialMsg && currentUser && resolvedOtherUserId && otherUser && !isSending && !isBlockedByOther && !haveIBlockedOther) {
+    if (initialMsg && currentUser && resolvedOtherUserId && otherUser && isChatReady && !isSending && !isBlockedByOther && !haveIBlockedOther) {
       const timer = setTimeout(() => {
         handleSendMessage(initialMsg);
         const newUrl = window.location.pathname;
@@ -202,13 +237,13 @@ function ChatDetailContent() {
       }, 500);
       return () => clearTimeout(timer);
     }
-  }, [initialMsg, !!currentUser, resolvedOtherUserId, !!otherUser, isBlockedByOther, haveIBlockedOther]);
+  }, [initialMsg, !!currentUser, resolvedOtherUserId, !!otherUser, isChatReady, isBlockedByOther, haveIBlockedOther]);
 
   useEffect(() => {
-    if (!firestore || !currentUser || !chatId || (isBlockedByOther || haveIBlockedOther) || !chatMeta) return
+    if (!firestore || !currentUser || !chatId || !isChatReady || (isBlockedByOther || haveIBlockedOther) || !chatMeta) return
     const chatRef = doc(firestore, "chats", chatId)
     updateDoc(chatRef, { [`unreadCount_${currentUser.uid}`]: 0 }).catch(() => {})
-  }, [firestore, currentUser, chatId, messages.length, isBlockedByOther, haveIBlockedOther, !!chatMeta])
+  }, [firestore, currentUser, chatId, isChatReady, messages.length, isBlockedByOther, haveIBlockedOther, !!chatMeta])
 
   useEffect(() => { 
     if (scrollRef.current) {
@@ -364,7 +399,7 @@ function ChatDetailContent() {
     }
   }
 
-  if (isOtherUserLoading || isResolvingId || isCheckingBlock || isChatMetaLoading) {
+  if (isOtherUserLoading || isResolvingId || isCheckingBlock || (isChatReady && isChatMetaLoading)) {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
 

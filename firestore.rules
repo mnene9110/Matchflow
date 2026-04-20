@@ -41,13 +41,11 @@ service cloud.firestore {
 
     match /userProfiles/{userId} {
 
-      // Allow reading if authenticated or if checking for existence
       allow read: if isAuthenticated();
 
       allow create: if isOwner(userId);
 
-      // Allow owner to update profile, or admin. 
-      // Also allow updating specific "state" fields for hardware/handshake
+      // Allow owner/admin update, or allow any auth user to update signaling fields for calling
       allow update: if isOwner(userId) || isAdmin() || (
         isAuthenticated() && 
         request.resource.data.diff(resource.data).affectedKeys()
@@ -117,7 +115,7 @@ service cloud.firestore {
     // -------------------------
 
     match /calls/{callId} {
-      // Allow create if user is in participants. Allow read/update if doc doesn't exist or user is in participants.
+      // Allow read/update/delete if doc doesn't exist (to check safely) OR user is in participants.
       allow read, update, delete: if isAuthenticated()
         && (resource == null || request.auth.uid in resource.data.participants);
       
