@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useCallback, useRef } from "react"
@@ -63,7 +62,7 @@ export default function DiscoverPage() {
   const observerTarget = useRef<HTMLDivElement>(null)
 
   const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: currentUserProfile } = useDoc(userProfileRef)
+  const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc(userProfileRef)
 
   // Sync blocked users once
   useEffect(() => {
@@ -72,12 +71,20 @@ export default function DiscoverPage() {
     return onSnapshot(blockedRef, (snap) => {
       const ids = new Set(snap.docs.map(d => d.id))
       setBlockedUsersIds(ids)
-    })
+    }, (error) => console.error("Blocked snapshot error:", error))
   }, [firestore, currentUser])
 
   const fetchUsers = async (isRefresh = false, isTabChange = false) => {
-    if (!firestore || !currentUser || !currentUserProfile) return;
+    if (!firestore || !currentUser) return;
     
+    // If profile is missing after loading, we can't show recommendations
+    if (!isProfileLoading && !currentUserProfile) {
+      setIsInitialLoading(false);
+      return;
+    }
+
+    if (!currentUserProfile) return;
+
     if (isRefresh || isTabChange) {
       setIsInitialLoading(true);
       cachedInitialLoaded = false;
@@ -120,7 +127,6 @@ export default function DiscoverPage() {
       const rawUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
       let filtered = rawUsers.filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
       
-      // Reshuffle on refresh to satisfy the requirement "all of them to change position"
       if (isRefresh) {
         filtered = shuffleArray(filtered);
       }
@@ -133,27 +139,7 @@ export default function DiscoverPage() {
       cachedInitialLoaded = true;
     } catch (error) {
       console.error("Error fetching users:", error)
-      try {
-        const fallbackQ = query(collection(firestore, "userProfiles"), limit(40));
-        const fallbackSnap = await getDocs(fallbackQ);
-        let fallbackUsers = fallbackSnap.docs
-          .map(d => ({ id: d.id, ...d.data() }))
-          .filter((u: any) => 
-            u.id !== currentUser.uid && 
-            !blockedUserIds.has(u.id) && 
-            u.gender?.toLowerCase() === targetGender
-          );
-        
-        if (isRefresh) {
-          fallbackUsers = shuffleArray(fallbackUsers);
-        }
-
-        setUsers(fallbackUsers);
-        cachedUsers = fallbackUsers;
-        setHasMore(false);
-      } catch (e) {
-        console.error("Fallback fetch failed", e);
-      }
+      setHasMore(false);
     } finally {
       setIsInitialLoading(false)
     }
@@ -208,7 +194,6 @@ export default function DiscoverPage() {
     }
   }
 
-  // Infinite scroll observer
   useEffect(() => {
     const observer = new IntersectionObserver(
       (entries) => {
@@ -229,10 +214,17 @@ export default function DiscoverPage() {
   }, [hasMore, isLoadingMore, isInitialLoading, users.length]);
 
   useEffect(() => {
-    if (currentUserProfile && !cachedInitialLoaded) {
-      fetchUsers();
+    // Only run fetch if profile loading has finished
+    if (!isProfileLoading) {
+      if (currentUserProfile) {
+        fetchUsers();
+      } else {
+        // If profile is missing, Discover can't function
+        setIsInitialLoading(false);
+        router.replace("/onboarding/fast");
+      }
     }
-  }, [currentUserProfile]);
+  }, [currentUserProfile, isProfileLoading]);
 
   const handleTabChange = (tab: 'recommended' | 'nearby') => {
     if (tab === activeTab) return;
@@ -255,6 +247,15 @@ export default function DiscoverPage() {
     const m = today.getMonth() - birthDate.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
     return age;
+  }
+
+  if (isInitialLoading && users.length === 0) {
+    return (
+      <div className="flex h-svh w-full flex-col items-center justify-center bg-white">
+        <Loader2 className="w-10 h-10 animate-spin text-primary/40" />
+        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.3em] text-gray-300">Finding your matches...</p>
+      </div>
+    )
   }
 
   return (
@@ -304,13 +305,7 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Main Grid */}
-      {isInitialLoading && users.length === 0 ? (
-        <div className="flex-1 flex flex-col items-center justify-center py-40 gap-4">
-          <Loader2 className="w-10 h-10 animate-spin text-primary/40" />
-          <p className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-300">Finding your matches...</p>
-        </div>
-      ) : users.length > 0 ? (
+      {users.length > 0 ? (
         <main className="px-4 grid grid-cols-2 gap-3 mt-3">
           {users.map((user) => {
             const age = calculateAge(user.dateOfBirth);

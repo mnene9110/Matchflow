@@ -2,29 +2,47 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useUser } from "@/firebase"
+import { useUser, useFirebase } from "@/firebase"
+import { doc, getDoc } from "firebase/firestore"
 
 /**
  * @fileOverview This is the code responsible for the Splash Screen.
  * It displays the MatchFlow logo and name using the brand color (#3BC1A8)
- * and the Pacifico font while checking auth state.
+ * and the Pacifico font while checking auth state and profile existence.
  */
 export default function Home() {
   const { user, isUserLoading } = useUser()
+  const { firestore } = useFirebase()
   const router = useRouter()
 
   useEffect(() => {
-    if (!isUserLoading) {
-      const timer = setTimeout(() => {
+    if (!isUserLoading && firestore) {
+      const checkProfileAndRedirect = async () => {
         if (user) {
-          router.replace("/discover")
+          try {
+            const profileSnap = await getDoc(doc(firestore, "userProfiles", user.uid))
+            if (profileSnap.exists()) {
+              router.replace("/discover")
+            } else {
+              // Auth exists but profile doesn't - send to onboarding
+              router.replace("/onboarding/fast")
+            }
+          } catch (e) {
+            console.error("Splash redirect check failed:", e)
+            router.replace("/welcome")
+          }
         } else {
           router.replace("/welcome")
         }
-      }, 2000)
+      }
+
+      const timer = setTimeout(() => {
+        checkProfileAndRedirect()
+      }, 1500)
+      
       return () => clearTimeout(timer)
     }
-  }, [user, isUserLoading, router])
+  }, [user, isUserLoading, firestore, router])
 
   return (
     <div className="flex h-svh w-full flex-col items-center justify-center bg-[#3BC1A8] z-[9999] overflow-hidden">

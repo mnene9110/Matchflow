@@ -83,6 +83,7 @@ function ChatDetailContent() {
   
   // Guard for listeners
   const [isChatReady, setIsChatReady] = useState(false)
+  const [initError, setInitError] = useState(false)
   
   // Blocking State
   const [isBlockedByOther, setIsBlockedByOther] = useState(false)
@@ -100,6 +101,7 @@ function ChatDetailContent() {
   const [isResolvingId, setIsResolvingId] = useState(false)
 
   useEffect(() => {
+    if (!firestore) return
     if (otherUserId === 'customer_support' || otherUserId === 'support_agent') {
       setIsResolvingId(true)
       const q = query(collection(firestore, "userProfiles"), where("isSupport", "==", true), limit(1));
@@ -109,6 +111,8 @@ function ChatDetailContent() {
         } else {
           setResolvedOtherUserId(otherUserId)
         }
+      }).catch(() => {
+        setResolvedOtherUserId(otherUserId)
       }).finally(() => setIsResolvingId(false))
     } else {
       setResolvedOtherUserId(otherUserId)
@@ -120,7 +124,7 @@ function ChatDetailContent() {
     return [currentUser.uid, resolvedOtherUserId].sort().join("_")
   }, [currentUser?.uid, resolvedOtherUserId])
 
-  // HARD FIX: Initialization Effect
+  // Handshake initialization
   useEffect(() => {
     if (!firestore || !currentUser || !chatId || !resolvedOtherUserId) return
 
@@ -129,10 +133,7 @@ function ChatDetailContent() {
         const chatRef = doc(firestore, "chats", chatId)
         const snap = await getDoc(chatRef)
 
-        console.log(`[Handshake] Checking Chat: ${chatId} (Exists: ${snap.exists()})`);
-
         if (!snap.exists()) {
-          // Create chat FIRST so security rules recognize participants
           await setDoc(chatRef, {
             participants: [currentUser.uid, resolvedOtherUserId],
             createdAt: serverTimestamp(),
@@ -145,28 +146,27 @@ function ChatDetailContent() {
         }
         setIsChatReady(true)
       } catch (e) {
-        console.error("Failed to sync chat metadata:", e)
-        // If we get permission denied here, it might be due to blocking
+        console.error("Chat initialization failed:", e)
+        setInitError(true)
       }
     }
 
     initChat()
   }, [firestore, currentUser?.uid, chatId, resolvedOtherUserId])
 
-  // Check block status (both directions)
+  // Check block status
   useEffect(() => {
     if (!firestore || !currentUser || !resolvedOtherUserId) return
     
-    // Check if other user blocked me
     const blockedMeRef = doc(firestore, "userProfiles", resolvedOtherUserId, "blockedUsers", currentUser.uid)
     const unsubMe = onSnapshot(blockedMeRef, (snap) => {
       setIsBlockedByOther(snap.exists())
       setIsCheckingBlock(false)
     }, (error) => {
       if (error.code !== 'permission-denied') console.error(error)
+      setIsCheckingBlock(false)
     })
 
-    // Check if I blocked other user
     const iBlockedRef = doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", resolvedOtherUserId)
     const unsubThem = onSnapshot(iBlockedRef, (snap) => {
       setHaveIBlockedOther(snap.exists())
@@ -186,14 +186,13 @@ function ChatDetailContent() {
   const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
   const { data: currentUserProfile } = useDoc(meRef)
 
-  // Meta listener only runs when chat is confirmed ready
   const chatMetaRef = useMemoFirebase(() => (chatId && isChatReady) ? doc(firestore, "chats", chatId) : null, [firestore, chatId, isChatReady])
   const { data: chatMeta, isLoading: isChatMetaLoading } = useDoc(chatMetaRef)
 
+  // Message listener
   useEffect(() => {
     if (!firestore || !chatId || !isChatReady || isChatMetaLoading || (isBlockedByOther || haveIBlockedOther) || !currentUser) return
     
-    // If chatMeta is not loaded yet (useDoc handled loading), or if doc doesn't exist, we treat it as empty
     if (!chatMeta) {
       setMessages([]);
       setHasMore(false);
@@ -218,7 +217,6 @@ function ChatDetailContent() {
       setMessages(list)
       setHasMore(snapshot.docs.length >= msgLimit)
     }, (error) => {
-      // Silence permission-denied during logout transitions
       if (error.code === 'permission-denied' && currentUser) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `chats/${chatId}/messages`,
@@ -401,7 +399,18 @@ function ChatDetailContent() {
     }
   }
 
-  if (isOtherUserLoading || isResolvingId || isCheckingBlock || (isChatReady && isChatMetaLoading)) {
+  if (initError) {
+    return (
+      <div className="flex h-svh flex-col items-center justify-center bg-white p-8 text-center space-y-4">
+        <ShieldAlert className="w-12 h-12 text-red-500" />
+        <h2 className="text-xl font-black font-headline">Security Error</h2>
+        <p className="text-sm text-gray-500">Failed to establish a secure connection. Please try again.</p>
+        <Button onClick={() => window.location.reload()} className="h-12 px-8 rounded-full">Retry</Button>
+      </div>
+    )
+  }
+
+  if (isOtherUserLoading || isResolvingId || isCheckingBlock || (isChatReady && isChatMetaLoading) || (!isChatReady && !initError)) {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
 
