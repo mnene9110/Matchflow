@@ -62,7 +62,9 @@ export function useDoc<T = any>(
       },
       (error: FirestoreError) => {
         const auth = getAuth();
-        // Silence errors if the user is logging out or not authenticated
+        // Silence errors if the user is logging out or if the auth state is still resolving
+        // We also check if auth.currentUser exists to ensure we aren't showing errors
+        // for "checking existence" on documents that might be temporarily inaccessible.
         if (error.code === 'permission-denied' && auth.currentUser) {
           const contextualError = new FirestorePermissionError({
             operation: 'get',
