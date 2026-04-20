@@ -129,6 +129,8 @@ function ChatDetailContent() {
         const chatRef = doc(firestore, "chats", chatId)
         const snap = await getDoc(chatRef)
 
+        console.log(`[Handshake] Checking Chat: ${chatId} (Exists: ${snap.exists()})`);
+
         if (!snap.exists()) {
           // Create chat FIRST so security rules recognize participants
           await setDoc(chatRef, {

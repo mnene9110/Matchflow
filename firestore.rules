@@ -78,7 +78,7 @@ service cloud.firestore {
 
     match /chats/{chatId} {
 
-      // Allow read if user is participant OR if doc doesn't exist yet (to check existence safely)
+      // allow read if user is participant OR if doc doesn't exist yet (essential for existence check)
       allow read: if isAuthenticated()
         && (resource == null || isChatMember(resource.data));
 
@@ -174,7 +174,7 @@ service cloud.firestore {
     }
 
     // -------------------------
-    // DEFAULT LOCKDOWN (IMPORTANT FIX)
+    // DEFAULT LOCKDOWN
     // -------------------------
 
     match /{document=**} {
