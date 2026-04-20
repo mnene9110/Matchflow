@@ -10,8 +10,8 @@ import { getFirestore, doc, collection, setDoc, updateDoc, runTransaction, incre
 import { firebaseConfig } from '@/firebase/config';
 
 const PESAPAL_URL = 'https://pay.pesapal.com/v3';
-const CONSUMER_KEY = "YOUR_PESAPAL_CONSUMER_KEY";
-const CONSUMER_SECRET = "YOUR_PESAPAL_CONSUMER_SECRET";
+const CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY;
+const CONSUMER_SECRET = process.env.PESAPAL_CONSUMER_SECRET;
 
 let cachedIpnId: string | null = null;
 let tokenCache: { token: string; expiry: number } | null = null;
@@ -21,8 +21,8 @@ async function getAuthToken() {
     return tokenCache.token;
   }
 
-  if (!CONSUMER_KEY || CONSUMER_KEY === "YOUR_PESAPAL_CONSUMER_KEY") {
-    throw new Error('PesaPal Consumer Key is missing.');
+  if (!CONSUMER_KEY || !CONSUMER_SECRET) {
+    throw new Error('PesaPal API keys are missing on the server.');
   }
 
   const response = await fetch(`${PESAPAL_URL}/api/Auth/RequestToken`, {
@@ -76,7 +76,7 @@ async function registerIPN(token: string) {
 
 export async function initializePesaPalTransaction(email: string, amount: number, metadata: any) {
   try {
-    if (!CONSUMER_KEY || CONSUMER_KEY === "YOUR_PESAPAL_CONSUMER_KEY") {
+    if (!CONSUMER_KEY || !CONSUMER_SECRET) {
       return { error: 'PesaPal API keys are not configured.' };
     }
 

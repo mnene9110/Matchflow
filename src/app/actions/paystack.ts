@@ -5,10 +5,10 @@
  * Handles transaction initialization and verification.
  */
 
-const PAYSTACK_SECRET_KEY = "YOUR_PAYSTACK_SECRET_KEY";
+const PAYSTACK_SECRET_KEY = process.env.PAYSTACK_SECRET_KEY;
 
 export async function initializePaystackTransaction(email: string, amount: number, metadata: any) {
-  if (!PAYSTACK_SECRET_KEY || PAYSTACK_SECRET_KEY === "YOUR_PAYSTACK_SECRET_KEY") {
+  if (!PAYSTACK_SECRET_KEY) {
     return { error: 'Paystack Secret Key is missing.' };
   }
 

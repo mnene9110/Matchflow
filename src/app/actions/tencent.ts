@@ -6,11 +6,11 @@ import crypto from 'crypto';
  * @fileOverview Server action to generate Tencent Cloud TRTC UserSig.
  */
 
-const SDKAPPID = 0; // REPLACE WITH YOUR TENCENT SDK APP ID (NUMBER)
-const SECRETKEY = "YOUR_TENCENT_SECRET_KEY";
+const SDKAPPID = Number(process.env.TENCENT_SDKAPPID);
+const SECRETKEY = process.env.TENCENT_SECRETKEY;
 
 export async function getTencentUserSig(userId: string) {
-  if (!SDKAPPID || !SECRETKEY || SECRETKEY === "YOUR_TENCENT_SECRET_KEY") {
+  if (!SDKAPPID || !SECRETKEY) {
     throw new Error('Tencent Cloud configuration is missing on the server.');
   }
 
