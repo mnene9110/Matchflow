@@ -148,12 +148,14 @@ function ChatDetailContent() {
   const { data: currentUserProfile } = useDoc(meRef)
 
   const chatMetaRef = useMemoFirebase(() => chatId ? doc(firestore, "chats", chatId) : null, [firestore, chatId])
-  const { data: chatMeta } = useDoc(chatMetaRef)
+  const { data: chatMeta, isLoading: isChatMetaLoading } = useDoc(chatMetaRef)
 
   useEffect(() => {
-    if (!firestore || !chatId || (isBlockedByOther || haveIBlockedOther)) return
+    // CRITICAL: We MUST wait for chatMeta to finish loading before starting the message snapshot.
+    // If we don't, 'myDeletedAt' will be undefined, causing the query to fetch all messages 
+    // before the filter is applied, resulting in the "blink" effect.
+    if (!firestore || !chatId || isChatMetaLoading || (isBlockedByOther || haveIBlockedOther)) return
     
-    // Option B: Advanced visibility filter using deletedAt timestamp
     const myDeletedAt = chatMeta?.[`deletedAt_${currentUser?.uid}`]
     
     let msgQuery = query(
@@ -181,7 +183,7 @@ function ChatDetailContent() {
     })
 
     return () => unsubscribe()
-  }, [firestore, chatId, msgLimit, isBlockedByOther, haveIBlockedOther, chatMeta?.[`deletedAt_${currentUser?.uid}`]])
+  }, [firestore, chatId, msgLimit, isChatMetaLoading, isBlockedByOther, haveIBlockedOther, chatMeta?.[`deletedAt_${currentUser?.uid}`]])
 
   useEffect(() => {
     if (initialMsg && currentUser && resolvedOtherUserId && otherUser && !isSending && !isBlockedByOther && !haveIBlockedOther) {
@@ -353,7 +355,7 @@ function ChatDetailContent() {
     }
   }
 
-  if (isOtherUserLoading || isResolvingId || isCheckingBlock) {
+  if (isOtherUserLoading || isResolvingId || isCheckingBlock || isChatMetaLoading) {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
 
@@ -512,7 +514,7 @@ function ChatDetailContent() {
           <div className="relative flex-1 group">
             <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
             <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
-              {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              {isSending ? <Loader2 className="w-5 h-5 animate-spin" : <Send className="w-5 h-5" />}
             </Button>
           </div>
         </footer>
