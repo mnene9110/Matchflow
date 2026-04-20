@@ -118,7 +118,20 @@ export default function WelcomePage() {
 
       <footer className="absolute bottom-10 left-0 right-0 z-20 px-8">
         <p className="text-[10px] text-white/40 text-center leading-relaxed">
-          By signing up, you agree to our <span className="underline cursor-pointer">Terms of Service</span> and <span className="underline cursor-pointer">Privacy Policy</span>.
+          By signing up, you agree to our{" "}
+          <span 
+            className="underline cursor-pointer hover:text-white transition-colors"
+            onClick={() => router.push('/settings/terms')}
+          >
+            Terms of Service
+          </span>{" "}
+          and{" "}
+          <span 
+            className="underline cursor-pointer hover:text-white transition-colors"
+            onClick={() => router.push('/settings/privacy')}
+          >
+            Privacy Policy
+          </span>.
         </p>
       </footer>
     </div>

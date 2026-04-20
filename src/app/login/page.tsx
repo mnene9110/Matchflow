@@ -158,7 +158,20 @@ export default function LoginPage() {
 
         <footer className="pt-4">
           <p className="text-[13px] text-gray-400 text-center leading-relaxed max-w-[280px]">
-            By signing in, you agree to our <span className="underline cursor-pointer">Terms of Service</span> and <span className="underline decoration-gray-200 cursor-pointer">Privacy Policy</span>.
+            By signing in, you agree to our{" "}
+            <span 
+              className="underline cursor-pointer hover:text-primary transition-colors"
+              onClick={() => router.push('/settings/terms')}
+            >
+              Terms of Service
+            </span>{" "}
+            and{" "}
+            <span 
+              className="underline decoration-gray-200 cursor-pointer hover:text-primary transition-colors"
+              onClick={() => router.push('/settings/privacy')}
+            >
+              Privacy Policy
+            </span>.
           </p>
         </footer>
       </main>
