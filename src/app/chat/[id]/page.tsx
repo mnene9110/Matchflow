@@ -514,7 +514,7 @@ function ChatDetailContent() {
           <div className="relative flex-1 group">
             <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
             <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
-              {isSending ? <Loader2 className="w-5 h-5 animate-spin" : <Send className="w-5 h-5" />}
+              {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
             </Button>
           </div>
         </footer>
