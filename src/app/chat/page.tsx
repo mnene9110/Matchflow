@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -5,7 +6,7 @@ import { MessageSquare, ChevronRight, CheckCircle, EyeOff, Loader2, Trash2, Shie
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 import { useFirebase, useUser } from "@/firebase"
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDoc } from "firebase/firestore"
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, deleteDoc, getDoc, serverTimestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -228,6 +229,7 @@ export default function ChatListPage() {
       const chatRef = doc(firestore, "chats", hidingTarget)
       await updateDoc(chatRef, { 
         [`hidden_${currentUser.uid}`]: true,
+        [`deletedAt_${currentUser.uid}`]: serverTimestamp(),
         [`unreadCount_${currentUser.uid}`]: 0 
       })
       setHidingTarget(null)

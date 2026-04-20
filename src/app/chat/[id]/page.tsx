@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -146,13 +147,24 @@ function ChatDetailContent() {
   const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
   const { data: currentUserProfile } = useDoc(meRef)
 
+  const chatMetaRef = useMemoFirebase(() => chatId ? doc(firestore, "chats", chatId) : null, [firestore, chatId])
+  const { data: chatMeta } = useDoc(chatMetaRef)
+
   useEffect(() => {
     if (!firestore || !chatId || (isBlockedByOther || haveIBlockedOther)) return
-    const msgQuery = query(
+    
+    // Option B: Advanced visibility filter using deletedAt timestamp
+    const myDeletedAt = chatMeta?.[`deletedAt_${currentUser?.uid}`]
+    
+    let msgQuery = query(
       collection(firestore, "chats", chatId, "messages"),
       orderBy("sentAt", "desc"),
       limit(msgLimit)
     )
+
+    if (myDeletedAt) {
+      msgQuery = query(msgQuery, where("sentAt", ">", myDeletedAt))
+    }
 
     const unsubscribe = onSnapshot(msgQuery, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
@@ -169,7 +181,7 @@ function ChatDetailContent() {
     })
 
     return () => unsubscribe()
-  }, [firestore, chatId, msgLimit, isBlockedByOther, haveIBlockedOther])
+  }, [firestore, chatId, msgLimit, isBlockedByOther, haveIBlockedOther, chatMeta?.[`deletedAt_${currentUser?.uid}`]])
 
   useEffect(() => {
     if (initialMsg && currentUser && resolvedOtherUserId && otherUser && !isSending && !isBlockedByOther && !haveIBlockedOther) {
