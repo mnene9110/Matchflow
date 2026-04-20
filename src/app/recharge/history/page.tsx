@@ -1,7 +1,6 @@
 
 "use client"
 
-import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, ArrowUpRight, ArrowDownLeft, Coins, Gem } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -17,7 +16,7 @@ export default function CoinHistoryPage() {
 
   const historyQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    // Updated: Only show coin-based transactions (exclude diamond rewards/exchanges)
+    // Show only coin-based transactions
     return query(
       collection(firestore, "userProfiles", user.uid, "transactions"),
       where("type", "in", ["recharge", "deduction", "game_result", "mystery_note", "party_creation", "profile_boost", "visitor_unlock", "award", "host_subscription", "diamond_exchange"]),
@@ -36,11 +35,10 @@ export default function CoinHistoryPage() {
           <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Coin History</h1>
         </div>
         
-        {/* Updated: Added Gem icon for Diamond History */}
         <Button 
           variant="ghost" 
           size="icon" 
-          onClick={() => router.push('/profile/income')} 
+          onClick={() => router.push('/profile/income/history')} 
           className="text-amber-400 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"
           title="Diamond History"
         >
