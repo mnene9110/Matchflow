@@ -73,8 +73,10 @@ service cloud.firestore {
 
     match /chats/{chatId} {
 
+      // Refined read rule: allow read if document doesn't exist (to check existence)
+      // or if user is a participant if it does exist.
       allow read: if isAuthenticated()
-        && isChatMember(resource.data);
+        && (resource == null || isChatMember(resource.data));
 
       allow create: if isAuthenticated()
         && request.resource.data.participants.size() == 2
@@ -146,7 +148,9 @@ service cloud.firestore {
         && request.auth.uid == resource.data.hostId;
 
       match /{allPaths=**} {
-        allow read, write: if isAuthenticated();
+        allow read: if isAuthenticated();
+        allow write: if isAuthenticated()
+          && request.auth.uid == resource.data.hostId;
       }
     }
 

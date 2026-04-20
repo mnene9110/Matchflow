@@ -62,8 +62,7 @@ export function useDoc<T = any>(
       },
       (error: FirestoreError) => {
         const auth = getAuth();
-        // Only report as a contextual error if there is an active user.
-        // If auth.currentUser is null, a permission error is expected during state transition/logout.
+        // Only report as a contextual error if there is an active user and we're not in a state transition.
         if (error.code === 'permission-denied' && auth.currentUser) {
           const contextualError = new FirestorePermissionError({
             operation: 'get',
