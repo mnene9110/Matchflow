@@ -62,7 +62,8 @@ service cloud.firestore {
         )
       );
 
-      allow delete: if isAdmin();
+      // Standard users can delete their own account, admins cannot delete themselves via client
+      allow delete: if isOwner(userId) && !isAdmin();
 
       // Transactions (coins history)
       match /transactions/{transactionId} {
@@ -180,8 +181,8 @@ service cloud.firestore {
     // -------------------------
 
     match /pendingPayments/{orderId} {
-      allow read: if isAuthenticated();
-      allow write: if isAdmin(); 
+      allow read, create: if isAuthenticated();
+      allow update: if isAdmin(); 
     }
 
     // -------------------------
