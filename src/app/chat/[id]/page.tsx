@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -316,7 +317,10 @@ function ChatDetailContent() {
     
     setIsSendingGift(true);
     const finalPrice = gift.price;
-    const diamondGain = Math.floor(gift.price * 0.6);
+
+    // Updated: Male users receive 15%, others receive 60%
+    const cut = otherUser.gender?.toLowerCase() === 'male' ? 0.15 : 0.6;
+    const diamondGain = Math.floor(gift.price * cut);
 
     try {
       await runTransaction(firestore, async (transaction) => {
@@ -335,7 +339,15 @@ function ChatDetailContent() {
 
         // 4. Log recipient transaction
         const receiverLogRef = doc(collection(firestore, "userProfiles", resolvedOtherUserId, "transactions"));
-        transaction.set(receiverLogRef, { id: receiverLogRef.id, type: "gift_received", amount: diamondGain, transactionDate: new Date().toISOString(), description: `Received ${gift.name} from ${currentUserProfile.username}` });
+        transaction.set(receiverLogRef, { 
+          id: receiverLogRef.id, 
+          type: "gift_received", 
+          amount: diamondGain, 
+          giftId: gift.id,
+          giftName: gift.name,
+          transactionDate: new Date().toISOString(), 
+          description: `Received ${gift.name} from ${currentUserProfile.username}` 
+        });
 
         // 5. Create gift message
         const giftMessage = `🎁 Sent a ${gift.name}`;

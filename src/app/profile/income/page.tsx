@@ -26,7 +26,7 @@ export default function IncomePage() {
     if (!firestore || !currentUser) return null
     return query(
       collection(firestore, "userProfiles", currentUser.uid, "transactions"), 
-      where("type", "in", ["diamond_exchange", "diamond_received", "gift_received"]), 
+      where("type", "in", ["diamond_exchange", "diamond_received", "gift_received", "agency_withdrawal"]), 
       orderBy("transactionDate", "desc"), 
       limit(20)
     )
@@ -40,7 +40,7 @@ export default function IncomePage() {
     setIsExchanging(true)
     const blocks = Math.floor(diamondBalance / 500)
     const diamondsToDeduct = blocks * 500
-    const coinsToGain = blocks * 150
+    const coinsToGain = blocks * 80 // Updated: 500 diamonds = 80 coins
     try {
       await runTransaction(firestore, async (transaction) => {
         const snap = await transaction.get(meRef!);
@@ -112,7 +112,7 @@ export default function IncomePage() {
               <div className="w-16 h-16 rounded-[1.5rem] bg-[#3BC1A8]/10 flex items-center justify-center border border-[#3BC1A8]/5 shadow-inner">
                 <Coins className="w-8 h-8 text-[#3BC1A8]" />
               </div>
-              <span className="text-lg font-black font-headline text-gray-900 leading-none">150</span>
+              <span className="text-lg font-black font-headline text-gray-900 leading-none">80</span>
               <span className="text-[8px] font-black text-gray-400 uppercase tracking-widest">Coins</span>
             </div>
           </div>
@@ -137,7 +137,7 @@ export default function IncomePage() {
           <div className="flex items-center justify-between px-2">
             <div className="flex items-center gap-2">
               <History className="w-4 h-4 text-primary/40" />
-              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Earnings History</h2>
+              <h2 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">Diamond History</h2>
             </div>
           </div>
 
@@ -149,8 +149,6 @@ export default function IncomePage() {
               </div>
             ) : transactions && transactions.length > 0 ? (
               transactions.map((tx: any) => {
-                // For earnings, diamondAmount is positive (usually from gift_received)
-                // For exchanges, diamondAmount is negative
                 const diamondChange = tx.diamondAmount !== undefined ? tx.diamondAmount : tx.amount;
                 const isAddition = diamondChange > 0;
                 

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -20,12 +21,14 @@ import {
   Zap,
   Tag,
   X,
-  Target
+  Target,
+  Gift as GiftIcon,
+  ArrowRight
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, collection, addDoc, serverTimestamp, setDoc } from "firebase/firestore"
+import { useFirebase, useUser, useDoc, useMemoFirebase, useCollection } from "@/firebase"
+import { doc, collection, addDoc, serverTimestamp, setDoc, query, where, limit } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -49,6 +52,7 @@ import {
   CarouselItem,
   type CarouselApi,
 } from "@/components/ui/carousel"
+import { GIFTS } from "@/app/chat/[id]/page"
 
 export default function ProfileDetailPage() {
   const { id } = useParams()
@@ -70,6 +74,29 @@ export default function ProfileDetailPage() {
   
   const [api, setApi] = useState<CarouselApi>()
   const [current, setCurrent] = useState(0)
+
+  // Fetch gifts for the wall
+  const giftsQuery = useMemoFirebase(() => {
+    if (!firestore || !id) return null
+    return query(
+      collection(firestore, "userProfiles", id as string, "transactions"),
+      where("type", "==", "gift_received"),
+      limit(50)
+    )
+  }, [firestore, id])
+  
+  const { data: giftTransactions, isLoading: isGiftsLoading } = useCollection(giftsQuery)
+
+  const groupedGifts = useMemo(() => {
+    if (!giftTransactions) return []
+    const map = new Map<string, { giftId: string; count: number }>()
+    giftTransactions.forEach((tx: any) => {
+      if (!tx.giftId) return
+      const existing = map.get(tx.giftId) || { giftId: tx.giftId, count: 0 }
+      map.set(tx.giftId, { giftId: tx.giftId, count: existing.count + 1 })
+    })
+    return Array.from(map.values())
+  }, [giftTransactions])
 
   useEffect(() => {
     if (!api) return
@@ -286,6 +313,54 @@ export default function ProfileDetailPage() {
               {isVerified && <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20"><ShieldCheck className="w-3 h-3 text-blue-500" /><span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Verified</span></div>}
             </div>
           )}
+
+          {/* Gift Wall Section */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Gift Wall</h3>
+              <button 
+                onClick={() => router.push(`/profile/${id}/gifts`)}
+                className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-1 active:opacity-50"
+              >
+                Full Wall <ArrowRight className="w-3 h-3" />
+              </button>
+            </div>
+            <div className="bg-gray-50/50 p-5 rounded-[2rem] border border-gray-100 min-h-[80px] flex items-center">
+              {isGiftsLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin text-gray-300 mx-auto" />
+              ) : groupedGifts.length > 0 ? (
+                <div className="flex gap-4 overflow-x-auto no-scrollbar py-2">
+                  {groupedGifts.slice(0, 5).map((g) => {
+                    const giftInfo = GIFTS.find(gd => gd.id === g.giftId);
+                    return (
+                      <div key={g.giftId} className="flex flex-col items-center shrink-0">
+                        <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-1 border border-white overflow-hidden">
+                          {giftInfo?.image ? (
+                            <img src={giftInfo.image} className="w-8 h-8 object-contain" alt={giftInfo.name} />
+                          ) : (
+                            <span className="text-xl">{giftInfo?.emoji || '🎁'}</span>
+                          )}
+                        </div>
+                        <span className="text-[9px] font-black text-primary italic">x{g.count}</span>
+                      </div>
+                    )
+                  })}
+                  {groupedGifts.length > 5 && (
+                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white border border-gray-100 text-[10px] font-black text-gray-300 uppercase tracking-tighter">
+                      +{groupedGifts.length - 5}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="flex-1 text-center py-4">
+                  <div className="w-10 h-10 bg-white/50 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <GiftIcon className="w-4 h-4 text-gray-200" />
+                  </div>
+                  <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">No gifts yet</p>
+                </div>
+              )}
+            </div>
+          </section>
 
           {/* User Bio - Only show if exists */}
           {userProfile?.bio && (
