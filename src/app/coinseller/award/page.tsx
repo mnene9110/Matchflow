@@ -55,6 +55,7 @@ export default function AwardCoinsPage() {
     const amount = Number(awardAmount)
     if (!foundUser || !amount || amount <= 0 || isAwarding || !currentUser || !profile || !firestore) return
     setIsAwarding(true)
+    const now = new Date().toISOString()
     try {
       await runTransaction(firestore, async (transaction) => {
         const targetRef = doc(firestore, "userProfiles", foundUser.docId);
@@ -62,26 +63,26 @@ export default function AwardCoinsPage() {
           const myProfileSnap = await transaction.get(meRef!);
           const myBalance = myProfileSnap.data()?.coinBalance || 0;
           if (myBalance < amount) throw new Error("INSUFFICIENT_COINS");
-          transaction.update(meRef!, { coinBalance: increment(-amount) });
+          transaction.update(meRef!, { coinBalance: increment(-amount), updatedAt: now });
           const myTxRef = doc(collection(meRef!, "transactions"));
           transaction.set(myTxRef, {
             id: myTxRef.id,
             type: "deduction",
             amount: -amount,
-            transactionDate: new Date().toISOString(),
+            transactionDate: now,
             description: `Awarded coins to ID: ${foundUser.numericId}`
           });
         }
         transaction.update(targetRef, { 
           coinBalance: increment(amount),
-          updatedAt: new Date().toISOString()
+          updatedAt: now
         });
         const targetTxRef = doc(collection(targetRef, "transactions"));
         transaction.set(targetTxRef, {
           id: targetTxRef.id,
           type: "award",
           amount: amount,
-          transactionDate: new Date().toISOString(),
+          transactionDate: now,
           description: `Received coins from ${profile.isAdmin ? 'Admin' : 'Coinseller'}`
         });
       });

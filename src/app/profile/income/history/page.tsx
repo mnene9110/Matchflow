@@ -1,11 +1,12 @@
 
 "use client"
 
+import { useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Gem, Loader2, History, ArrowUpRight, ArrowDownLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useUser, useMemoFirebase, useFirebase, useCollection } from "@/firebase"
-import { collection, query, where, orderBy, limit } from "firebase/firestore"
+import { collection, query, orderBy, limit } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
@@ -14,18 +15,28 @@ export default function DiamondHistoryPage() {
   const { user: currentUser } = useUser()
   const { firestore } = useFirebase()
 
+  // Fetch all recent transactions and filter in-memory to avoid index requirements
   const historyQuery = useMemoFirebase(() => {
     if (!firestore || !currentUser) return null
-    // Specifically targeting diamond-affecting transaction types
     return query(
       collection(firestore, "userProfiles", currentUser.uid, "transactions"), 
-      where("type", "in", ["diamond_exchange", "diamond_received", "gift_received", "agency_withdrawal"]), 
       orderBy("transactionDate", "desc"), 
-      limit(50)
+      limit(100)
     )
   }, [firestore, currentUser])
 
-  const { data: transactions, isLoading } = useCollection(historyQuery)
+  const { data: allTransactions, isLoading } = useCollection(historyQuery)
+
+  const diamondTransactions = useMemo(() => {
+    if (!allTransactions) return [];
+    const diamondTypes = [
+      "diamond_exchange", 
+      "diamond_received", 
+      "gift_received", 
+      "agency_withdrawal"
+    ];
+    return allTransactions.filter(tx => diamondTypes.includes(tx.type));
+  }, [allTransactions]);
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-hidden font-body">
@@ -43,15 +54,15 @@ export default function DiamondHistoryPage() {
             <Loader2 className="w-8 h-8 animate-spin text-primary/20" />
             <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Fetching records...</span>
           </div>
-        ) : transactions && transactions.length > 0 ? (
+        ) : diamondTransactions.length > 0 ? (
           <div className="space-y-3 pb-20 pt-6">
-            {transactions.map((tx: any) => {
-              // For diamonds, 'diamondAmount' exists for exchanges, otherwise 'amount' is used for gifts/withdrawals
+            {diamondTransactions.map((tx: any) => {
+              // Handle different field names for diamond amount
               const diamondChange = tx.diamondAmount !== undefined ? tx.diamondAmount : tx.amount;
               const isAddition = diamondChange > 0;
               
               return (
-                <div key={tx.id} className="bg-gray-50 border border-gray-100 p-5 rounded-[2rem] flex items-center gap-4 shadow-sm">
+                <div key={tx.id} className="bg-gray-50 border border-gray-100 p-5 rounded-[2rem] flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                   <div className={cn(
                     "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner", 
                     isAddition ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"

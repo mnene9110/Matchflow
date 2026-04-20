@@ -1,11 +1,12 @@
 
 "use client"
 
+import { useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, ArrowUpRight, ArrowDownLeft, Coins, Gem } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirebase, useUser, useCollection, useMemoFirebase } from "@/firebase"
-import { collection, query, orderBy, limit, where } from "firebase/firestore"
+import { collection, query, orderBy, limit } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
@@ -14,18 +15,35 @@ export default function CoinHistoryPage() {
   const { user } = useUser()
   const { firestore } = useFirebase()
 
+  // Fetch all recent transactions and filter in-memory to avoid index requirements
   const historyQuery = useMemoFirebase(() => {
     if (!firestore || !user) return null;
-    // Show only coin-based transactions
     return query(
       collection(firestore, "userProfiles", user.uid, "transactions"),
-      where("type", "in", ["recharge", "deduction", "game_result", "mystery_note", "party_creation", "profile_boost", "visitor_unlock", "award", "host_subscription", "diamond_exchange"]),
       orderBy("transactionDate", "desc"),
-      limit(50)
+      limit(100)
     )
   }, [firestore, user])
 
-  const { data: transactions, isLoading } = useCollection(historyQuery)
+  const { data: allTransactions, isLoading } = useCollection(historyQuery)
+
+  const coinTransactions = useMemo(() => {
+    if (!allTransactions) return [];
+    const coinTypes = [
+      "recharge", 
+      "deduction", 
+      "game_result", 
+      "mystery_note", 
+      "party_creation", 
+      "profile_boost", 
+      "visitor_unlock", 
+      "award", 
+      "host_subscription", 
+      "diamond_exchange",
+      "check-in"
+    ];
+    return allTransactions.filter(tx => coinTypes.includes(tx.type));
+  }, [allTransactions]);
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-hidden font-body">
@@ -52,14 +70,14 @@ export default function CoinHistoryPage() {
             <Loader2 className="w-8 h-8 animate-spin text-primary" />
             <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Loading history...</span>
           </div>
-        ) : transactions && transactions.length > 0 ? (
+        ) : coinTransactions.length > 0 ? (
           <div className="space-y-3 pb-10 pt-6">
-            {transactions.map((tx: any) => {
+            {coinTransactions.map((tx: any) => {
               const amount = tx.amount || 0;
               const isAddition = amount > 0;
               
               return (
-                <div key={tx.id} className="bg-gray-50 border border-gray-100 p-5 rounded-[2rem] flex items-center gap-4 shadow-sm">
+                <div key={tx.id} className="bg-gray-50 border border-gray-100 p-5 rounded-[2rem] flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                   <div className={cn(
                     "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-inner", 
                     isAddition ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
