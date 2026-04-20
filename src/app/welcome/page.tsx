@@ -87,7 +87,7 @@ export default function WelcomePage() {
       <div className="absolute inset-0 bg-black/20 z-0" />
 
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
-        <div className="space-y-2 mb-16">
+        <div className="space-y-2 mb-28">
           <h1 className="text-3xl font-logo text-[#3BC1A8]">MatchFlow</h1>
           <p className="text-white/70 text-[11px] font-black uppercase tracking-[0.2em] leading-relaxed max-w-[240px] mx-auto">
             Connect with Heart
