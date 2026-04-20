@@ -81,11 +81,9 @@ function ChatDetailContent() {
   const [isSending, setIsSending] = useState(false)
   const [messages, setMessages] = useState<any[]>([])
   
-  // Guard for listeners
   const [isChatReady, setIsChatReady] = useState(false)
   const [initError, setInitError] = useState(false)
   
-  // Blocking State
   const [isBlockedByOther, setIsBlockedByOther] = useState(false)
   const [haveIBlockedOther, setHaveIBlockedOther] = useState(false)
   const [isCheckingBlock, setIsCheckingBlock] = useState(true)
@@ -124,7 +122,6 @@ function ChatDetailContent() {
     return [currentUser.uid, resolvedOtherUserId].sort().join("_")
   }, [currentUser?.uid, resolvedOtherUserId])
 
-  // Handshake initialization
   useEffect(() => {
     if (!firestore || !currentUser || !chatId || !resolvedOtherUserId) return
 
@@ -154,7 +151,6 @@ function ChatDetailContent() {
     initChat()
   }, [firestore, currentUser?.uid, chatId, resolvedOtherUserId])
 
-  // Check block status
   useEffect(() => {
     if (!firestore || !currentUser || !resolvedOtherUserId) return
     
@@ -189,7 +185,6 @@ function ChatDetailContent() {
   const chatMetaRef = useMemoFirebase(() => (chatId && isChatReady) ? doc(firestore, "chats", chatId) : null, [firestore, chatId, isChatReady])
   const { data: chatMeta, isLoading: isChatMetaLoading } = useDoc(chatMetaRef)
 
-  // Message listener
   useEffect(() => {
     if (!firestore || !chatId || !isChatReady || isChatMetaLoading || (isBlockedByOther || haveIBlockedOther) || !currentUser) return
     
@@ -329,19 +324,25 @@ function ChatDetailContent() {
         const myBalance = myProfileSnap.data()?.coinBalance || 0;
         if (myBalance < finalPrice) throw new Error("INSUFFICIENT_COINS");
 
+        // 1. Deduct sender coins
         transaction.update(meRef!, { coinBalance: increment(-finalPrice) });
+        // 2. Increment recipient diamonds
         transaction.update(otherUserRef!, { diamondBalance: increment(diamondGain) });
 
+        // 3. Log sender transaction
         const senderLogRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
         transaction.set(senderLogRef, { id: senderLogRef.id, type: "gift_sent", amount: -finalPrice, transactionDate: new Date().toISOString(), description: `Sent ${gift.name}` });
 
+        // 4. Log recipient transaction
         const receiverLogRef = doc(collection(firestore, "userProfiles", resolvedOtherUserId, "transactions"));
         transaction.set(receiverLogRef, { id: receiverLogRef.id, type: "gift_received", amount: diamondGain, transactionDate: new Date().toISOString(), description: `Received ${gift.name} from ${currentUserProfile.username}` });
 
+        // 5. Create gift message
         const giftMessage = `🎁 Sent a ${gift.name}`;
         const msgRef = doc(collection(firestore, "chats", chatId, "messages"));
         transaction.set(msgRef, { messageText: giftMessage, senderId: currentUser.uid, sentAt: serverTimestamp(), isGift: true, giftId: gift.id, status: 'sent' });
 
+        // 6. Update chat metadata
         const chatMetaRef = doc(firestore, "chats", chatId);
         transaction.set(chatMetaRef, {
           lastMessage: giftMessage,
@@ -361,7 +362,7 @@ function ChatDetailContent() {
       if (error.message === "INSUFFICIENT_COINS") {
         toast({ variant: "destructive", title: "Insufficient Coins" });
       } else {
-        toast({ variant: "destructive", title: "Gift Failed" });
+        toast({ variant: "destructive", title: "Gift Failed", description: error.message });
       }
     } finally { setIsSendingGift(false) }
   }

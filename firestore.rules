@@ -31,6 +31,12 @@ service cloud.firestore {
         && getUser(request.auth.uid).isSupport == true);
     }
 
+    function isCoinseller() {
+      return isAuthenticated()
+        && exists(/databases/$(database)/documents/userProfiles/$(request.auth.uid))
+        && getUser(request.auth.uid).isCoinseller == true;
+    }
+
     function isChatMember(chatData) {
       return isAuthenticated() && request.auth.uid in chatData.participants;
     }
@@ -45,11 +51,15 @@ service cloud.firestore {
 
       allow create: if isOwner(userId);
 
-      // Allow owner/admin update, or allow any auth user to update signaling fields for calling
-      allow update: if isOwner(userId) || isAdmin() || (
-        isAuthenticated() && 
-        request.resource.data.diff(resource.data).affectedKeys()
-          .hasOnly(['isOnline', 'lastActiveAt', 'incomingCallId', 'inCall'])
+      // Allow owner, admin, or coinseller to update. 
+      // Also allow any authenticated user to update specific fields (gifting/handshakes).
+      allow update: if isOwner(userId) || isAdmin() || isCoinseller() || (
+        isAuthenticated() && (
+          // Allowing anyone to send a gift (increment diamond balance)
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['diamondBalance']) ||
+          // Hardware signaling fields for calling
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isOnline', 'lastActiveAt', 'incomingCallId', 'inCall'])
+        )
       );
 
       allow delete: if isAdmin();
@@ -57,7 +67,10 @@ service cloud.firestore {
       // Transactions (coins history)
       match /transactions/{transactionId} {
         allow read: if isOwner(userId) || isAdmin();
-        allow write: if isAdmin();
+        // Allow admins, coinsellers, or gift senders to log appropriate transaction types
+        allow write: if isAdmin() || isCoinseller() || (
+          isAuthenticated() && request.resource.data.type in ['gift_received', 'diamond_received']
+        );
       }
 
       // Block list
@@ -78,7 +91,7 @@ service cloud.firestore {
 
     match /chats/{chatId} {
 
-      // allow read if user is participant OR if doc doesn't exist yet (essential for existence check)
+      // allow read if user is participant OR if doc doesn't exist yet (essential for existence check handshake)
       allow read: if isAuthenticated()
         && (resource == null || isChatMember(resource.data));
 
@@ -115,7 +128,6 @@ service cloud.firestore {
     // -------------------------
 
     match /calls/{callId} {
-      // Allow read/update/delete if doc doesn't exist (to check safely) OR user is in participants.
       allow read, update, delete: if isAuthenticated()
         && (resource == null || request.auth.uid in resource.data.participants);
       
@@ -154,12 +166,12 @@ service cloud.firestore {
       allow read: if isAuthenticated();
 
       allow write: if isAuthenticated()
-        && request.auth.uid == resource.data.hostId;
+        && (resource == null || request.auth.uid == resource.data.hostId);
 
       match /{allPaths=**} {
         allow read: if isAuthenticated();
         allow write: if isAuthenticated()
-          && request.auth.uid == resource.data.hostId;
+          && request.auth.uid == get(/databases/$(database)/documents/partyRooms/$(roomId)).data.hostId;
       }
     }
 
@@ -169,8 +181,7 @@ service cloud.firestore {
 
     match /pendingPayments/{orderId} {
       allow read: if isAuthenticated();
-
-      allow write: if isAdmin(); // ONLY backend should confirm payments
+      allow write: if isAdmin(); 
     }
 
     // -------------------------
