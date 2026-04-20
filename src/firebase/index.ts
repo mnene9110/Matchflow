@@ -1,16 +1,16 @@
 'use client';
 
-import { firebaseConfig } from '@/firebase/config';
-import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
+import { firebaseConfig, isFirebaseConfigValid } from '@/firebase/config';
+import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
 import { getDatabase, Database } from 'firebase/database';
 
 export interface FirebaseSdks {
-  firebaseApp: FirebaseApp;
-  auth: Auth;
-  firestore: Firestore;
-  database: Database;
+  firebaseApp: FirebaseApp | null;
+  auth: Auth | null;
+  firestore: Firestore | null;
+  database: Database | null;
 }
 
 // Keep a reference to the initialized SDKs to prevent multiple instances
@@ -20,33 +20,43 @@ let cachedSdks: FirebaseSdks | null = null;
 export function initializeFirebase(): FirebaseSdks {
   if (cachedSdks) return cachedSdks;
 
+  if (!isFirebaseConfigValid()) {
+    console.warn('Firebase configuration is missing or invalid. Check your environment variables.');
+    return {
+      firebaseApp: null,
+      auth: null,
+      firestore: null,
+      database: null
+    };
+  }
+
   const apps = getApps();
   let firebaseApp: FirebaseApp;
 
-  if (!apps.length) {
-    try {
+  try {
+    if (!apps.length) {
       firebaseApp = initializeApp(firebaseConfig);
-    } catch (e) {
-      if (process.env.NODE_ENV === "production") {
-        console.warn('Firebase initialization failed.', e);
-      }
-      firebaseApp = initializeApp(firebaseConfig);
+    } else {
+      firebaseApp = apps[0];
     }
-  } else {
-    firebaseApp = apps[0];
+
+    cachedSdks = {
+      firebaseApp,
+      auth: getAuth(firebaseApp),
+      firestore: getFirestore(firebaseApp),
+      database: getDatabase(firebaseApp)
+    };
+  } catch (error) {
+    console.error('Failed to initialize Firebase SDKs:', error);
+    return {
+      firebaseApp: null,
+      auth: null,
+      firestore: null,
+      database: null
+    };
   }
 
-  cachedSdks = getSdks(firebaseApp);
   return cachedSdks;
-}
-
-export function getSdks(firebaseApp: FirebaseApp): FirebaseSdks {
-  return {
-    firebaseApp,
-    auth: getAuth(firebaseApp),
-    firestore: getFirestore(firebaseApp),
-    database: getDatabase(firebaseApp)
-  };
 }
 
 export * from './provider';

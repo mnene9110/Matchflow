@@ -1,8 +1,20 @@
 export const firebaseConfig = {
-  apiKey: "AIzaSyDqprWRx0xnOpnPB00Kc8ftEW4Nq24U7hU",
-  authDomain: "matchflow-27524298-12d64.firebaseapp.com",
-  projectId: "matchflow-27524298-12d64",
-  storageBucket: "matchflow-27524298-12d64.firebasestorage.app",
-  messagingSenderId: "469500415820",
-  appId: "1:469500415820:web:f3882b3f9b4d8ffb20c9e9"
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY,
+  authDomain: process.env.NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN,
+  projectId: process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID,
+  storageBucket: process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: process.env.NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID,
+  appId: process.env.NEXT_PUBLIC_FIREBASE_APP_ID
+};
+
+/**
+ * Validates if the minimal required Firebase configuration is present.
+ */
+export const isFirebaseConfigValid = () => {
+  return !!(
+    firebaseConfig.apiKey && 
+    firebaseConfig.apiKey !== 'undefined' &&
+    firebaseConfig.projectId &&
+    firebaseConfig.projectId !== 'undefined'
+  );
 };
