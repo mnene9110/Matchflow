@@ -71,12 +71,13 @@ function ChatDetailContent() {
   const otherUserId = params?.id as string
   const initialMsg = searchParams?.get('msg')
   
-  const { user: currentUser } = useUser()
+  const { user: currentUser, isUserLoading } = useUser()
   const { firestore } = useFirebase()
   const router = useRouter()
   const { toast } = useToast()
   
   const scrollRef = useRef<HTMLDivElement>(null)
+  const isFirstLoadRef = useRef(true)
   
   const [inputText, setInputText] = useState("")
   const [isSending, setIsSending] = useState(false)
@@ -98,6 +99,13 @@ function ChatDetailContent() {
 
   const [resolvedOtherUserId, setResolvedOtherUserId] = useState<string | null>(null)
   const [isResolvingId, setIsResolvingId] = useState(false)
+
+  // Redirect if logged out
+  useEffect(() => {
+    if (!isUserLoading && !currentUser) {
+      router.replace('/welcome')
+    }
+  }, [currentUser, isUserLoading, router])
 
   useEffect(() => {
     if (!firestore) return
@@ -197,6 +205,7 @@ function ChatDetailContent() {
 
     const myDeletedAt = chatMeta[`deletedAt_${currentUser?.uid}`]
     
+    // Optimization: Use msgLimit to avoid reading entire history on every load
     let msgQuery = query(
       collection(firestore, "chats", chatId, "messages"),
       orderBy("sentAt", "desc"),
@@ -210,8 +219,14 @@ function ChatDetailContent() {
     const unsubscribe = onSnapshot(msgQuery, (snapshot) => {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
       list.sort((a: any, b: any) => (a.sentAt?.seconds || 0) - (b.sentAt?.seconds || 0))
+      
       setMessages(list)
       setHasMore(snapshot.docs.length >= msgLimit)
+
+      // Auto-scroll on first load or new message
+      if (isFirstLoadRef.current) {
+        isFirstLoadRef.current = false
+      }
     }, (error) => {
       if (error.code === 'permission-denied' && currentUser) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -242,8 +257,8 @@ function ChatDetailContent() {
   }, [firestore, currentUser, chatId, isChatReady, messages.length, isBlockedByOther, haveIBlockedOther, !!chatMeta])
 
   useEffect(() => { 
-    if (scrollRef.current) {
-      setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    if (scrollRef.current && !isFirstLoadRef.current) {
+      scrollRef.current.scrollIntoView({ behavior: 'smooth' });
     } 
   }, [messages])
 
@@ -318,7 +333,6 @@ function ChatDetailContent() {
     setIsSendingGift(true);
     const finalPrice = gift.price;
 
-    // Updated: Male users receive 15%, others receive 60%
     const cut = otherUser.gender?.toLowerCase() === 'male' ? 0.15 : 0.6;
     const diamondGain = Math.floor(gift.price * cut);
 
@@ -328,16 +342,12 @@ function ChatDetailContent() {
         const myBalance = myProfileSnap.data()?.coinBalance || 0;
         if (myBalance < finalPrice) throw new Error("INSUFFICIENT_COINS");
 
-        // 1. Deduct sender coins
         transaction.update(meRef!, { coinBalance: increment(-finalPrice) });
-        // 2. Increment recipient diamonds
         transaction.update(otherUserRef!, { diamondBalance: increment(diamondGain) });
 
-        // 3. Log sender transaction
         const senderLogRef = doc(collection(firestore, "userProfiles", currentUser.uid, "transactions"));
         transaction.set(senderLogRef, { id: senderLogRef.id, type: "gift_sent", amount: -finalPrice, transactionDate: new Date().toISOString(), description: `Sent ${gift.name}` });
 
-        // 4. Log recipient transaction
         const receiverLogRef = doc(collection(firestore, "userProfiles", resolvedOtherUserId, "transactions"));
         transaction.set(receiverLogRef, { 
           id: receiverLogRef.id, 
@@ -349,12 +359,10 @@ function ChatDetailContent() {
           description: `Received ${gift.name} from ${currentUserProfile.username}` 
         });
 
-        // 5. Create gift message
         const giftMessage = `🎁 Sent a ${gift.name}`;
         const msgRef = doc(collection(firestore, "chats", chatId, "messages"));
         transaction.set(msgRef, { messageText: giftMessage, senderId: currentUser.uid, sentAt: serverTimestamp(), isGift: true, giftId: gift.id, status: 'sent' });
 
-        // 6. Update chat metadata
         const chatMetaRef = doc(firestore, "chats", chatId);
         transaction.set(chatMetaRef, {
           lastMessage: giftMessage,
@@ -463,7 +471,13 @@ function ChatDetailContent() {
       <ScrollArea className="flex-1 px-4 py-4 bg-white">
         <div className="flex flex-col gap-4">
           {hasMore && !isRestricted && (
-            <button onClick={() => setMsgLimit(prev => prev + 30)} className="py-4 flex flex-col items-center gap-1 group active:opacity-50 transition-all">
+            <button 
+              onClick={() => {
+                setMsgLimit(prev => prev + 30);
+                // Pre-mark that we are loading more to keep scroll position if possible
+              }} 
+              className="py-4 flex flex-col items-center gap-1 group active:opacity-50 transition-all"
+            >
               <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center"><ArrowUp className="w-4 h-4 text-gray-400" /></div>
               <span className="text-[9px] font-black text-gray-300 uppercase tracking-widest">Load Earlier</span>
             </button>
@@ -582,7 +596,7 @@ function ChatDetailContent() {
           <div className="relative flex-1 group">
             <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
             <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
-              {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
+              {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="text-xs font-bold text-white"><Send className="w-5 h-5" /></span>}
             </Button>
           </div>
         </footer>

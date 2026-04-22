@@ -37,9 +37,14 @@ export default function SettingsPage() {
 
   const handleSignOut = async () => {
     try {
+      // 1. Clear cached data to prevent stale UI on back button
       clearDiscoverCache();
+      
+      // 2. Perform Firebase signOut
       await signOut(auth)
-      router.push("/welcome")
+      
+      // 3. Force replace history to ensure back button doesn't work
+      router.replace("/welcome")
     } catch (error) {
       toast({ variant: "destructive", title: "Sign out failed", description: "Please try again." })
     }

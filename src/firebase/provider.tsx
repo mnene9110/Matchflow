@@ -62,11 +62,12 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 }) => {
   const [userAuthState, setUserAuthState] = useState<UserAuthState>({
     user: null,
-    isUserLoading: !!auth, // Only load if auth is available
+    isUserLoading: !!auth, 
     userError: null,
   });
 
-  const lastStatusUpdateRef = useRef<number>(0);
+  // Ref to track last update timestamp to prevent write spam
+  const lastPresenceUpdateRef = useRef<number>(0);
 
   useEffect(() => {
     if (!auth) {
@@ -86,7 +87,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     return () => unsubscribe();
   }, [auth]);
 
-  // Firestore Presence tracking
+  // Firestore Presence tracking - Throttled for cost efficiency
   useEffect(() => {
     if (!userAuthState.user || !firestore) return;
 
@@ -94,13 +95,21 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     
     const updatePresence = (isOnline: boolean) => {
       const now = Date.now();
-      // Throttling updates to every 2 seconds
-      if (now - lastStatusUpdateRef.current < 2000 && isOnline) return;
+      // Optimization: Only update Firestore if it's been more than 5 minutes or it's a status flip
+      // We force update on offline and on first load
+      const timeSinceLastUpdate = now - lastPresenceUpdateRef.current;
+      const isStatusFlip = (lastPresenceUpdateRef.current === 0) || !isOnline;
+
+      if (!isStatusFlip && timeSinceLastUpdate < 300000) {
+        // Skip update if less than 5 mins passed and we're just heartbeat-ing online
+        return;
+      }
       
-      lastStatusUpdateRef.current = now;
+      lastPresenceUpdateRef.current = now;
       updateDoc(userRef, { 
         isOnline, 
-        lastActiveAt: serverTimestamp() 
+        lastActiveAt: serverTimestamp(),
+        updatedAt: new Date().toISOString()
       }).catch(() => {});
     };
 
@@ -111,11 +120,14 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
       if (document.visibilityState === 'visible') {
         updatePresence(true);
       } else {
-        updatePresence(false);
+        // When going background, we don't immediately set offline to avoid flickering
+        // but we might update lastActiveAt
+        updatePresence(true); 
       }
     };
 
     const handleBeforeUnload = () => {
+      // Mark offline immediately on tab close
       updateDoc(userRef, { isOnline: false }).catch(() => {});
     };
 
@@ -144,7 +156,6 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     };
   }, [firebaseApp, firestore, auth, database, userAuthState, areServicesAvailable]);
 
-  // If services are missing, show a helpful setup screen instead of crashing children
   if (!areServicesAvailable) {
     return (
       <div className="min-h-svh bg-zinc-950 flex items-center justify-center p-6 text-white font-body">
@@ -204,9 +215,6 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
 export const useFirebase = (): FirebaseServicesAndUser => {
   const context = useContext(FirebaseContext);
   if (context === undefined) throw new Error('useFirebase must be used within a FirebaseProvider.');
-  
-  // This check is now secondary because the Provider handles the empty state UI,
-  // but it keeps TypeScript happy for components that use the hook.
   if (!context.areServicesAvailable) {
     throw new Error('Firebase core services not available.');
   }
