@@ -21,6 +21,14 @@ import {
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { usePresence } from "@/hooks/use-presence"
+
+// Sub-component to handle per-user presence dot
+function PresenceDot({ userId }: { userId: string }) {
+  const { isOnline } = usePresence(userId);
+  if (!isOnline) return null;
+  return <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-50 animate-pulse" />;
+}
 
 // Module-level persistent cache to avoid reloading on every entry
 let cachedUsers: any[] = []
@@ -77,7 +85,6 @@ export default function DiscoverPage() {
   const fetchUsers = async (isRefresh = false, isTabChange = false) => {
     if (!firestore || !currentUser) return;
     
-    // If profile is missing after loading, we can't show recommendations
     if (!isProfileLoading && !currentUserProfile) {
       setIsInitialLoading(false);
       return;
@@ -214,12 +221,10 @@ export default function DiscoverPage() {
   }, [hasMore, isLoadingMore, isInitialLoading, users.length]);
 
   useEffect(() => {
-    // Only run fetch if profile loading has finished
     if (!isProfileLoading) {
       if (currentUserProfile) {
         fetchUsers();
       } else {
-        // If profile is missing, Discover can't function
         setIsInitialLoading(false);
         router.replace("/onboarding/fast");
       }
@@ -260,7 +265,6 @@ export default function DiscoverPage() {
 
   return (
     <div className="flex flex-col min-h-svh bg-white pb-32">
-      {/* Header with Mystery/Task hooks */}
       <div className="bg-[#3BC1A8] px-6 pt-[calc(env(safe-area-inset-top)+1rem)] pb-3">
         <div className="grid grid-cols-2 gap-4">
           <button onClick={() => router.push('/mystery-note')} className="flex flex-col items-center justify-center gap-2 aspect-square bg-white/20 rounded-[2.5rem] active:scale-95 transition-all">
@@ -274,7 +278,6 @@ export default function DiscoverPage() {
         </div>
       </div>
 
-      {/* Manual Refresh and Tabs sticky bar */}
       <div className="sticky top-0 z-30 bg-[#3BC1A8] px-6 py-1.5 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
@@ -338,9 +341,7 @@ export default function DiscoverPage() {
                   <div className="flex items-center gap-1.5">
                     <div className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center border border-white/20"><span className="text-[9px] font-black text-white">{age}</span></div>
                     <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20"><span className="text-[8px] font-black text-white uppercase">{user.location || "Kenya"}</span></div>
-                    {user.isOnline && (
-                      <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-50 animate-pulse" />
-                    )}
+                    <PresenceDot userId={user.id} />
                   </div>
                 </div>
               </div>
@@ -362,7 +363,6 @@ export default function DiscoverPage() {
         </div>
       )}
 
-      {/* Loading & Pagination Sentinel */}
       <div ref={observerTarget} className="py-12 flex flex-col items-center justify-center gap-4">
         {isLoadingMore ? (
           <div className="flex flex-col items-center gap-3">

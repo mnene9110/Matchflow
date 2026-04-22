@@ -1,11 +1,10 @@
-
 'use client';
 
 import React, { DependencyList, createContext, useContext, ReactNode, useMemo, useState, useEffect, useRef } from 'react';
 import { FirebaseApp } from 'firebase/app';
-import { Firestore, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { Firestore, doc, updateDoc, serverTimestamp as firestoreTimestamp } from 'firebase/firestore';
 import { Auth, User, onAuthStateChanged } from 'firebase/auth';
-import { Database } from 'firebase/database';
+import { Database, ref, set, onValue, onDisconnect, serverTimestamp as rtdbTimestamp } from 'firebase/database';
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { ShieldAlert, Terminal } from "lucide-react"
@@ -45,12 +44,6 @@ export interface FirebaseServicesAndUser {
   userError: Error | null;
 }
 
-export interface UserHookResult {
-  user: User | null;
-  isUserLoading: boolean;
-  userError: Error | null;
-}
-
 export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
 
 export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
@@ -65,9 +58,6 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     isUserLoading: !!auth, 
     userError: null,
   });
-
-  // Ref to track last update timestamp to prevent write spam
-  const lastPresenceUpdateRef = useRef<number>(0);
 
   useEffect(() => {
     if (!auth) {
@@ -87,59 +77,53 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     return () => unsubscribe();
   }, [auth]);
 
-  // Firestore Presence tracking - Throttled for cost efficiency
+  // Presence Tracking using Realtime DB (Rapid updates) + Firestore (Discovery sync)
   useEffect(() => {
-    if (!userAuthState.user || !firestore) return;
+    if (!userAuthState.user || !firestore || !database) return;
 
-    const userRef = doc(firestore, "userProfiles", userAuthState.user.uid);
-    
-    const updatePresence = (isOnline: boolean) => {
-      const now = Date.now();
-      // Optimization: Only update Firestore if it's been more than 5 minutes or it's a status flip
-      // We force update on offline and on first load
-      const timeSinceLastUpdate = now - lastPresenceUpdateRef.current;
-      const isStatusFlip = (lastPresenceUpdateRef.current === 0) || !isOnline;
+    const uid = userAuthState.user.uid;
+    const userStatusDatabaseRef = ref(database, `/status/${uid}`);
+    const userProfileFirestoreRef = doc(firestore, "userProfiles", uid);
+    const connectedRef = ref(database, '.info/connected');
 
-      if (!isStatusFlip && timeSinceLastUpdate < 300000) {
-        // Skip update if less than 5 mins passed and we're just heartbeat-ing online
-        return;
+    // RTDB Presence handshakes
+    const unsubscribeRtdb = onValue(connectedRef, (snap) => {
+      if (snap.val() === true) {
+        // When I disconnect, update RTDB
+        onDisconnect(userStatusDatabaseRef).set({
+          isOnline: false,
+          lastActiveAt: rtdbTimestamp()
+        });
+
+        // Update RTDB to online
+        set(userStatusDatabaseRef, {
+          isOnline: true,
+          lastActiveAt: rtdbTimestamp()
+        });
+
+        // Sync to Firestore once per session to allow filtering in Discover
+        updateDoc(userProfileFirestoreRef, {
+          isOnline: true,
+          lastActiveAt: firestoreTimestamp(),
+          updatedAt: new Date().toISOString()
+        }).catch(() => {});
       }
-      
-      lastPresenceUpdateRef.current = now;
-      updateDoc(userRef, { 
-        isOnline, 
-        lastActiveAt: serverTimestamp(),
-        updatedAt: new Date().toISOString()
-      }).catch(() => {});
-    };
-
-    // Initial Online Set
-    updatePresence(true);
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        updatePresence(true);
-      } else {
-        // When going background, we don't immediately set offline to avoid flickering
-        // but we might update lastActiveAt
-        updatePresence(true); 
-      }
-    };
+    });
 
     const handleBeforeUnload = () => {
-      // Mark offline immediately on tab close
-      updateDoc(userRef, { isOnline: false }).catch(() => {});
+      // Sync Firestore offline on close
+      updateDoc(userProfileFirestoreRef, { isOnline: false }).catch(() => {});
     };
 
-    window.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('beforeunload', handleBeforeUnload);
     
     return () => {
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
+      unsubscribeRtdb();
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      updateDoc(userRef, { isOnline: false }).catch(() => {});
+      updateDoc(userProfileFirestoreRef, { isOnline: false }).catch(() => {});
+      set(userStatusDatabaseRef, { isOnline: false, lastActiveAt: rtdbTimestamp() });
     };
-  }, [userAuthState.user, firestore]);
+  }, [userAuthState.user, firestore, database]);
 
   const areServicesAvailable = !!(firebaseApp && firestore && auth && database);
 
@@ -243,7 +227,7 @@ export function useMemoFirebase<T>(factory: () => T, deps: DependencyList): T & 
   return memoized as any;
 }
 
-export const useUser = (): UserHookResult => {
+export const useUser = (): { user: User | null; isUserLoading: boolean; userError: Error | null } => {
   const { user, isUserLoading, userError } = useFirebase();
   return { user, isUserLoading, userError };
 };

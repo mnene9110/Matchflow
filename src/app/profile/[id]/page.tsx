@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -53,6 +52,7 @@ import {
   type CarouselApi,
 } from "@/components/ui/carousel"
 import { GIFTS } from "@/app/chat/[id]/page"
+import { usePresence } from "@/hooks/use-presence"
 
 export default function ProfileDetailPage() {
   const { id } = useParams()
@@ -66,6 +66,8 @@ export default function ProfileDetailPage() {
 
   const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
   const { data: currentUserProfile } = useDoc(meRef)
+
+  const { isOnline, lastActiveAt } = usePresence(id as string);
   
   const [showReportDialog, setShowReportDialog] = useState(false)
   const [reportDetails, setReportDetails] = useState("")
@@ -106,7 +108,6 @@ export default function ProfileDetailPage() {
     })
   }, [api])
 
-  // Record Visitor Logic
   useEffect(() => {
     if (currentUser && id && id !== currentUser.uid && firestore && userProfile && currentUserProfile) {
       const visitorRef = doc(firestore, "userProfiles", id as string, "visitors", currentUser.uid);
@@ -119,7 +120,6 @@ export default function ProfileDetailPage() {
     }
   }, [currentUser?.uid, id, !!firestore, !!userProfile, !!currentUserProfile]);
 
-  // Handle browser back button to close fullscreen image
   useEffect(() => {
     const handlePopState = () => {
       if (fullscreenImage) {
@@ -149,11 +149,11 @@ export default function ProfileDetailPage() {
   }, [userProfile?.dateOfBirth]);
 
   const presenceText = useMemo(() => {
-    if (userProfile?.isOnline) return "Online";
-    if (!userProfile?.lastActiveAt) return "Offline";
-    const date = userProfile.lastActiveAt.toDate ? userProfile.lastActiveAt.toDate() : new Date(userProfile.lastActiveAt);
+    if (isOnline) return "Online";
+    if (!lastActiveAt) return "Offline";
+    const date = new Date(lastActiveAt);
     return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  }, [userProfile]);
+  }, [isOnline, lastActiveAt]);
 
   const handleBlock = async () => {
     if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin || !firestore) return
@@ -232,7 +232,6 @@ export default function ProfileDetailPage() {
   
   const isVerified = !!userProfile?.isVerified
   const isProtected = userProfile?.isAdmin === true || userProfile?.isSupport === true;
-
   const hasInterests = userProfile?.interests && userProfile.interests.length > 0;
   const hasDetails = userProfile?.education || userProfile?.horoscope || userProfile?.relationshipGoal;
 
@@ -258,7 +257,6 @@ export default function ProfileDetailPage() {
           </CarouselContent>
         </Carousel>
 
-        {/* Carousel Indicators */}
         {userPhotos.length > 1 && (
           <div className="absolute bottom-14 left-0 right-0 flex justify-center gap-1.5 z-40">
             {userPhotos.map((_, idx) => (
@@ -281,8 +279,8 @@ export default function ProfileDetailPage() {
         </div>
         
         <div className="absolute bottom-20 left-6 flex items-center gap-2 px-3 py-1.5 bg-black/40 backdrop-blur-md rounded-full border border-white/10 z-40">
-          <div className={cn("w-2.5 h-2.5 rounded-full", userProfile?.isOnline ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
-          <span className={cn("text-[10px] font-black uppercase tracking-tight", userProfile?.isOnline ? "text-white" : "text-white/60")}>{presenceText}</span>
+          <div className={cn("w-2.5 h-2.5 rounded-full", isOnline ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
+          <span className={cn("text-[10px] font-black uppercase tracking-tight", isOnline ? "text-white" : "text-white/60")}>{presenceText}</span>
         </div>
         
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
@@ -314,7 +312,6 @@ export default function ProfileDetailPage() {
             </div>
           )}
 
-          {/* Gift Wall Section */}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Gift Wall</h3>
@@ -362,7 +359,6 @@ export default function ProfileDetailPage() {
             </div>
           </section>
 
-          {/* User Bio - Only show if exists */}
           {userProfile?.bio && (
             <div className="space-y-4">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Biography</h3>
@@ -372,7 +368,6 @@ export default function ProfileDetailPage() {
             </div>
           )}
 
-          {/* User Details - Only show if any exist */}
           {hasDetails && (
             <div className="space-y-4">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Profile Info</h3>
@@ -410,7 +405,6 @@ export default function ProfileDetailPage() {
             </div>
           )}
 
-          {/* Interests - Only show if exist */}
           {hasInterests && (
             <div className="space-y-4 pt-4">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Interests</h3>

@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { usePresence } from "@/hooks/use-presence"
 
 function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: (id: string) => void }) {
   const { firestore } = useFirebase()
@@ -24,6 +25,7 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
   
   const otherUserId = session.participants.find((p: string) => p !== currentUser?.uid)
   const [otherUserData, setOtherUserData] = useState<any>(null)
+  const { isOnline } = usePresence(otherUserId)
   
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const longPressedRef = useRef(false)
@@ -39,7 +41,6 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
         setOtherUserData({ username: "User logged out", profilePhotoUrls: [] })
       }
     }, (error) => {
-      // Silence permission-denied during auth transitions
       if (error.code !== 'permission-denied') {
         console.error("Profile snapshot error:", error)
       }
@@ -62,8 +63,6 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
     if (!touchStartPos.current) return;
     const deltaX = Math.abs(e.touches[0].clientX - touchStartPos.current.x);
     const deltaY = Math.abs(e.touches[0].clientY - touchStartPos.current.y);
-    
-    // If user scrolls more than 10px, cancel long press
     if (deltaX > 10 || deltaY > 10) {
       if (timerRef.current) clearTimeout(timerRef.current);
     }
@@ -82,7 +81,6 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
 
   const name = otherUserData?.isSupport ? "Customer Support" : (otherUserData?.username || "User")
   const image = (otherUserData?.profilePhotoUrls && otherUserData.profilePhotoUrls[0]) || ""
-  const isOnline = !!otherUserData?.isOnline
   const unreadCount = session[`unreadCount_${currentUser?.uid}`] || 0
 
   return (
@@ -155,10 +153,8 @@ export default function ChatListPage() {
   const [hidingTarget, setHidingTarget] = useState<string | null>(null)
   const [isHiding, setIsHiding] = useState(false)
   
-  // Optimistic UI for hiding chats to remove lag
   const [optimisticHiddenIds, setOptimisticHiddenIds] = useState<Set<string>>(new Set())
 
-  // Track blocked IDs to filter chat list
   useEffect(() => {
     if (!firestore || !currentUser) return
     const blockedRef = collection(firestore, "userProfiles", currentUser.uid, "blockedUsers")
@@ -189,15 +185,11 @@ export default function ChatListPage() {
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
       const filtered = list.filter((s: any) => {
         const otherId = s.participants.find((p: string) => p !== currentUser.uid)
-        // Filter out chats with users I have blocked
         const isBlockedByMe = otherId && blockedIds.has(otherId)
         const isHidden = s[`hidden_${currentUser.uid}`] === true
         const hasSent = s[`userHasSent_${currentUser.uid}`] === true
         const unread = s[`unreadCount_${currentUser.uid}`] > 0
-        
-        // Respect both Firestore state and local optimistic state
         const isOptimisticallyHidden = optimisticHiddenIds.has(s.id)
-
         return !isHidden && !isOptimisticallyHidden && (hasSent || unread) && !isBlockedByMe
       })
       setSessions(filtered)
@@ -205,7 +197,6 @@ export default function ChatListPage() {
     }, (error) => {
       clearTimeout(timer)
       setHasFetched(true)
-      // Only report if it's a legitimate error while still logged in
       if (error.code === 'permission-denied' && currentUser) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: 'chats',
@@ -223,10 +214,7 @@ export default function ChatListPage() {
   const handleHideChat = async () => {
     if (!currentUser || !hidingTarget || !firestore) return
     setIsHiding(true)
-    
-    // Add to optimistic hidden list immediately
     setOptimisticHiddenIds(prev => new Set(prev).add(hidingTarget))
-
     try {
       const chatRef = doc(firestore, "chats", hidingTarget)
       await updateDoc(chatRef, { 
@@ -236,13 +224,11 @@ export default function ChatListPage() {
       })
       setHidingTarget(null)
     } catch (e: any) {
-      // Revert optimistic hide on error
       setOptimisticHiddenIds(prev => {
         const next = new Set(prev);
         next.delete(hidingTarget);
         return next;
       });
-
       if (e.code === 'permission-denied') {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
           path: `chats/${hidingTarget}`,
