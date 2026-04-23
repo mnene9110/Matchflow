@@ -40,6 +40,7 @@ import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
+import { useTyping } from "@/hooks/use-typing"
 
 export const GIFTS = [
   { id: 'butterfly', name: 'Butterfly', image: '/butterfly.png', price: 300 },
@@ -131,6 +132,9 @@ function ChatDetailContent() {
     return [currentUser.uid, resolvedOtherUserId].sort().join("_")
   }, [currentUser?.uid, resolvedOtherUserId])
 
+  // Typing logic
+  const { isOtherUserTyping, setTyping } = useTyping(chatId, currentUser?.uid || null, resolvedOtherUserId)
+
   useEffect(() => {
     if (!firestore || !currentUser || !chatId || !resolvedOtherUserId) return
 
@@ -205,7 +209,6 @@ function ChatDetailContent() {
 
     const myDeletedAt = chatMeta[`deletedAt_${currentUser?.uid}`]
     
-    // Optimization: Use msgLimit to avoid reading entire history on every load
     let msgQuery = query(
       collection(firestore, "chats", chatId, "messages"),
       orderBy("sentAt", "desc"),
@@ -223,7 +226,6 @@ function ChatDetailContent() {
       setMessages(list)
       setHasMore(snapshot.docs.length >= msgLimit)
 
-      // Auto-scroll on first load or new message
       if (isFirstLoadRef.current) {
         isFirstLoadRef.current = false
       }
@@ -277,6 +279,9 @@ function ChatDetailContent() {
     const messageCost = isFree ? 0 : 15;
     
     setIsSending(true)
+    // Clear typing status immediately on send
+    setTyping(false);
+    
     try {
       await runTransaction(firestore, async (transaction) => {
         if (messageCost > 0) {
@@ -420,6 +425,15 @@ function ChatDetailContent() {
     }
   }
 
+  const handleInputChange = (val: string) => {
+    setInputText(val);
+    if (val.trim()) {
+      setTyping(true);
+    } else {
+      setTyping(false);
+    }
+  }
+
   if (initError) {
     return (
       <div className="flex h-svh flex-col items-center justify-center bg-white p-8 text-center space-y-4">
@@ -456,7 +470,13 @@ function ChatDetailContent() {
                 <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />
               )}
             </div>
-            <span className="text-[8px] font-black uppercase tracking-widest text-white/40">{otherUser?.isOnline ? "Online" : "Offline"}</span>
+            <div className="flex items-center gap-1.5 h-3">
+              {isOtherUserTyping ? (
+                <span className="text-[8px] font-black uppercase tracking-widest text-white animate-pulse">Typing...</span>
+              ) : (
+                <span className="text-[8px] font-black uppercase tracking-widest text-white/40">{otherUser?.isOnline ? "Online" : "Offline"}</span>
+              )}
+            </div>
           </div>
         </div>
 
@@ -472,10 +492,7 @@ function ChatDetailContent() {
         <div className="flex flex-col gap-4">
           {hasMore && !isRestricted && (
             <button 
-              onClick={() => {
-                setMsgLimit(prev => prev + 30);
-                // Pre-mark that we are loading more to keep scroll position if possible
-              }} 
+              onClick={() => setMsgLimit(prev => prev + 30)} 
               className="py-4 flex flex-col items-center gap-1 group active:opacity-50 transition-all"
             >
               <div className="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center"><ArrowUp className="w-4 h-4 text-gray-400" /></div>
@@ -594,7 +611,7 @@ function ChatDetailContent() {
             </Sheet>
           )}
           <div className="relative flex-1 group">
-            <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
+            <Input value={inputText} onChange={(e) => handleInputChange(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
             <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
               {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <span className="text-xs font-bold text-white"><Send className="w-5 h-5" /></span>}
             </Button>

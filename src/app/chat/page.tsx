@@ -1,6 +1,7 @@
+
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useMemo } from "react"
 import { MessageSquare, ChevronRight, CheckCircle, EyeOff, Loader2, Trash2, Shield } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
@@ -17,6 +18,7 @@ import { Button } from "@/components/ui/button"
 import { errorEmitter } from "@/firebase/error-emitter"
 import { FirestorePermissionError } from "@/firebase/errors"
 import { usePresence } from "@/hooks/use-presence"
+import { useTyping } from "@/hooks/use-typing"
 
 function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: (id: string) => void }) {
   const { firestore } = useFirebase()
@@ -26,6 +28,9 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
   const otherUserId = session.participants.find((p: string) => p !== currentUser?.uid)
   const [otherUserData, setOtherUserData] = useState<any>(null)
   const { isOnline } = usePresence(otherUserId)
+
+  // Real-time typing listener for this specific chat
+  const { isOtherUserTyping } = useTyping(session.id, currentUser?.uid || null, otherUserId || null)
   
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const longPressedRef = useRef(false)
@@ -129,9 +134,15 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
             )}
           </div>
           <div className="flex items-center gap-2">
-            <p className={cn("text-[13px] truncate font-bold flex-1", unreadCount > 0 ? "text-gray-900" : "text-gray-400")}>
-              {session.lastMessage || "Start a conversation"}
-            </p>
+            {isOtherUserTyping ? (
+              <p className="text-[13px] truncate font-black text-primary animate-pulse flex-1">
+                Typing...
+              </p>
+            ) : (
+              <p className={cn("text-[13px] truncate font-bold flex-1", unreadCount > 0 ? "text-gray-900" : "text-gray-400")}>
+                {session.lastMessage || "Start a conversation"}
+              </p>
+            )}
             {unreadCount > 0 && (
               <span className="h-5 min-w-5 px-1.5 rounded-full bg-[#3BC1A8] flex items-center justify-center text-[10px] font-black text-white shadow-sm">
                 {unreadCount}
