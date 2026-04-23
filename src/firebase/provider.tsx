@@ -77,7 +77,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     return () => unsubscribe();
   }, [auth]);
 
-  // Presence Tracking using Realtime DB (Rapid updates) + Firestore (Discovery sync)
+  // Presence Tracking Logic
   useEffect(() => {
     if (!userAuthState.user || !firestore || !database) return;
 
@@ -86,22 +86,27 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     const userProfileFirestoreRef = doc(firestore, "userProfiles", uid);
     const connectedRef = ref(database, '.info/connected');
 
-    // RTDB Presence handshakes
     const unsubscribeRtdb = onValue(connectedRef, (snap) => {
       if (snap.val() === true) {
-        // When I disconnect, update RTDB
-        onDisconnect(userStatusDatabaseRef).set({
+        // 1. Set up onDisconnect FIRST
+        const statusOnDisconnect = onDisconnect(userStatusDatabaseRef);
+        
+        statusOnDisconnect.set({
           isOnline: false,
           lastActiveAt: rtdbTimestamp()
+        }).then(() => {
+          // 2. Once disconnect is registered, set Online status
+          set(userStatusDatabaseRef, {
+            isOnline: true,
+            lastActiveAt: rtdbTimestamp()
+          }).catch(err => {
+            console.error("[RTDB Presence] Error setting online status:", err);
+          });
+        }).catch(err => {
+          console.error("[RTDB Presence] Error registering onDisconnect:", err);
         });
 
-        // Update RTDB to online
-        set(userStatusDatabaseRef, {
-          isOnline: true,
-          lastActiveAt: rtdbTimestamp()
-        });
-
-        // Sync to Firestore once per session to allow filtering in Discover
+        // 3. Sync to Firestore (Once per session / occasionally)
         updateDoc(userProfileFirestoreRef, {
           isOnline: true,
           lastActiveAt: firestoreTimestamp(),
@@ -111,7 +116,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     });
 
     const handleBeforeUnload = () => {
-      // Sync Firestore offline on close
+      // Best effort for Firestore
       updateDoc(userProfileFirestoreRef, { isOnline: false }).catch(() => {});
     };
 
@@ -120,8 +125,9 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     return () => {
       unsubscribeRtdb();
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Clean up RTDB manually if possible
+      set(userStatusDatabaseRef, { isOnline: false, lastActiveAt: rtdbTimestamp() }).catch(() => {});
       updateDoc(userProfileFirestoreRef, { isOnline: false }).catch(() => {});
-      set(userStatusDatabaseRef, { isOnline: false, lastActiveAt: rtdbTimestamp() });
     };
   }, [userAuthState.user, firestore, database]);
 
