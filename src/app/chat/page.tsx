@@ -158,14 +158,15 @@ function ChatSessionItem({ session, onLongPress }: { session: any, onLongPress: 
 export default function ChatListPage() {
   const { firestore } = useFirebase()
   const { user: currentUser } = useUser()
-  const [sessions, setSessions] = useState<any[]>([])
+  
+  const [rawSessions, setRawSessions] = useState<any[]>([])
   const [blockedIds, setBlockedIds] = useState<Set<string>>(new Set())
   const [hasFetched, setHasFetched] = useState(false)
   const [hidingTarget, setHidingTarget] = useState<string | null>(null)
   const [isHiding, setIsHiding] = useState(false)
-  
   const [optimisticHiddenIds, setOptimisticHiddenIds] = useState<Set<string>>(new Set())
 
+  // 1. Stable listener for blocked users
   useEffect(() => {
     if (!firestore || !currentUser) return
     const blockedRef = collection(firestore, "userProfiles", currentUser.uid, "blockedUsers")
@@ -176,15 +177,12 @@ export default function ChatListPage() {
         console.error("Blocked users snapshot error:", error)
       }
     })
-  }, [firestore, currentUser])
+  }, [firestore, currentUser?.uid])
 
+  // 2. Stable listener for chat sessions
   useEffect(() => {
     if (!firestore || !currentUser) return
     
-    const timer = setTimeout(() => {
-      setHasFetched(true)
-    }, 8000)
-
     const chatsQuery = query(
       collection(firestore, "chats"),
       where("participants", "array-contains", currentUser.uid),
@@ -192,21 +190,10 @@ export default function ChatListPage() {
     )
     
     const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
-      clearTimeout(timer)
       const list = snapshot.docs.map(d => ({ id: d.id, ...d.data() }))
-      const filtered = list.filter((s: any) => {
-        const otherId = s.participants.find((p: string) => p !== currentUser.uid)
-        const isBlockedByMe = otherId && blockedIds.has(otherId)
-        const isHidden = s[`hidden_${currentUser.uid}`] === true
-        const hasSent = s[`userHasSent_${currentUser.uid}`] === true
-        const unread = s[`unreadCount_${currentUser.uid}`] > 0
-        const isOptimisticallyHidden = optimisticHiddenIds.has(s.id)
-        return !isHidden && !isOptimisticallyHidden && (hasSent || unread) && !isBlockedByMe
-      })
-      setSessions(filtered)
+      setRawSessions(list)
       setHasFetched(true)
     }, (error) => {
-      clearTimeout(timer)
       setHasFetched(true)
       if (error.code === 'permission-denied' && currentUser) {
         errorEmitter.emit('permission-error', new FirestorePermissionError({
@@ -216,11 +203,28 @@ export default function ChatListPage() {
       }
     })
 
-    return () => {
-      clearTimeout(timer)
-      unsubscribe()
-    }
-  }, [firestore, currentUser, blockedIds, optimisticHiddenIds])
+    return () => unsubscribe()
+  }, [firestore, currentUser?.uid])
+
+  // 3. Reactive filtering for the UI
+  const sessions = useMemo(() => {
+    if (!currentUser) return []
+    
+    return rawSessions.filter((s: any) => {
+      const otherId = s.participants.find((p: string) => p !== currentUser.uid)
+      
+      const isBlockedByMe = otherId && blockedIds.has(otherId)
+      const isHidden = s[`hidden_${currentUser.uid}`] === true
+      const isOptimisticallyHidden = optimisticHiddenIds.has(s.id)
+      
+      // Ensure we only show chats that actually have content (messages)
+      const hasContent = !!s.lastMessage 
+      // Always show unread messages, even if we previously thought it had no content
+      const hasUnread = (s[`unreadCount_${currentUser.uid}`] || 0) > 0
+
+      return !isHidden && !isOptimisticallyHidden && (hasContent || hasUnread) && !isBlockedByMe
+    })
+  }, [rawSessions, blockedIds, optimisticHiddenIds, currentUser])
 
   const handleHideChat = async () => {
     if (!currentUser || !hidingTarget || !firestore) return
