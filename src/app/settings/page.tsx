@@ -1,4 +1,3 @@
-
 "use client"
 
 import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, MessageSquare, Ban, Info, BellOff } from "lucide-react"
@@ -37,14 +36,14 @@ export default function SettingsPage() {
 
   const handleSignOut = async () => {
     try {
-      // 1. Clear cached data to prevent stale UI on back button
+      // 1. Clear cached data to prevent stale UI
       clearDiscoverCache();
       
       // 2. Perform Firebase signOut
       await signOut(auth)
       
-      // 3. Force replace history to ensure back button doesn't work
-      router.replace("/welcome")
+      // 3. Force replace document location to strictly reset history and close any open connections
+      window.location.replace("/welcome");
     } catch (error) {
       toast({ variant: "destructive", title: "Sign out failed", description: "Please try again." })
     }

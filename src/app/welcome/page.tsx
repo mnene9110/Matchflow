@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from "react"
@@ -20,6 +19,21 @@ export default function WelcomePage() {
   const [isNavigatingEmail, setIsNavigatingEmail] = useState(false)
 
   useEffect(() => {
+    // 1. History Trap: Prevent back button from leaving this page
+    window.history.pushState(null, '', window.location.href);
+    const handlePopState = () => {
+      window.history.pushState(null, '', window.location.href);
+      // Attempt to close the app (works in some mobile browsers/standalone modes)
+      try {
+        window.close();
+      } catch (e) {
+        // Fallback: stay on page
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState);
+
+    // 2. Auth handling
     if (user && !isUserLoading && firestore && !isLoggingIn) {
       getDoc(doc(firestore, "userProfiles", user.uid)).then(snap => {
         if (snap.exists()) {
@@ -29,6 +43,8 @@ export default function WelcomePage() {
         }
       })
     }
+
+    return () => window.removeEventListener('popstate', handlePopState);
   }, [user, isUserLoading, firestore, router, isLoggingIn])
 
   const handleFastLogin = async () => {

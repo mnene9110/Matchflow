@@ -1,12 +1,33 @@
 "use client"
 
 import { useEffect } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
-import { FirebaseClientProvider } from "@/firebase"
+import { FirebaseClientProvider, useUser } from "@/firebase"
 import { OfflineDetector } from "@/components/OfflineDetector"
 import { Navbar } from "@/components/Navbar"
 import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
+
+function NavigationGuard({ children }: { children: React.ReactNode }) {
+  const { user, isUserLoading } = useUser();
+  const pathname = usePathname();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (isUserLoading) return;
+
+    const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
+    const isPublicRoute = publicRoutes.includes(pathname);
+
+    // If not logged in and trying to access private route, force replace to welcome
+    if (!user && !isPublicRoute) {
+      window.location.replace('/welcome');
+    }
+  }, [user, isUserLoading, pathname]);
+
+  return <>{children}</>;
+}
 
 export default function RootLayout({
   children,
@@ -14,6 +35,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   useEffect(() => {
+    // Disable browser back button functionality by replacing history state
     window.onbeforeunload = null;
     const preventConfirm = (e: BeforeUnloadEvent) => {
       delete e['returnValue'];
@@ -62,13 +84,15 @@ export default function RootLayout({
       </head>
       <body className="font-body antialiased selection:bg-none">
         <FirebaseClientProvider>
-          <OfflineDetector>
-            <div className="app-container">
-              {children}
-              <Navbar />
-              <GlobalCallOverlay />
-            </div>
-          </OfflineDetector>
+          <NavigationGuard>
+            <OfflineDetector>
+              <div className="app-container">
+                {children}
+                <Navbar />
+                <GlobalCallOverlay />
+              </div>
+            </OfflineDetector>
+          </NavigationGuard>
         </FirebaseClientProvider>
         <Toaster />
       </body>
