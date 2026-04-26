@@ -3,10 +3,10 @@
 import { useState, useEffect } from "react"
 import { Bell, X, ShieldCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useUser } from "@/firebase"
+import { useSupabaseUser } from "@/hooks/use-supabase"
 
 export function NotificationRequest() {
-  const { user } = useUser()
+  const { user } = useSupabaseUser()
   const [showPrompt, setShowPrompt] = useState(false)
   const [isSupported, setIsSupported] = useState(false)
 
