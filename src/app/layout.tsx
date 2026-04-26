@@ -2,7 +2,7 @@
 "use client"
 
 import { useEffect, useState } from 'react';
-import { usePathname } from 'next/navigation';
+import { usePathname, useRouter } from 'next/navigation';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { OfflineDetector } from "@/components/OfflineDetector"
@@ -17,25 +17,36 @@ import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 function NavigationGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
   const { auth } = useFirebase();
-  const [isReady, setIsReady] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [user, setUser] = useState<any>(null);
 
+  // 1. Centralized Auth Listener - Runs only once on mount
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
-      const isPublicRoute = publicRoutes.includes(pathname);
-
-      if (!user && !isPublicRoute) {
-        window.location.replace('/welcome');
-      } else {
-        setIsReady(true);
-      }
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      setIsInitialized(true);
     });
-
     return () => unsubscribe();
-  }, [pathname, auth]);
+  }, [auth]);
 
-  if (!isReady) return <div className="h-svh w-full bg-[#3BC1A8]" />;
+  // 2. Route Guard - Responds to path or auth changes without unmounting the whole tree
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
+    const isPublicRoute = publicRoutes.includes(pathname);
+
+    if (!user && !isPublicRoute) {
+      router.replace('/welcome');
+    }
+  }, [user, isInitialized, pathname, router]);
+
+  // 3. Prevent flickering: Only show the global loader on the very first boot
+  if (!isInitialized) {
+    return <div className="h-svh w-full bg-[#3BC1A8]" />;
+  }
 
   return <>{children}</>;
 }
