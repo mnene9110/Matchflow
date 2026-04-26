@@ -1,3 +1,4 @@
+
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -36,7 +37,8 @@ export function useSupabaseUser() {
 
     fetchSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChanged(async (_event, session) => {
+    // Correct Supabase v2 listener pattern: onAuthStateChange
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setUser(session?.user ?? null);
       if (session?.user) {
         const { data } = await supabase
@@ -52,7 +54,9 @@ export function useSupabaseUser() {
     });
 
     return () => {
-      subscription.unsubscribe();
+      if (subscription) {
+        subscription.unsubscribe();
+      }
     };
   }, []);
 

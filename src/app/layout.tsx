@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from 'react';
@@ -16,14 +17,10 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Comprehensive check for client-side and supabase availability
     if (typeof window === 'undefined') return;
 
-    // Use a robust way to check for auth methods presence before invocation
     const auth = supabase?.auth;
-    if (!auth || typeof auth.onAuthStateChanged !== 'function') {
-      console.warn("Supabase auth module is not yet ready.");
-      // We wait for the next render or effect cycle
+    if (!auth || typeof auth.onAuthStateChange !== 'function') {
       const retryTimer = setTimeout(() => setIsReady(prev => prev), 100);
       return () => clearTimeout(retryTimer);
     }
@@ -48,8 +45,8 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 
     checkAuth();
 
-    // Standard Supabase v2 listener pattern
-    const { data: { subscription } } = auth.onAuthStateChanged((event) => {
+    // Correct Supabase v2 listener pattern: onAuthStateChange
+    const { data: { subscription } } = auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         window.location.replace('/welcome');
       }
@@ -62,7 +59,6 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     };
   }, [pathname]);
 
-  // Use a consistent loading state to prevent flickering
   if (!isReady) return <div className="h-svh w-full bg-[#3BC1A8]" />;
 
   return <>{children}</>;
