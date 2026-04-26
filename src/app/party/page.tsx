@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -5,8 +6,8 @@ import { useRouter } from "next/navigation"
 import { Music, Plus, Users, Loader2, X, ArrowRight, Lock, Key } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
-import { collection, query, where, onSnapshot, orderBy, doc } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "@/components/ui/sheet"
@@ -15,8 +16,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 
 export default function PartyListPage() {
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const [parties, setParties] = useState<any[]>([])
@@ -27,35 +27,33 @@ export default function PartyListPage() {
   const [passwordTarget, setPasswordTarget] = useState<any | null>(null)
   const [enteredPassword, setEnteredPassword] = useState("")
 
-  const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile } = useDoc(userProfileRef)
-
   useEffect(() => {
-    if (!firestore || !currentUser) return
+    if (!currentUser) return
 
-    const q = query(
-      collection(firestore, "partyRooms"),
-      where("status", "==", "active"),
-      orderBy("createdAt", "desc")
-    )
+    const fetchParties = async () => {
+      const { data } = await supabase
+        .from('party_rooms')
+        .select('*')
+        .eq('status', 'active')
+        .order('created_at', { ascending: false });
+      setParties(data || []);
+      setIsPartiesLoading(false);
+    };
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const list = snapshot.docs.map(d => ({
-        id: d.id,
-        ...d.data()
-      }))
-      setParties(list)
-      setIsPartiesLoading(false)
-    }, (error) => {
-      console.error("Party list snapshot error:", error)
-      setIsPartiesLoading(false)
-    })
+    fetchParties();
 
-    return () => unsubscribe()
-  }, [firestore, currentUser])
+    const channel = supabase
+      .channel('party_list')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'party_rooms' }, () => {
+        fetchParties();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [currentUser])
 
   const handleHostClick = () => {
-    if (!profile?.isPartyAdmin && !profile?.isAdmin) {
+    if (!profile?.is_party_admin && !profile?.is_admin) {
       router.push('/profile/subscribe-host')
       return
     }
@@ -63,12 +61,12 @@ export default function PartyListPage() {
   }
 
   const handleJoinAttempt = (party: any) => {
-    if (party.hostId === currentUser?.uid || profile?.isAssistant || profile?.isAdmin) {
+    if (party.host_id === currentUser?.id || profile?.is_support || profile?.is_admin) {
       router.push(`/party/${party.id}`)
       return
     }
 
-    if (party.isLocked) {
+    if (party.is_locked) {
       setPasswordTarget(party)
       setSelectedParty(null)
       return
@@ -131,20 +129,20 @@ export default function PartyListPage() {
                   <div className="flex justify-between items-start">
                     <div className="flex items-center gap-3">
                       <Avatar className="w-14 h-14 border-2 border-white shadow-md">
-                        <AvatarImage src={party.coverPhoto || party.hostPhoto} className="object-cover" />
-                        <AvatarFallback className="bg-primary text-white font-black text-xs">{party.hostName?.[0] || 'P'}</AvatarFallback>
+                        <AvatarImage src={party.cover_photo || party.host_photo} className="object-cover" />
+                        <AvatarFallback className="bg-primary text-white font-black text-xs">{party.host_name?.[0] || 'P'}</AvatarFallback>
                       </Avatar>
                       <div>
                         <div className="flex items-center gap-1.5">
                           <h3 className="text-sm font-black text-gray-900 leading-tight group-hover:text-primary transition-colors">{party.title}</h3>
-                          {party.isLocked && <Lock className="w-3 h-3 text-amber-500" />}
+                          {party.is_locked && <Lock className="w-3 h-3 text-amber-500" />}
                         </div>
-                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Host: {party.hostName}</p>
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">Host: {party.host_name}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 bg-green-50 px-3 py-1.5 rounded-full">
                       <div className="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" />
-                      <span className="text-[9px] font-black text-green-600 uppercase tracking-tighter">{party.memberCount || 0}</span>
+                      <span className="text-[9px] font-black text-green-600 uppercase tracking-tighter">{party.member_count || 0}</span>
                     </div>
                   </div>
                 </div>
@@ -167,7 +165,7 @@ export default function PartyListPage() {
           </SheetHeader>
           
           <div className="relative h-48 w-full shrink-0">
-            <img src={selectedParty?.coverPhoto || `https://picsum.photos/seed/${selectedParty?.id}/600/400`} className="w-full h-full object-cover" alt="Cover" />
+            <img src={selectedParty?.cover_photo || `https://picsum.photos/seed/${selectedParty?.id}/600/400`} className="w-full h-full object-cover" alt="Cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-white via-transparent to-black/30" />
             <button onClick={() => setSelectedParty(null)} className="absolute top-6 right-6 w-10 h-10 rounded-full bg-black/20 backdrop-blur-md flex items-center justify-center text-white"><X className="w-5 h-5" /></button>
           </div>
@@ -177,10 +175,10 @@ export default function PartyListPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <h2 className="text-2xl font-black font-headline text-gray-900">{selectedParty?.title}</h2>
-                  {selectedParty?.isLocked && <Lock className="w-5 h-5 text-amber-500" />}
+                  {selectedParty?.is_locked && <Lock className="w-5 h-5 text-amber-500" />}
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2.5 py-1 rounded-full">{selectedParty?.memberCount || 0} Online</span>
+                  <span className="text-[10px] font-black text-green-600 uppercase bg-green-50 px-2.5 py-1 rounded-full">{selectedParty?.member_count || 0} Online</span>
                 </div>
               </div>
             </div>
@@ -190,9 +188,9 @@ export default function PartyListPage() {
             </div>
 
             <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2.25rem]">
-              <Avatar className="w-14 h-14 border-2 border-white shadow-md"><AvatarImage src={selectedParty?.hostPhoto} /><AvatarFallback>P</AvatarFallback></Avatar>
+              <Avatar className="w-14 h-14 border-2 border-white shadow-md"><AvatarImage src={selectedParty?.host_photo} /><AvatarFallback>P</AvatarFallback></Avatar>
               <div className="flex-1">
-                <span className="text-[13px] font-black text-gray-900 block">{selectedParty?.hostName}</span>
+                <span className="text-[13px] font-black text-gray-900 block">{selectedParty?.host_name}</span>
                 <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Party Host</span>
               </div>
             </div>

@@ -2,14 +2,14 @@
 "use client"
 
 import { useState, useRef, useCallback } from "react"
-import { useRouter } from "navigation"
+import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
-import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
-import { doc, collection, runTransaction, serverTimestamp, setDoc, increment as firestoreIncrement } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import Image from "next/image"
@@ -22,8 +22,7 @@ const ROOM_CREATION_COST = 4000
 
 export default function CreatePartyPage() {
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const [isCreating, setIsCreating] = useState(false)
@@ -41,9 +40,6 @@ export default function CreatePartyPage() {
   const [zoom, setZoom] = useState(1)
   const [croppedAreaPixels, setCroppedAreaPixels] = useState<any>(null)
   const [isCropping, setIsCropping] = useState(false)
-
-  const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile } = useDoc(userProfileRef)
 
   const onCropComplete = useCallback((_area: any, pixels: any) => {
     setCroppedAreaPixels(pixels)
@@ -89,68 +85,59 @@ export default function CreatePartyPage() {
   }
 
   const handleCreate = async () => {
-    if (!currentUser || !profile || !formData.title.trim() || isCreating || !firestore) return
+    if (!currentUser || !profile || !formData.title.trim() || isCreating) return
+
+    if ((profile.coin_balance || 0) < ROOM_CREATION_COST) {
+      toast({ variant: "destructive", title: "Insufficient Coins", description: `You need ${ROOM_CREATION_COST} coins.` })
+      return
+    }
 
     setIsCreating(true)
     try {
       let finalCoverUrl = formData.coverPhoto;
       
-      // If we have a local Base64 cover, upload it to Supabase first
       if (finalCoverUrl && finalCoverUrl.startsWith('data:')) {
-        const path = `parties/${currentUser.uid}/cover_${Date.now()}.jpg`;
+        const path = `parties/${currentUser.id}/cover_${Date.now()}.jpg`;
         finalCoverUrl = await uploadToSupabase(finalCoverUrl, path);
       }
 
-      await runTransaction(firestore, async (transaction) => {
-        const profileSnap = await transaction.get(userProfileRef!);
-        const currentBalance = profileSnap.data()?.coinBalance || 0;
+      const roomKey = `${formData.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}_${Date.now()}`;
 
-        if (currentBalance < ROOM_CREATION_COST) {
-          throw new Error("INSUFFICIENT_COINS");
-        }
+      // In a real app, this should be an RPC for atomicity
+      const { error: deductionError } = await supabase
+        .from('profiles')
+        .update({ coin_balance: profile.coin_balance - ROOM_CREATION_COST })
+        .eq('id', currentUser.id);
 
-        const roomKey = `${formData.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}_${Date.now()}`;
-        const roomDocRef = doc(firestore, "partyRooms", roomKey);
-        
-        transaction.set(roomDocRef, {
+      if (deductionError) throw deductionError;
+
+      const { error: roomError } = await supabase
+        .from('party_rooms')
+        .insert({
           id: roomKey,
           title: formData.title,
-          tags: formData.tags,
           announcement: formData.announcement,
-          coverPhoto: finalCoverUrl,
-          maxSeats: Number(formData.maxSeats),
-          hostId: currentUser.uid,
-          hostName: profile.username || "User",
-          hostPhoto: (profile.profilePhotoUrls && profile.profilePhotoUrls[0]) || "",
-          memberCount: 0,
-          createdAt: serverTimestamp(),
-          status: "active",
-          isLocked: false
+          cover_photo: finalCoverUrl,
+          max_seats: Number(formData.max_seats),
+          host_id: currentUser.id,
+          host_name: profile.username || "User",
+          host_photo: (profile.profile_photo_urls && profile.profile_photo_urls[0]) || "",
+          status: "active"
         });
 
-        transaction.update(userProfileRef!, {
-          coinBalance: firestoreIncrement(-ROOM_CREATION_COST),
-          updatedAt: new Date().toISOString()
-        });
+      if (roomError) throw roomError;
 
-        const txRef = doc(collection(userProfileRef!, "transactions"));
-        transaction.set(txRef, {
-          id: txRef.id,
-          type: "party_creation",
-          amount: -ROOM_CREATION_COST,
-          transactionDate: new Date().toISOString(),
-          description: `Created Party Room: ${formData.title}`
-        });
+      await supabase.from('transactions').insert({
+        user_id: currentUser.id,
+        type: "party_creation",
+        amount: -ROOM_CREATION_COST,
+        description: `Created Party Room: ${formData.title}`
       });
 
       toast({ title: "Party Live!", description: "Room created successfully." })
       router.push(`/party`)
     } catch (error: any) {
-      if (error.message === "INSUFFICIENT_COINS") {
-        toast({ variant: "destructive", title: "Insufficient Coins", description: `You need ${ROOM_CREATION_COST} coins.` })
-      } else {
-        toast({ variant: "destructive", title: "Error", description: "Failed to create party." })
-      }
+      toast({ variant: "destructive", title: "Error", description: "Failed to create party." })
     } finally {
       setIsCreating(false)
     }

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useMemo } from "react"
@@ -20,35 +21,18 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { 
-  collection, 
-  doc, 
-  onSnapshot, 
-  deleteDoc, 
-  updateDoc, 
-  addDoc, 
-  serverTimestamp, 
-  increment, 
-  runTransaction,
-  query,
-  orderBy,
-  limit,
-  setDoc
-} from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { getZegoConfig } from "@/app/actions/zego"
 import { cn } from "@/lib/utils"
 import { Input } from "@/components/ui/input"
-import { errorEmitter } from "@/firebase/error-emitter"
-import { FirestorePermissionError } from "@/firebase/errors"
 
 export default function PartyRoomPage() {
   const params = useParams()
   const roomId = params?.id as string
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const [room, setRoom] = useState<any>(null)
@@ -66,11 +50,8 @@ export default function PartyRoomPage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
-  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser?.uid])
-  const { data: profile } = useDoc(meRef)
-
-  const isHost = currentUser?.uid === room?.hostId
-  const isAdmin = useMemo(() => isHost || profile?.isAssistant || profile?.isAdmin, [room?.hostId, profile?.isAssistant, profile?.isAdmin, isHost])
+  const isHost = currentUser?.id === room?.host_id
+  const isAdmin = useMemo(() => isHost || profile?.is_support || profile?.is_admin, [room?.host_id, profile?.is_support, profile?.is_admin, isHost])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -85,97 +66,69 @@ export default function PartyRoomPage() {
   };
 
   useEffect(() => {
-    if (!firestore || !roomId || !currentUser || !profile) return
+    if (!roomId || !currentUser || !profile) return
     
-    const unsubRoom = onSnapshot(doc(firestore, "partyRooms", roomId), (snap) => {
-      const data = snap.data()
-      if (data) {
-        if (data.kickedUsers?.[currentUser.uid]) {
-          toast({ variant: "destructive", title: "Kicked", description: "You have been removed." })
-          router.push('/party')
-          return
-        }
-        setRoom(data)
-      } else {
-        router.push('/party')
-      }
-    }, async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `partyRooms/${roomId}`,
-          operation: 'get'
-        }));
-      }
-    })
+    const fetchRoomData = async () => {
+      const { data } = await supabase.from('party_rooms').select('*').eq('id', roomId).single();
+      if (data) setRoom(data);
+      else router.push('/party');
+    };
+    fetchRoomData();
 
-    const unsubSeats = onSnapshot(collection(firestore, "partyRooms", roomId, "seats"), (snap) => {
-      const data: any = {}
-      snap.docs.forEach(d => data[d.id] = d.data())
-      setSeats(data)
-      const mySeat = Object.entries(data).find(([_, val]: [string, any]) => val.userId === currentUser.uid)
-      if (mySeat) setMySeatIndex(Number(mySeat[0]))
-      else setMySeatIndex(null)
-    }, async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `partyRooms/${roomId}/seats`,
-          operation: 'list'
-        }));
-      }
-    })
+    const fetchSeats = async () => {
+      const { data } = await supabase.from('party_seats').select('*').eq('room_id', roomId);
+      const seatMap: any = {};
+      data?.forEach(s => seatMap[s.seat_index] = s);
+      setSeats(seatMap);
+      const mySeat = data?.find(s => s.user_id === currentUser.id);
+      setMySeatIndex(mySeat ? mySeat.seat_index : null);
+    };
+    fetchSeats();
 
-    const unsubMsgs = onSnapshot(
-      query(collection(firestore, "partyRooms", roomId, "messages"), orderBy("timestamp", "desc"), limit(50)),
-      (snap) => {
-        const list = snap.docs.map(d => ({ id: d.id, ...d.data() }))
-        setMessages(list.reverse())
-      }, async (error) => {
-        if (error.code === 'permission-denied') {
-          errorEmitter.emit('permission-error', new FirestorePermissionError({
-            path: `partyRooms/${roomId}/messages`,
-            operation: 'list'
-          }));
-        }
-      }
-    )
+    const fetchMessages = async () => {
+      const { data } = await supabase.from('party_messages').select('*').eq('room_id', roomId).order('timestamp', { ascending: true }).limit(50);
+      setMessages(data || []);
+    };
+    fetchMessages();
 
-    const unsubParts = onSnapshot(collection(firestore, "partyRooms", roomId, "participants"), (snap) => {
-      setRoomUsers(snap.docs.map(d => d.data()))
-    }, async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `partyRooms/${roomId}/participants`,
-          operation: 'list'
-        }));
-      }
-    })
+    const fetchParticipants = async () => {
+      const { data } = await supabase.from('party_participants').select('*').eq('room_id', roomId);
+      setRoomUsers(data || []);
+    };
+    fetchParticipants();
 
-    const participantRef = doc(firestore, "partyRooms", roomId, "participants", currentUser.uid)
-    addDoc(collection(firestore, "partyRooms", roomId, "messages"), {
-      text: `${profile.username} joined the party`,
-      username: "System",
-      isSystem: true,
-      timestamp: serverTimestamp()
-    }).catch(async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `partyRooms/${roomId}/messages`,
-          operation: 'create'
-        }));
-      }
-    });
+    // Subscribe to changes
+    const roomChannel = supabase.channel(`party_room_${roomId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'party_rooms', filter: `id=eq.${roomId}` }, (p) => setRoom(p.new))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'party_seats', filter: `room_id=eq.${roomId}` }, () => fetchSeats())
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'party_messages', filter: `room_id=eq.${roomId}` }, (p) => setMessages(prev => [...prev, p.new]))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'party_participants', filter: `room_id=eq.${roomId}` }, () => fetchParticipants())
+      .subscribe();
 
-    updateDoc(doc(firestore, "partyRooms", roomId), { memberCount: increment(1) }).catch(() => {});
-    setDoc(participantRef, { userId: currentUser.uid, username: profile.username, photo: profile.profilePhotoUrls?.[0] || "", joinedAt: Date.now() }).catch(() => {});
+    // Join record
+    const joinRoom = async () => {
+      await supabase.from('party_participants').upsert({
+        room_id: roomId,
+        user_id: currentUser.id,
+        username: profile.username,
+        photo: profile.profile_photo_urls?.[0] || "",
+        joined_at: Date.now()
+      });
+      await supabase.from('party_messages').insert({
+        room_id: roomId,
+        text: `${profile.username} joined the party`,
+        username: "System",
+        is_system: true
+      });
+    };
+    joinRoom();
 
     return () => {
-      if (currentUser) {
-        deleteDoc(participantRef).catch(() => {});
-        updateDoc(doc(firestore, "partyRooms", roomId), { memberCount: increment(-1) }).catch(() => {});
-      }
-      killHardware()
+      supabase.removeChannel(roomChannel);
+      supabase.from('party_participants').delete().eq('room_id', roomId).eq('user_id', currentUser.id);
+      killHardware();
     }
-  }, [firestore, roomId, currentUser?.uid, !!profile])
+  }, [roomId, currentUser?.id, !!profile])
 
   useEffect(() => {
     if (!roomId || !currentUser || !profile || isJoinedRef.current || !room) return
@@ -184,7 +137,7 @@ export default function PartyRoomPage() {
         isJoinedRef.current = true
         const config = await getZegoConfig()
         const { ZegoUIKitPrebuilt } = await import('@zegocloud/zego-uikit-prebuilt')
-        const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(config.appID, config.serverSecret!, roomId, currentUser.uid, profile.username || "User")
+        const kitToken = ZegoUIKitPrebuilt.generateKitTokenForTest(config.appID, config.serverSecret!, roomId, currentUser.id, profile.username || "User")
         const zp = ZegoUIKitPrebuilt.create(kitToken)
         zpRef.current = zp
         zp.joinRoom({
@@ -199,34 +152,22 @@ export default function PartyRoomPage() {
       } catch (error) { isJoinedRef.current = false; setIsInitializing(false) }
     }
     initZego()
-  }, [roomId, currentUser?.uid, !!profile, !!room])
+  }, [roomId, currentUser?.id, !!profile, !!room])
 
   const handleMountSeat = async (index: number) => {
-    if (!firestore || !currentUser || !profile) return
+    if (!currentUser || !profile) return
     const currentSeat = seats[index]
-    if (currentSeat?.userId) return 
-    if (currentSeat?.isLocked && !isAdmin) { toast({ variant: "destructive", title: "Seat Locked" }); return; }
+    if (currentSeat?.user_id) return 
 
-    if (mySeatIndex !== null) {
-      deleteDoc(doc(firestore, "partyRooms", roomId, "seats", mySeatIndex.toString())).catch(() => {});
-    }
-
-    const seatRef = doc(firestore, "partyRooms", roomId, "seats", index.toString());
-    const seatData = {
-      userId: currentUser.uid,
+    const seatId = `${roomId}:${index}`;
+    await supabase.from('party_seats').upsert({
+      id: seatId,
+      room_id: roomId,
+      seat_index: index,
+      user_id: currentUser.id,
       username: profile.username,
-      photo: profile.profilePhotoUrls?.[0] || "",
-      isMicOn: true
-    };
-
-    setDoc(seatRef, seatData).catch(async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: seatRef.path,
-          operation: 'create',
-          requestResourceData: seatData
-        }));
-      }
+      photo: profile.profile_photo_urls?.[0] || "",
+      is_mic_on: true
     });
 
     setIsMicMuted(false)
@@ -234,54 +175,28 @@ export default function PartyRoomPage() {
   }
 
   const handleLeaveSeat = async () => {
-    if (mySeatIndex === null || !firestore) return
+    if (mySeatIndex === null) return
     if (zpRef.current) zpRef.current.mutePublishStreamAudio(true)
     setIsMicMuted(true)
-    const seatRef = doc(firestore, "partyRooms", roomId, "seats", mySeatIndex.toString());
-    deleteDoc(seatRef).catch(async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: seatRef.path,
-          operation: 'delete'
-        }));
-      }
-    });
+    await supabase.from('party_seats').delete().eq('room_id', roomId).eq('user_id', currentUser?.id);
     setMySeatIndex(null)
   }
 
-  const toggleMic = () => {
+  const toggleMic = async () => {
     if (mySeatIndex === null || !zpRef.current) return
     const newState = !isMicMuted
     setIsMicMuted(newState)
     zpRef.current.mutePublishStreamAudio(newState)
-    const seatRef = doc(firestore, "partyRooms", roomId, "seats", mySeatIndex.toString());
-    updateDoc(seatRef, { isMicOn: !newState }).catch(async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: seatRef.path,
-          operation: 'update',
-          requestResourceData: { isMicOn: !newState }
-        }));
-      }
-    });
+    await supabase.from('party_seats').update({ is_mic_on: !newState }).eq('room_id', roomId).eq('user_id', currentUser?.id);
   }
 
-  const handleSendMessage = () => {
-    if (!chatInput.trim() || !currentUser || !profile || !firestore) return
-    const msgData = {
+  const handleSendMessage = async () => {
+    if (!chatInput.trim() || !currentUser || !profile) return
+    await supabase.from('party_messages').insert({
+      room_id: roomId,
       text: chatInput,
       username: profile.username,
-      userId: currentUser.uid,
-      timestamp: serverTimestamp()
-    };
-    addDoc(collection(firestore, "partyRooms", roomId, "messages"), msgData).catch(async (error) => {
-      if (error.code === 'permission-denied') {
-        errorEmitter.emit('permission-error', new FirestorePermissionError({
-          path: `partyRooms/${roomId}/messages`,
-          operation: 'create',
-          requestResourceData: msgData
-        }));
-      }
+      user_id: currentUser.id
     });
     setChatInput("")
   }
@@ -295,10 +210,10 @@ export default function PartyRoomPage() {
       </header>
       <main className="flex-1 relative z-10 flex flex-col overflow-hidden">
         <div className="w-full h-1/2 flex flex-col items-center justify-center p-4 space-y-6">
-          <div className="flex justify-center relative"><div onClick={() => handleMountSeat(0)} className={cn("w-20 h-20 rounded-full border-4 flex items-center justify-center relative transition-all duration-500 cursor-pointer shadow-2xl", seats[0]?.userId ? "border-amber-400 ring-4 ring-amber-400/20" : "border-white/10 bg-black/40", speakers[seats[0]?.userId] && "after:absolute after:inset-[-8px] after:rounded-full after:border-2 after:border-amber-400/40 after:animate-ping")}>{seats[0]?.userId ? (<Avatar className="w-full h-full"><AvatarImage src={seats[0].photo} className="object-cover" /><AvatarFallback>{seats[0].username?.[0]}</AvatarFallback></Avatar>) : (<span className="text-[8px] font-black text-white/20 uppercase">Host</span>)}</div></div>
-          <div className="grid grid-cols-5 gap-y-6 gap-x-2 w-full max-w-lg px-4 overflow-y-auto">{Array.from({ length: (room?.maxSeats || 8) - 1 }).map((_, i) => { const index = i + 1; const occupant = seats[index]; const isSpeaking = speakers[occupant?.userId]; return (<div key={index} className="flex flex-col items-center gap-1.5"><div onClick={() => handleMountSeat(index)} className={cn("w-12 h-12 rounded-full border-2 flex items-center justify-center relative transition-all cursor-pointer", occupant?.userId ? "border-primary shadow-lg" : "border-white/5 bg-black/30", isSpeaking && "after:absolute after:inset-[-4px] after:rounded-full after:border-2 after:border-primary/60 after:animate-ping")}>{occupant?.userId ? (<Avatar className="w-full h-full"><AvatarImage src={occupant.photo} className="object-cover" /><AvatarFallback>{occupant.username?.[0]}</AvatarFallback></Avatar>) : (<span className="text-[10px] font-black text-white/10">{index}</span>)}{occupant?.isMicOn && <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-[#0a1a1a]"><Mic className="w-2.5 h-2.5 text-white" /></div>}</div><span className="text-[7px] font-black text-center truncate w-full opacity-40">{occupant?.userId ? occupant.username : "Mount"}</span></div>)})}</div>
+          <div className="flex justify-center relative"><div onClick={() => handleMountSeat(0)} className={cn("w-20 h-20 rounded-full border-4 flex items-center justify-center relative transition-all duration-500 cursor-pointer shadow-2xl", seats[0]?.user_id ? "border-amber-400 ring-4 ring-amber-400/20" : "border-white/10 bg-black/40", speakers[seats[0]?.user_id] && "after:absolute after:inset-[-8px] after:rounded-full after:border-2 after:border-amber-400/40 after:animate-ping")}>{seats[0]?.user_id ? (<Avatar className="w-full h-full"><AvatarImage src={seats[0].photo} className="object-cover" /><AvatarFallback>{seats[0].username?.[0]}</AvatarFallback></Avatar>) : (<span className="text-[8px] font-black text-white/20 uppercase">Host</span>)}</div></div>
+          <div className="grid grid-cols-5 gap-y-6 gap-x-2 w-full max-w-lg px-4 overflow-y-auto">{Array.from({ length: (room?.max_seats || 8) - 1 }).map((_, i) => { const index = i + 1; const occupant = seats[index]; const isSpeaking = speakers[occupant?.user_id]; return (<div key={index} className="flex flex-col items-center gap-1.5"><div onClick={() => handleMountSeat(index)} className={cn("w-12 h-12 rounded-full border-2 flex items-center justify-center relative transition-all cursor-pointer", occupant?.user_id ? "border-primary shadow-lg" : "border-white/5 bg-black/30", isSpeaking && "after:absolute after:inset-[-4px] after:rounded-full after:border-2 after:border-primary/60 after:animate-ping")}>{occupant?.user_id ? (<Avatar className="w-full h-full"><AvatarImage src={occupant.photo} className="object-cover" /><AvatarFallback>{occupant.username?.[0]}</AvatarFallback></Avatar>) : (<span className="text-[10px] font-black text-white/10">{index}</span>)}{occupant?.is_mic_on && <div className="absolute -top-1 -right-1 w-4 h-4 bg-green-500 rounded-full flex items-center justify-center border-2 border-[#0a1a1a]"><Mic className="w-2.5 h-2.5 text-white" /></div>}</div><span className="text-[7px] font-black text-center truncate w-full opacity-40">{occupant?.user_id ? occupant.username : "Mount"}</span></div>)})}</div>
         </div>
-        <div className="w-full h-1/2 flex flex-col bg-black/10 backdrop-blur-sm border-t border-white/5 p-4 pb-24"><div className="flex-1 overflow-y-auto flex flex-col gap-3 scroll-smooth">{messages.map((m) => (<div key={m.id} className={cn("flex flex-col animate-in fade-in slide-in-from-bottom-1", m.isSystem ? "items-center" : "items-start")}>{!m.isSystem && <span className="text-[9px] font-black text-white/30 ml-2 mb-1">{m.username}</span>}<div className={cn("max-w-[85%] rounded-2xl px-4 py-2.5 shadow-md", m.isSystem ? "bg-teal-500/10 border border-teal-500/20 text-teal-400 italic text-[10px]" : "bg-white/10 backdrop-blur-md text-white/90 text-xs leading-relaxed")}>{m.text}</div></div>))}<div ref={messagesEndRef} className="h-4" /></div></div>
+        <div className="w-full h-1/2 flex flex-col bg-black/10 backdrop-blur-sm border-t border-white/5 p-4 pb-24"><div className="flex-1 overflow-y-auto flex flex-col gap-3 scroll-smooth">{messages.map((m) => (<div key={m.id} className={cn("flex flex-col animate-in fade-in slide-in-from-bottom-1", m.is_system ? "items-center" : "items-start")}>{!m.is_system && <span className="text-[9px] font-black text-white/30 ml-2 mb-1">{m.username}</span>}<div className={cn("max-w-[85%] rounded-2xl px-4 py-2.5 shadow-md", m.is_system ? "bg-teal-500/10 border border-teal-500/20 text-teal-400 italic text-[10px]" : "bg-white/10 backdrop-blur-md text-white/90 text-xs leading-relaxed")}>{m.text}</div></div>))}<div ref={messagesEndRef} className="h-4" /></div></div>
       </main>
       <footer className="absolute bottom-0 inset-x-0 z-30 px-4 py-6 bg-gradient-to-t from-black via-black/80 to-transparent flex items-center gap-3"><div className="flex-1 relative flex items-center"><Input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} placeholder="Type here..." className="h-12 w-full rounded-full bg-white/10 backdrop-blur-xl border border-white/10 text-white pl-6 pr-12 text-sm focus-visible:ring-primary/30" /><button onClick={handleSendMessage} className="absolute right-2 w-8 h-8 rounded-full bg-primary flex items-center justify-center active:scale-90"><Send className="w-4 h-4 text-white" /></button></div><div className="flex items-center gap-2">{mySeatIndex !== null && (<><button onClick={toggleMic} className={cn("w-12 h-12 rounded-full shadow-lg flex items-center justify-center transition-all", isMicMuted ? "bg-red-500" : "bg-primary")}>{isMicMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}</button><button onClick={handleLeaveSeat} className="w-12 h-12 rounded-full bg-white/10 border border-white/10 flex items-center justify-center" title="Leave Seat"><LogOut className="w-5 h-5 text-white/60" /></button></>)}</div></footer>
       <div ref={containerRef} className="hidden" />
