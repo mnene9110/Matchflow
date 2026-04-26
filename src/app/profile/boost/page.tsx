@@ -5,8 +5,8 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Rocket, Coins, Loader2, Zap, ArrowRight, Timer } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, runTransaction, collection, increment, Timestamp } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -14,19 +14,15 @@ const BOOST_COST = 500 // Coins for 1 hour
 
 export default function ProfileBoostPage() {
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const [isBoosting, setIsBoosting] = useState(false)
 
-  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile } = useDoc(meRef)
-
   const handleBoost = async () => {
-    if (!currentUser || !profile || isBoosting || !firestore) return
+    if (!currentUser || !profile || isBoosting) return
 
-    if ((profile.coinBalance || 0) < BOOST_COST) {
+    if ((profile.coin_balance || 0) < BOOST_COST) {
       toast({
         variant: "destructive",
         title: "Insufficient Coins",
@@ -38,29 +34,27 @@ export default function ProfileBoostPage() {
 
     setIsBoosting(true)
     try {
-      await runTransaction(firestore, async (transaction) => {
-        const profileSnap = await transaction.get(meRef!);
-        const currentBalance = profileSnap.data()?.coinBalance || 0;
+      // 1. Calculate boost expiry
+      const boostedUntil = new Date(Date.now() + (60 * 60 * 1000)).toISOString();
 
-        if (currentBalance < BOOST_COST) throw new Error("INSUFFICIENT_COINS");
+      // 2. Update Profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          boosted_until: boostedUntil,
+          coin_balance: profile.coin_balance - BOOST_COST,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id);
 
-        // Boost lasts for 1 hour from now
-        const boostedUntil = Timestamp.fromMillis(Date.now() + (60 * 60 * 1000));
+      if (profileError) throw profileError;
 
-        transaction.update(meRef!, {
-          boostedUntil,
-          coinBalance: increment(-BOOST_COST),
-          updatedAt: new Date().toISOString()
-        });
-
-        const txRef = doc(collection(meRef!, "transactions"));
-        transaction.set(txRef, {
-          id: txRef.id,
-          type: "profile_boost",
-          amount: -BOOST_COST,
-          transactionDate: new Date().toISOString(),
-          description: "Purchased Profile Boost (1 Hour)"
-        });
+      // 3. Log Transaction
+      await supabase.from('transactions').insert({
+        user_id: currentUser.id,
+        type: "profile_boost",
+        amount: -BOOST_COST,
+        description: "Purchased Profile Boost (1 Hour)"
       });
 
       toast({ 
@@ -96,7 +90,7 @@ export default function ProfileBoostPage() {
           <div className="space-y-2">
             <h2 className="text-3xl font-black font-headline text-gray-900 leading-tight">Get Noticed.</h2>
             <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[280px] mx-auto">
-              Boost your profile to be featured at the top of everyone's Discover grid. Get up to <span className="text-orange-500 font-black">10x more visitors</span> and messages.
+              Boost your profile to be featured at the top of everyone's Discover grid.
             </p>
           </div>
         </div>
@@ -130,7 +124,6 @@ export default function ProfileBoostPage() {
           >
             {isBoosting ? <Loader2 className="w-6 h-6 animate-spin" /> : <>Activate Boost <ArrowRight className="w-5 h-5" /></>}
           </Button>
-          <p className="text-[9px] text-center text-gray-400 mt-6 font-black uppercase tracking-[0.2em]">Boost starts immediately after payment</p>
         </div>
       </main>
     </div>

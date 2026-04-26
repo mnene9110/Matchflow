@@ -5,53 +5,51 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Gem, Coins, ArrowRightLeft, Loader2, Info, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useUser, useMemoFirebase, useFirebase, useDoc } from "@/firebase"
-import { doc, increment as firestoreIncrement, collection, runTransaction } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
 export default function IncomePage() {
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile, isLoading: isProfileLoading } = useSupabaseUser()
   const { toast } = useToast()
   const [isExchanging, setIsExchanging] = useState(false)
 
-  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile, isLoading: isProfileLoading } = useDoc(meRef)
-  const diamondBalance = profile?.diamondBalance || 0
-
+  const diamondBalance = profile?.diamond_balance || 0
   const canExchange = diamondBalance >= 500
 
   const handleExchange = async () => {
-    if (!currentUser || !firestore || isExchanging || !canExchange) return
+    if (!currentUser || isExchanging || !canExchange || !profile) return
     setIsExchanging(true)
+    
     const blocks = Math.floor(diamondBalance / 500)
     const diamondsToDeduct = blocks * 500
     const coinsToGain = blocks * 80 // 500 diamonds = 80 coins
+    
     try {
-      await runTransaction(firestore, async (transaction) => {
-        const snap = await transaction.get(meRef!);
-        const currentDiamonds = snap.data()?.diamondBalance || 0;
-        if (currentDiamonds < diamondsToDeduct) throw new Error("Insufficient diamond balance");
-        
-        transaction.update(meRef!, { 
-          diamondBalance: firestoreIncrement(-diamondsToDeduct), 
-          coinBalance: firestoreIncrement(coinsToGain), 
-          updatedAt: new Date().toISOString() 
-        });
+      // 1. Update Profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          diamond_balance: profile.diamond_balance - diamondsToDeduct,
+          coin_balance: profile.coin_balance + coinsToGain,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id);
 
-        const txRef = doc(collection(meRef!, "transactions"));
-        transaction.set(txRef, { 
-          id: txRef.id, 
-          type: "diamond_exchange", 
-          amount: coinsToGain, 
-          diamondAmount: -diamondsToDeduct, 
-          transactionDate: new Date().toISOString(), 
-          description: `Exchanged ${diamondsToDeduct} diamonds for ${coinsToGain} coins` 
-        });
+      if (profileError) throw profileError;
+
+      // 2. Log Transaction
+      await supabase.from('transactions').insert({
+        user_id: currentUser.id,
+        type: "diamond_exchange",
+        amount: coinsToGain,
+        description: `Exchanged ${diamondsToDeduct} diamonds for ${coinsToGain} coins`
       });
+
       toast({ title: "Exchange Successful!", description: `Received ${coinsToGain} coins.` });
+      router.refresh();
     } catch (error: any) {
       toast({ variant: "destructive", title: "Exchange Failed" });
     } finally {
@@ -70,14 +68,13 @@ export default function IncomePage() {
           variant="ghost" 
           size="icon" 
           onClick={() => router.push('/profile/income/history')} 
-          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"
+          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"
         >
           <History className="w-5 h-5" />
         </Button>
       </header>
 
       <main className="flex-1 px-6 pb-20 space-y-8 overflow-y-auto scroll-smooth">
-        {/* Wallet Balance Card */}
         <section className="bg-zinc-900 rounded-[3rem] p-10 text-white shadow-2xl relative overflow-hidden shrink-0 mt-6">
           <div className="absolute top-0 right-0 p-8 opacity-10"><Gem className="w-32 h-32" /></div>
           <div className="relative z-10 space-y-6">
@@ -95,11 +92,10 @@ export default function IncomePage() {
           </div>
         </section>
 
-        {/* Exchange Action Card */}
         <section className="bg-gray-50 border border-gray-100 rounded-[2.5rem] p-8 space-y-8 shadow-sm shrink-0">
           <div className="flex items-center justify-between gap-4 py-2">
             <div className="flex flex-col items-center gap-3 flex-1">
-              <div className="w-16 h-16 rounded-[1.5rem] bg-blue-500/10 flex items-center justify-center border border-blue-500/5 shadow-inner">
+              <div className="w-16 h-16 rounded-[1.5rem] bg-blue-500/10 flex items-center justify-center shadow-inner">
                 <Gem className="w-8 h-8 text-blue-500" />
               </div>
               <span className="text-lg font-black font-headline text-gray-900 leading-none">500</span>
@@ -107,7 +103,7 @@ export default function IncomePage() {
             </div>
             <ArrowRightLeft className="w-6 h-6 text-[#3BC1A8]/30 shrink-0" />
             <div className="flex flex-col items-center gap-3 flex-1">
-              <div className="w-16 h-16 rounded-[1.5rem] bg-[#3BC1A8]/10 flex items-center justify-center border border-[#3BC1A8]/5 shadow-inner">
+              <div className="w-16 h-16 rounded-[1.5rem] bg-[#3BC1A8]/10 flex items-center justify-center shadow-inner">
                 <Coins className="w-8 h-8 text-[#3BC1A8]" />
               </div>
               <span className="text-lg font-black font-headline text-gray-900 leading-none">80</span>
@@ -129,10 +125,6 @@ export default function IncomePage() {
             <p className="text-[9px] font-bold uppercase tracking-widest leading-none">Conversion requires min. 500 💎</p>
           </div>
         </section>
-
-        <div className="p-8 text-center opacity-30">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em]">Click the history icon at top right to view records</p>
-        </div>
       </main>
     </div>
   )
