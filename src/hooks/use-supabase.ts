@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
@@ -13,7 +12,7 @@ export function useSupabaseUser() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const hasFetchedRef = useRef(false);
+  const isInitialMount = useRef(true);
 
   const fetchProfile = async (userId: string) => {
     try {
@@ -21,10 +20,12 @@ export function useSupabaseUser() {
         .from('profiles')
         .select('*')
         .eq('id', userId)
-        .single();
+        .maybeSingle(); // Better for handling missing profiles during transitions
       
       if (!error && data) {
         setProfile(data);
+      } else {
+        setProfile(null);
       }
     } catch (e) {
       console.error("Profile fetch error:", e);
@@ -48,7 +49,7 @@ export function useSupabaseUser() {
       }
       
       setIsLoading(false);
-      hasFetchedRef.current = true;
+      isInitialMount.current = false;
     };
 
     initAuth();
@@ -59,7 +60,9 @@ export function useSupabaseUser() {
       setUser(currentUser);
       
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (currentUser) await fetchProfile(currentUser.id);
+        if (currentUser) {
+          await fetchProfile(currentUser.id);
+        }
       } else if (event === 'SIGNED_OUT') {
         setProfile(null);
       }
@@ -70,7 +73,7 @@ export function useSupabaseUser() {
     // 3. Handle visibility change (coming back to app)
     const handleVisibility = () => {
       if (document.visibilityState === 'visible') {
-        // Refresh session if needed but don't show loading spinner
+        // Just refresh the session in background
         supabase.auth.getSession();
       }
     };

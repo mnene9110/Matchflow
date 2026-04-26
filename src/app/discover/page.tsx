@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -78,7 +77,7 @@ export default function DiscoverPage() {
       setHasMore(data.length === PAGE_SIZE);
     } catch (error) {
       console.error("Error fetching users:", error);
-      // If table missing, we still want to show users
+      // If table is missing or RLS is still configuring, stop the loader
       if (isInitial) {
         setHasMore(false);
       }
