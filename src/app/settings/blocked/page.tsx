@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -21,13 +22,19 @@ export default function BlockedListPage() {
     if (!user) return
 
     const fetchBlocked = async () => {
-      const { data, error } = await supabase
-        .from('blocked_users')
-        .select('*')
-        .eq('user_id', user.id);
-      
-      if (!error) setBlockedUsers(data || []);
-      setIsLoading(false);
+      try {
+        const { data, error } = await supabase
+          .from('blocked_users')
+          .select('*')
+          .eq('user_id', user.id);
+        
+        if (error) throw error;
+        setBlockedUsers(data || []);
+      } catch (err) {
+        console.error("Failed to fetch blocked users:", err);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchBlocked();

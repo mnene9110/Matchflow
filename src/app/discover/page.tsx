@@ -1,14 +1,13 @@
 
 "use client"
 
-import { useState, useEffect, useRef, useCallback } from "react"
+import { useState, useEffect, useRef } from "react"
 import Image from "next/image"
 import { RotateCcw, Loader2, CheckCircle, MapPin, UserSearch } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import { usePresence } from "@/hooks/use-presence"
 
 function PresenceDot({ userId }: { userId: string }) {
@@ -42,7 +41,7 @@ export default function DiscoverPage() {
     }
 
     try {
-      // 1. Get blocked users
+      // 1. Get blocked users safely
       const { data: blockedData } = await supabase
         .from('blocked_users')
         .select('blocked_user_id')
@@ -65,8 +64,6 @@ export default function DiscoverPage() {
         query = query.eq('location', profile.location || 'Kenya');
       }
 
-      // Pagination - Using offset or multi-column ordering for accurate continuation
-      // For simplicity with Supabase and complex ordering, we use standard limit/offset or range
       const start = isInitial ? 0 : users.length;
       const end = start + PAGE_SIZE - 1;
 
@@ -74,12 +71,17 @@ export default function DiscoverPage() {
 
       if (error) throw error;
 
+      // Filter out blocked users
       const filtered = (data || []).filter(u => !blockedIds.includes(u.id));
       
       setUsers(prev => isInitial ? filtered : [...prev, ...filtered]);
       setHasMore(data.length === PAGE_SIZE);
     } catch (error) {
       console.error("Error fetching users:", error);
+      // If table missing, we still want to show users
+      if (isInitial) {
+        setHasMore(false);
+      }
     } finally {
       setIsLoading(false);
       setIsFetchingMore(false);
@@ -112,7 +114,7 @@ export default function DiscoverPage() {
     }
 
     return () => observer.disconnect();
-  }, [hasMore, isLoading, isFetchingMore, users]);
+  }, [hasMore, isLoading, isFetchingMore, users.length]);
 
   const calculateAge = (dob: string) => {
     if (!dob) return 20;
