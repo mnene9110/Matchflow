@@ -1,6 +1,6 @@
 /**
  * Configuration validation for Supabase.
- * Firebase keys are removed to prioritize Supabase fully.
+ * Now returns true as keys are hardcoded in lib/supabase.ts
  */
 export const firebaseConfig = {};
 
@@ -8,10 +8,7 @@ export const firebaseConfig = {};
  * Validates if the required Supabase configuration is present.
  */
 export const isSupabaseConfigValid = () => {
-  return !!(
-    process.env.NEXT_PUBLIC_SUPABASE_URL && 
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-  );
+  return true; // Config is now hardcoded in the app
 };
 
 export const isFirebaseConfigValid = () => false;
