@@ -2,10 +2,10 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Star, Coins, Check, ShieldCheck, Loader2, Sparkles } from "lucide-react"
+import { ChevronLeft, Star, Check, ShieldCheck, Loader2, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, updateDoc, writeBatch, increment as firestoreIncrement, collection, runTransaction } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -22,19 +22,15 @@ const HOST_PERKS = [
 
 export default function SubscribeHostPage() {
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const [isSubscribing, setIsSubscribing] = useState(false)
 
-  const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile } = useDoc(userProfileRef)
-
   const handleSubscribe = async () => {
-    if (!currentUser || !profile || isSubscribing || !firestore) return
+    if (!currentUser || !profile || isSubscribing) return
 
-    if ((profile.coinBalance || 0) < HOST_SUBSCRIPTION_COST) {
+    if ((profile.coin_balance || 0) < HOST_SUBSCRIPTION_COST) {
       toast({
         variant: "destructive",
         title: "Insufficient Coins",
@@ -46,28 +42,22 @@ export default function SubscribeHostPage() {
 
     setIsSubscribing(true)
     try {
-      await runTransaction(firestore, async (transaction) => {
-        const profileSnap = await transaction.get(userProfileRef!);
-        const currentBalance = profileSnap.data()?.coinBalance || 0;
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          is_party_admin: true,
+          coin_balance: profile.coin_balance - HOST_SUBSCRIPTION_COST,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id);
 
-        if (currentBalance < HOST_SUBSCRIPTION_COST) {
-          throw new Error("INSUFFICIENT_COINS");
-        }
+      if (profileError) throw profileError;
 
-        transaction.update(userProfileRef!, {
-          isPartyAdmin: true,
-          coinBalance: firestoreIncrement(-HOST_SUBSCRIPTION_COST),
-          updatedAt: new Date().toISOString()
-        });
-
-        const txRef = doc(collection(userProfileRef!, "transactions"));
-        transaction.set(txRef, {
-          id: txRef.id,
-          type: "host_subscription",
-          amount: -HOST_SUBSCRIPTION_COST,
-          transactionDate: new Date().toISOString(),
-          description: "Purchased Official Host Subscription"
-        });
+      await supabase.from('transactions').insert({
+        user_id: currentUser.id,
+        type: "host_subscription",
+        amount: -HOST_SUBSCRIPTION_COST,
+        description: "Purchased Official Host Subscription"
       });
 
       toast({ 
@@ -76,7 +66,7 @@ export default function SubscribeHostPage() {
       })
       router.replace('/profile')
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Subscription Failed", description: error.message === "INSUFFICIENT_COINS" ? "Not enough coins." : "Could not process request." })
+      toast({ variant: "destructive", title: "Subscription Failed", description: "Could not process request." })
     } finally {
       setIsSubscribing(false)
     }

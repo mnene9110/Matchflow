@@ -1,12 +1,11 @@
-
 "use client"
 
 import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Gamepad2, Coins, Trophy, Loader2, Sparkles, Dice5 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, runTransaction, collection, increment as firestoreIncrement } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -20,8 +19,7 @@ const WHEEL_CONFIGS = {
 
 export default function GamesCenterPage() {
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [isSpinning, setIsSpinning] = useState(false)
@@ -30,9 +28,7 @@ export default function GamesCenterPage() {
   const [gameResult, setGameResult] = useState<{ winner: boolean; pot: number } | null>(null)
   const [pendingResult, setPendingResult] = useState<{ winner: boolean; pot: number } | null>(null)
 
-  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile } = useDoc(meRef)
-  const userCoins = profile?.coinBalance || 0
+  const userCoins = profile?.coin_balance || 0
 
   const currentWheelValues = useMemo(() => {
     if (!selectedBet) return WHEEL_CONFIGS.low;
@@ -54,23 +50,36 @@ export default function GamesCenterPage() {
   }, [currentWheelValues]);
 
   const handleLuckySpin = async () => {
-    if (!currentUser || !selectedBet || isSpinning || !firestore) return
+    if (!currentUser || !selectedBet || isSpinning || !profile) return
     if (userCoins < selectedBet) {
       toast({ variant: "destructive", title: "Insufficient Coins" }); return;
     }
+    
     setIsSpinning(true); setGameResult(null); setPendingResult(null);
     try {
       const winnerIndex = Math.floor(Math.random() * 18)
       const winAmount = currentWheelValues[winnerIndex]
-      await runTransaction(firestore, async (transaction) => {
-        const snap = await transaction.get(meRef!);
-        const currentBalance = snap.data()?.coinBalance || 0;
-        if (currentBalance < selectedBet) throw new Error("INSUFFICIENT_COINS");
-        const netChange = winAmount - selectedBet;
-        transaction.update(meRef!, { coinBalance: firestoreIncrement(netChange), updatedAt: new Date().toISOString() });
-        const txRef = doc(collection(meRef!, "transactions"));
-        transaction.set(txRef, { id: txRef.id, type: "game_result", amount: netChange, bet: selectedBet, win: winAmount, transactionDate: new Date().toISOString(), description: `Lucky Spin: Won ${winAmount} coins` });
+      const netChange = winAmount - selectedBet;
+
+      // Update balance
+      const { error: updateError } = await supabase
+        .from('profiles')
+        .update({ 
+          coin_balance: profile.coin_balance + netChange,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id);
+
+      if (updateError) throw updateError;
+
+      // Log Transaction
+      await supabase.from('transactions').insert({
+        user_id: currentUser.id,
+        type: "game_result",
+        amount: netChange,
+        description: `Lucky Spin: Won ${winAmount} coins`
       });
+
       const extraSpins = 15; const segmentSize = 360 / 18; const randomOffset = (Math.random() - 0.5) * (segmentSize * 0.7); const targetLandingAngle = 270 - (winnerIndex * segmentSize + (segmentSize / 2)) + randomOffset;
       const currentRotation = rotation; const nextRotation = currentRotation + (extraSpins * 360) + ((targetLandingAngle - (currentRotation % 360) + 360) % 360);
       setRotation(nextRotation); setPendingResult({ winner: winAmount > 0, pot: winAmount });

@@ -1,54 +1,49 @@
-
 "use client"
 
 import { useEffect, useRef, use, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
-import { useFirebase, useUser, useMemoFirebase } from "@/firebase"
-import { doc, runTransaction, collection, increment as firestoreIncrement } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { verifyPaystackTransaction } from "@/app/actions/paystack"
 import { useToast } from "@/hooks/use-toast"
 
 function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> }) {
   const params = use(searchParams)
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
   const processedRef = useRef(false)
   const reference = params.reference
 
-  const userProfileDocRef = useMemoFirebase(() => {
-    if (!firestore || !currentUser) return null;
-    return doc(firestore, "userProfiles", currentUser.uid);
-  }, [firestore, currentUser]);
-
   useEffect(() => {
-    if (!reference || !currentUser || !firestore || !userProfileDocRef || processedRef.current) return;
+    if (!reference || !currentUser || !profile || processedRef.current) return;
+    
     const handleVerification = async () => {
       processedRef.current = true;
       try {
         const result = await verifyPaystackTransaction(reference);
         if (result.status === true && result.data.status === 'success') {
           const metadata = result.data.metadata;
-          const coinsToGain = metadata?.packageAmount || (result.data.amount / 100);
-          await runTransaction(firestore, async (transaction) => {
-            const profileSnap = await transaction.get(userProfileDocRef);
-            if (!profileSnap.exists()) return;
-            transaction.update(userProfileDocRef, {
-              coinBalance: firestoreIncrement(coinsToGain),
-              updatedAt: new Date().toISOString()
-            });
-            const txRef = doc(collection(userProfileDocRef, "transactions"));
-            transaction.set(txRef, {
-              id: txRef.id,
-              type: "recharge",
-              amount: coinsToGain,
-              orderTrackingId: reference,
-              transactionDate: new Date().toISOString(),
-              description: `Recharge`
-            });
+          const coinsToGain = metadata?.packageAmount || Math.round(result.data.amount / 100);
+          
+          const { error: profileError } = await supabase
+            .from('profiles')
+            .update({
+              coin_balance: profile.coin_balance + coinsToGain,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', currentUser.id);
+
+          if (profileError) throw profileError;
+
+          await supabase.from('transactions').insert({
+            user_id: currentUser.id,
+            type: "recharge",
+            amount: coinsToGain,
+            description: `Paystack Recharge`
           });
+
           toast({ title: "Recharge Success!", description: "Coins updated." });
           router.replace("/recharge?status=success");
         } else {
@@ -59,7 +54,7 @@ function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> 
       }
     };
     handleVerification();
-  }, [reference, currentUser, firestore, userProfileDocRef, router, toast]);
+  }, [reference, currentUser, profile, router, toast]);
 
   return (
     <div className="min-h-svh bg-slate-50 flex flex-col items-center justify-center p-8 text-center">

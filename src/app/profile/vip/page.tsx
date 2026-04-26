@@ -1,12 +1,11 @@
-
 "use client"
 
 import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Star, Check, Loader2, Trophy, Sparkles, Zap, Crown, Eye, ShieldCheck, Ghost, Search, MapPin, Clock, Music, Heart, MessageSquare, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, updateDoc } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
@@ -39,35 +38,26 @@ export function getVipLevelFromExp(exp: number) {
   return level;
 }
 
-export function getVipDiamondMultiplier(level: number) {
-  // Removed diamond benefits as per request
-  return 1.0;
-}
-
 export default function VIPCenterPage() {
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
-
-  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile, isLoading } = useDoc(meRef)
+  const { user: currentUser, profile, isLoading } = useSupabaseUser()
 
   const [selectedLevel, setSelectedLevel] = useState(1)
 
-  const currentExp = profile?.vipExp || 0
-  const currentLevel = profile?.vipLevel || 0
+  const currentExp = Number(profile?.vip_exp || 0)
+  const currentLevel = Number(profile?.vip_level || 0)
 
   useEffect(() => {
-    if (profile && firestore) {
+    if (profile && currentUser) {
       const calculatedLevel = getVipLevelFromExp(currentExp)
       if (calculatedLevel !== currentLevel) {
-        updateDoc(doc(firestore, "userProfiles", profile.id), {
-          vipLevel: calculatedLevel,
-          updatedAt: new Date().toISOString()
-        })
+        supabase.from('profiles').update({
+          vip_level: calculatedLevel,
+          updated_at: new Date().toISOString()
+        }).eq('id', currentUser.id)
       }
     }
-  }, [currentExp, currentLevel, !!profile, !!firestore])
+  }, [currentExp, currentLevel, !!profile, !!currentUser])
 
   useEffect(() => {
     if (currentLevel > 0) setSelectedLevel(currentLevel)
@@ -81,7 +71,6 @@ export default function VIPCenterPage() {
   const tierRequirement = nextLevelExp - prevLevelExp
   const progress = Math.min((expInCurrentTier / tierRequirement) * 100, 100)
 
-  // Get cumulative perks for the current selected level
   const cumulativePerks = useMemo(() => {
     let perks: string[] = []
     for (let i = 0; i < selectedLevel; i++) {
@@ -90,7 +79,6 @@ export default function VIPCenterPage() {
     return Array.from(new Set(perks))
   }, [selectedLevel])
 
-  // Get only the perks introduced at the selected level
   const currentLevelPerks = useMemo(() => {
     return VIP_CONFIG[selectedLevel - 1]?.perks || []
   }, [selectedLevel])
@@ -107,7 +95,6 @@ export default function VIPCenterPage() {
       </header>
 
       <main className="flex-1 p-6 space-y-8">
-        {/* Progress Card */}
         <section className="bg-gradient-to-br from-zinc-900 to-zinc-950 p-8 rounded-[3rem] border border-[#3BC1A8]/20 shadow-2xl relative overflow-hidden">
           <div className="absolute top-0 right-0 p-6 opacity-10"><Crown className="w-32 h-32 text-[#3BC1A8]" /></div>
           
@@ -133,7 +120,6 @@ export default function VIPCenterPage() {
           </div>
         </section>
 
-        {/* Horizontal Selector */}
         <section className="space-y-6">
           <div className="flex items-center gap-4 overflow-x-auto pb-4 no-scrollbar px-2">
             {VIP_CONFIG.map((tier) => (
@@ -157,7 +143,6 @@ export default function VIPCenterPage() {
             ))}
           </div>
 
-          {/* New Perks Section */}
           <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2">
             <div className="flex items-center justify-between px-2">
               <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-[#3BC1A8]">New at Level {selectedLevel}</h3>
@@ -175,7 +160,6 @@ export default function VIPCenterPage() {
             </div>
           </div>
 
-          {/* Cumulative Perks Section */}
           {selectedLevel > 1 && (
             <div className="space-y-4 pt-4 border-t border-white/5">
               <div className="flex items-center justify-between px-2">
