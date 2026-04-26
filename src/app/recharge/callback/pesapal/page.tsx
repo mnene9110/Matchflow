@@ -51,14 +51,14 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     };
 
     triggerServerConfirmation();
-    interval = setInterval(triggerServerConfirmation, 2000);
+    interval = setInterval(triggerServerConfirmation, 2500);
 
     const timeout = setTimeout(() => {
       if (!processedRef.current && status === 'verifying') {
         setStatus('error');
         setErrorMsg("Taking longer than usual. Please check your wallet in a moment.");
       }
-    }, 40000);
+    }, 45000);
 
     return () => {
       clearInterval(interval);
@@ -84,7 +84,11 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
           setStatus('success');
         }
       })
-      .subscribe();
+      .subscribe((status) => {
+        if (status === 'CHANNEL_ERROR') {
+          console.warn("Real-time channel failed - checking table existence.");
+        }
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -164,7 +168,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
           <div className="space-y-2">
             <h2 className="text-2xl font-black font-headline text-gray-900">Verification Pending</h2>
             <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-              {errorMsg || "Your coins may take a moment to reflect. Please check your profile shortly."}
+              {errorMsg || "Your coins may take a moment to reflect. Please check your wallet in a moment."}
             </p>
           </div>
           <Button 
