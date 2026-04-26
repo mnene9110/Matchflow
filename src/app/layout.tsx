@@ -22,7 +22,7 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
   const [isInitialized, setIsInitialized] = useState(false);
   const [user, setUser] = useState<any>(null);
 
-  // 1. Centralized Auth Listener - Runs only once on mount
+  // 1. Unified Auth Listener - Only runs once on mount
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -31,21 +31,30 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [auth]);
 
-  // 2. Route Guard - Responds to path or auth changes without unmounting the whole tree
+  // 2. Route Protection Logic
   useEffect(() => {
     if (!isInitialized) return;
 
     const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
     const isPublicRoute = publicRoutes.includes(pathname);
 
+    // If no user and trying to access private route, redirect to welcome
     if (!user && !isPublicRoute) {
       router.replace('/welcome');
     }
   }, [user, isInitialized, pathname, router]);
 
-  // 3. Prevent flickering: Only show the global loader on the very first boot
+  // 3. Splash screen ONLY on first boot
   if (!isInitialized) {
-    return <div className="h-svh w-full bg-[#3BC1A8]" />;
+    return (
+      <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#3BC1A8] z-[9999]">
+        <div className="flex flex-col items-center gap-6 animate-pulse">
+           <svg viewBox="0 0 24 24" className="w-16 h-16 text-white fill-current" xmlns="http://www.w3.org/2000/svg">
+             <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+           </svg>
+        </div>
+      </div>
+    );
   }
 
   return <>{children}</>;
@@ -97,10 +106,10 @@ export default function RootLayout({
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js', { scope: '/' })
           .then((registration) => {
-            console.log('MatchFlow SW registered:', registration.scope);
+            console.log('MatchFlow SW registered');
           })
           .catch((err) => {
-            console.error('MatchFlow SW registration failed:', err);
+            console.error('MatchFlow SW failed', err);
           });
       });
     }
@@ -117,14 +126,13 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#3BC1A8" />
-        <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
       </head>
-      <body className="font-body antialiased selection:bg-none">
+      <body className="font-body antialiased selection:bg-none bg-[#3BC1A8]">
         <FirebaseClientProvider>
           <NavigationGuard>
             <OfflineDetector>
               <PresenceManager />
-              <div className="app-container">
+              <div className="app-container bg-white min-h-svh">
                 {children}
                 <Navbar />
                 <InstallPWA />
