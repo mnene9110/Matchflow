@@ -16,15 +16,21 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // Ensure we are in the browser and supabase auth is available
-    if (typeof window === 'undefined' || !supabase?.auth) {
-      setIsReady(true);
-      return;
+    // Comprehensive check for client-side and supabase availability
+    if (typeof window === 'undefined') return;
+
+    // Use a robust way to check for auth methods presence before invocation
+    const auth = supabase?.auth;
+    if (!auth || typeof auth.onAuthStateChanged !== 'function') {
+      console.warn("Supabase auth module is not yet ready.");
+      // We wait for the next render or effect cycle
+      const retryTimer = setTimeout(() => setIsReady(prev => prev), 100);
+      return () => clearTimeout(retryTimer);
     }
 
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await auth.getSession();
         
         const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
         const isPublicRoute = publicRoutes.includes(pathname);
@@ -42,14 +48,12 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 
     checkAuth();
 
-    // Use safe access for onAuthStateChanged
-    const authStateResult = supabase.auth.onAuthStateChanged((event) => {
+    // Standard Supabase v2 listener pattern
+    const { data: { subscription } } = auth.onAuthStateChanged((event) => {
       if (event === 'SIGNED_OUT') {
         window.location.replace('/welcome');
       }
     });
-
-    const subscription = authStateResult?.data?.subscription;
 
     return () => {
       if (subscription) {
@@ -58,6 +62,7 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     };
   }, [pathname]);
 
+  // Use a consistent loading state to prevent flickering
   if (!isReady) return <div className="h-svh w-full bg-[#3BC1A8]" />;
 
   return <>{children}</>;
