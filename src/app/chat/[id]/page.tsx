@@ -81,12 +81,14 @@ function ChatDetailContent() {
 
   const { data: messages, isLoading: isLoadingMessages } = useCollection(messagesQuery);
 
-  // Clear unread on entry
+  // Clear unread on entry - USE setDoc with merge to avoid "document not found" crash
   useEffect(() => {
     if (chatId && currentUser) {
-      updateDoc(doc(firestore, "chats", chatId), {
-        [`unreadCountMap.${currentUser.uid}`]: 0
-      });
+      setDoc(doc(firestore, "chats", chatId), {
+        unreadCountMap: {
+          [currentUser.uid]: 0
+        }
+      }, { merge: true });
     }
   }, [chatId, currentUser, firestore]);
 
