@@ -9,8 +9,8 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useUser, useFirebase, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, updateDoc } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
@@ -46,16 +46,12 @@ const ZODIAC_OPTIONS = [
 
 export default function EditProfilePage() {
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile, isLoading } = useSupabaseUser()
   const { toast } = useToast()
   
   const mainFileInputRef = useRef<HTMLInputElement>(null)
   const extraPhotosInputRef = useRef<HTMLInputElement>(null)
   
-  const userRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile, isLoading } = useDoc(userRef)
-
   const [activePhotoSlot, setActivePhotoSlot] = useState<number | null>(null)
   const [imageToCrop, setImageToCrop] = useState<string | null>(null)
   const [crop, setCrop] = useState({ x: 0, y: 0 })
@@ -67,10 +63,10 @@ export default function EditProfilePage() {
     username: "",
     bio: "",
     location: "",
-    profilePhotoUrls: [] as string[],
+    profile_photo_urls: [] as string[],
     interests: [] as string[],
     education: "",
-    relationshipGoal: "",
+    relationship_goal: "",
     horoscope: ""
   })
   
@@ -82,10 +78,10 @@ export default function EditProfilePage() {
         username: profile.username || "",
         bio: profile.bio || "",
         location: profile.location || "",
-        profilePhotoUrls: profile.profilePhotoUrls || [],
+        profile_photo_urls: profile.profile_photo_urls || [],
         interests: profile.interests || [],
         education: profile.education || "",
-        relationshipGoal: profile.relationshipGoal || "",
+        relationship_goal: profile.relationship_goal || "",
         horoscope: profile.horoscope || ""
       })
     }
@@ -120,18 +116,17 @@ export default function EditProfilePage() {
     try {
       const croppedImage = await getCroppedImg()
       if (croppedImage && activePhotoSlot !== null) {
-        // Upload to Supabase immediately to avoid storing large Base64 in state
-        const path = `profiles/${currentUser.uid}/photo_${activePhotoSlot}_${Date.now()}.jpg`;
+        const path = `profiles/${currentUser.id}/photo_${activePhotoSlot}_${Date.now()}.jpg`;
         const url = await uploadToSupabase(croppedImage, path);
 
         setFormData(prev => {
-          const newUrls = [...prev.profilePhotoUrls]; 
+          const newUrls = [...prev.profile_photo_urls]; 
           if (activePhotoSlot < newUrls.length) {
             newUrls[activePhotoSlot] = url;
           } else {
             newUrls.push(url);
           }
-          return { ...prev, profilePhotoUrls: newUrls }
+          return { ...prev, profile_photo_urls: newUrls }
         });
         setImageToCrop(null); setActivePhotoSlot(null);
       }
@@ -145,8 +140,8 @@ export default function EditProfilePage() {
   const removePhoto = (index: number) => {
     if (index === 0) { toast({ title: "Primary Photo Required" }); return }
     setFormData(prev => {
-      const newUrls = [...prev.profilePhotoUrls]; newUrls.splice(index, 1);
-      return { ...prev, profilePhotoUrls: newUrls }
+      const newUrls = [...prev.profile_photo_urls]; newUrls.splice(index, 1);
+      return { ...prev, profile_photo_urls: newUrls }
     })
   }
 
@@ -154,23 +149,29 @@ export default function EditProfilePage() {
     setFormData(prev => {
       const newInterests = prev.interests.includes(interest)
         ? prev.interests.filter(i => i !== interest)
-        : [...prev.interests, interest].slice(0, 5) // Limit to 5
+        : [...prev.interests, interest].slice(0, 5)
       return { ...prev, interests: newInterests }
     })
   }
 
   const handleSave = async () => {
-    if (!currentUser || !firestore || isSaving) return
+    if (!currentUser || isSaving) return
     setIsSaving(true)
     try {
-      await updateDoc(doc(firestore, "userProfiles", currentUser.uid), {
-        ...formData,
-        updatedAt: new Date().toISOString()
-      })
+      const { error } = await supabase
+        .from('profiles')
+        .update({
+          ...formData,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', currentUser.id);
+
+      if (error) throw error;
+      
       toast({ title: "Profile Updated" })
       router.push("/profile")
-    } catch (error) { 
-      toast({ variant: "destructive", title: "Error", description: "Failed to save profile changes." }); 
+    } catch (error: any) { 
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to save changes." }); 
       setIsSaving(false) 
     }
   }
@@ -191,7 +192,7 @@ export default function EditProfilePage() {
           <div className="flex flex-col items-center">
             <div className="relative">
               <Avatar className="w-40 h-40 shadow-xl border-4 border-white">
-                <AvatarImage src={formData.profilePhotoUrls[0] || ""} className="object-cover" />
+                <AvatarImage src={formData.profile_photo_urls[0] || ""} className="object-cover" />
                 <AvatarFallback className="bg-gray-100 text-gray-300 text-4xl font-black">{formData.username?.[0] || <User className="w-16 h-16" />}</AvatarFallback>
               </Avatar>
               <button onClick={() => { setActivePhotoSlot(0); mainFileInputRef.current?.click(); }} className="absolute bottom-2 right-2 w-12 h-12 rounded-full bg-zinc-900 flex items-center justify-center shadow-xl active:scale-90 transition-transform z-10 border-2 border-white"><Camera className="w-5 h-5 text-white" /></button>
@@ -203,7 +204,7 @@ export default function EditProfilePage() {
             <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-gray-400 ml-1">Gallery (Max 4 Extra)</h3>
             <div className="grid grid-cols-4 gap-3">
               {extraPhotoSlots.map((slotIndex) => {
-                const photoUrl = formData.profilePhotoUrls[slotIndex];
+                const photoUrl = formData.profile_photo_urls[slotIndex];
                 return (
                   <div key={slotIndex} className="relative aspect-square">
                     {photoUrl ? (
@@ -244,7 +245,7 @@ export default function EditProfilePage() {
 
           <div className="space-y-3">
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Looking For</Label>
-            <Select value={formData.relationshipGoal} onValueChange={(val) => setFormData(prev => ({ ...prev, relationshipGoal: val }))}>
+            <Select value={formData.relationship_goal} onValueChange={(val) => setFormData(prev => ({ ...prev, relationship_goal: val }))}>
               <SelectTrigger className="h-14 rounded-2xl bg-white border-gray-100 text-sm font-bold shadow-sm"><SelectValue placeholder="What are you seeking?" /></SelectTrigger>
               <SelectContent className="rounded-2xl">{LOOKING_FOR_OPTIONS.map(opt => <SelectItem key={opt.id} value={opt.id}>{opt.label}</SelectItem>)}</SelectContent>
             </Select>

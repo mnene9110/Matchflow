@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { supabase } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 const TARGET_COUNTRIES = [
   "Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", 
@@ -23,6 +24,7 @@ export default function FastOnboardingPage() {
   const [country, setCountry] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
+  const { toast } = useToast()
 
   const handleConfirm = async () => {
     const { data: { session } } = await supabase.auth.getSession();
@@ -33,6 +35,7 @@ export default function FastOnboardingPage() {
       const numericId = Math.floor(10000000 + Math.random() * 90000000);
       const welcomeCoins = 500;
 
+      // Ensure fields match the SQL schema (snake_case)
       const { error } = await supabase
         .from('profiles')
         .insert({
@@ -43,13 +46,23 @@ export default function FastOnboardingPage() {
           location: country,
           profile_photo_urls: [`https://picsum.photos/seed/${session.user.id}/600/800`],
           coin_balance: welcomeCoins,
-          is_online: true
+          is_online: true,
+          updated_at: new Date().toISOString()
         });
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase insert error:", error);
+        throw new Error(error.message || "Failed to create profile record.");
+      }
+      
       router.push("/discover")
-    } catch (error) {
+    } catch (error: any) {
       console.error("Fast onboarding failed:", error)
+      toast({
+        variant: "destructive",
+        title: "Setup Failed",
+        description: error.message || "An unexpected error occurred while saving your profile."
+      })
       setIsSubmitting(false)
     }
   }

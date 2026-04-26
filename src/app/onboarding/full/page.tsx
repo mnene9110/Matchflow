@@ -8,10 +8,10 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { useUser, useFirebase } from "@/firebase"
-import { doc, setDoc, serverTimestamp } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
+import { Loader2 } from "lucide-react"
 
 const TARGET_COUNTRIES = [
   "Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", 
@@ -26,20 +26,19 @@ export default function FullOnboardingPage() {
   const [gender, setGender] = useState("")
   const [country, setCountry] = useState("")
   const [lookingFor, setLookingFor] = useState("")
+  const [isSubmitting, setIsSubmitting] = useState(false)
   
   const router = useRouter()
-  const { user } = useUser()
-  const { firestore } = useFirebase()
   const { toast } = useToast()
 
-  // Calculate the maximum allowed date (must be at least 18 years ago)
   const maxDobDate = useMemo(() => {
     const today = new Date()
     return new Date(today.getFullYear() - 18, today.getMonth(), today.getDate()).toISOString().split('T')[0]
   }, [])
 
   const handleSave = useCallback(async () => {
-    if (!user || !name || !dob || !gender || !country || !lookingFor || !firestore) return
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user || !name || !dob || !gender || !country || !lookingFor || isSubmitting) return
 
     const birthDate = new Date(dob)
     const today = new Date()
@@ -58,44 +57,44 @@ export default function FullOnboardingPage() {
       return
     }
 
-    const numericId = Math.floor(10000000 + Math.random() * 90000000);
+    setIsSubmitting(true)
+    try {
+      const numericId = Math.floor(10000000 + Math.random() * 90000000);
 
-    const profileData = {
-      id: user.uid,
-      numericId,
-      authProviderId: "password",
-      username: name,
-      email: user.email,
-      dateOfBirth: dob,
-      gender,
-      relationshipGoal: lookingFor,
-      location: country,
-      profilePhotoUrls: [`https://picsum.photos/seed/${user.uid}/600/800`],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      lastActiveAt: serverTimestamp(),
-      interests: ["Nature", "Adventure"],
-      coinBalance: 500,
-      diamondBalance: 0,
-      isAdmin: false,
-      isCoinseller: false,
-      isSupport: false,
-      isAgent: false,
-      isVerified: false,
-      isOnline: true,
-      agencyJoinStatus: "none",
-      visitorsUnlocked: false
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
+          id: session.user.id,
+          numeric_id: numericId,
+          username: name,
+          gender: gender,
+          location: country,
+          relationship_goal: lookingFor,
+          date_of_birth: dob,
+          profile_photo_urls: [`https://picsum.photos/seed/${session.user.id}/600/800`],
+          coin_balance: 500,
+          is_online: true,
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) throw error;
+      router.push("/discover")
+    } catch (error: any) {
+      console.error("Full onboarding failed:", error)
+      toast({
+        variant: "destructive",
+        title: "Setup Error",
+        description: error.message || "Failed to save profile."
+      })
+      setIsSubmitting(false)
     }
-
-    await setDoc(doc(firestore, "userProfiles", user.uid), profileData);
-    router.push("/discover")
-  }, [user, name, dob, gender, country, lookingFor, firestore, router, toast])
+  }, [name, dob, gender, country, lookingFor, isSubmitting, router, toast])
 
   const darkMaroonText = "text-[#5A1010]";
   const darkMaroonBg = "bg-[#5A1010]";
 
   return (
-    <div className="h-svh bg-transparent overflow-y-auto">
+    <div className="h-svh bg-transparent overflow-y-auto bg-white">
       <div className="flex flex-col p-6 min-h-full">
         <div className="mt-8 space-y-8 pb-32 max-w-sm mx-auto w-full">
           <header className="space-y-2">
@@ -110,7 +109,7 @@ export default function FullOnboardingPage() {
                 placeholder="What should we call you?" 
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm"
+                className="h-16 rounded-[2rem] bg-gray-50 border-none text-gray-900 font-bold px-6 shadow-sm"
               />
             </div>
 
@@ -121,7 +120,7 @@ export default function FullOnboardingPage() {
                 value={dob}
                 max={maxDobDate}
                 onChange={(e) => setDob(e.target.value)}
-                className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm"
+                className="h-16 rounded-[2rem] bg-gray-50 border-none text-gray-900 font-bold px-6 shadow-sm"
               />
               <p className="text-[9px] text-[#5A1010]/60 font-bold uppercase ml-1">Must be at least 18 years old</p>
             </div>
@@ -176,7 +175,7 @@ export default function FullOnboardingPage() {
             <div className="space-y-3">
               <Label className={cn("text-[10px] font-black uppercase ml-1 tracking-widest", darkMaroonText)}>Country</Label>
               <Select onValueChange={setCountry}>
-                <SelectTrigger className="h-16 rounded-[2rem] bg-white border-none text-gray-900 font-bold px-6 shadow-sm">
+                <SelectTrigger className="h-16 rounded-[2rem] bg-gray-50 border-none text-gray-900 font-bold px-6 shadow-sm">
                   <SelectValue placeholder="Select country" />
                 </SelectTrigger>
                 <SelectContent className="bg-white border-zinc-100 text-gray-900 rounded-[2rem] p-2">
@@ -190,10 +189,10 @@ export default function FullOnboardingPage() {
 
           <Button 
             className={cn("w-full h-18 rounded-full text-white text-xl font-black shadow-2xl active:scale-95 transition-all mt-6", darkMaroonBg)}
-            disabled={!name || !dob || !gender || !country || !lookingFor}
+            disabled={!name || !dob || !gender || !country || !lookingFor || isSubmitting}
             onClick={handleSave}
           >
-            Finish Setup
+            {isSubmitting ? <Loader2 className="w-6 h-6 animate-spin" /> : "Finish Setup"}
           </Button>
         </div>
       </div>
