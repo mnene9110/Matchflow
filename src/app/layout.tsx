@@ -20,9 +20,9 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     if (typeof window === 'undefined') return;
 
     const auth = supabase?.auth;
-    if (!auth || typeof auth.onAuthStateChange !== 'function') {
-      const retryTimer = setTimeout(() => setIsReady(prev => prev), 100);
-      return () => clearTimeout(retryTimer);
+    if (!auth) {
+      setIsReady(true);
+      return;
     }
 
     const checkAuth = async () => {
@@ -45,16 +45,15 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 
     checkAuth();
 
-    // Correct Supabase v2 listener pattern: onAuthStateChange
-    const { data: { subscription } } = auth.onAuthStateChange((event) => {
+    const { data: listener } = auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         window.location.replace('/welcome');
       }
     });
 
     return () => {
-      if (subscription) {
-        subscription.unsubscribe();
+      if (listener?.subscription) {
+        listener.subscription.unsubscribe();
       }
     };
   }, [pathname]);

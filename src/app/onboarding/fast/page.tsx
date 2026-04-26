@@ -35,14 +35,14 @@ export default function FastOnboardingPage() {
       const numericId = Math.floor(10000000 + Math.random() * 90000000);
       const welcomeCoins = 500;
 
-      // Ensure fields match the SQL schema (snake_case)
+      // Ensure fields match the SQL schema exactly (snake_case)
       const { error } = await supabase
         .from('profiles')
         .insert({
           id: session.user.id,
           numeric_id: numericId,
           username: `Guest_${session.user.id.slice(0, 5)}`,
-          gender,
+          gender: gender,
           location: country,
           profile_photo_urls: [`https://picsum.photos/seed/${session.user.id}/600/800`],
           coin_balance: welcomeCoins,
@@ -51,7 +51,7 @@ export default function FastOnboardingPage() {
         });
 
       if (error) {
-        console.error("Supabase insert error:", error);
+        console.error("Supabase insert error details:", error.message, error.details, error.hint);
         throw new Error(error.message || "Failed to create profile record.");
       }
       

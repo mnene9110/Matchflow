@@ -5,8 +5,8 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { RotateCcw, Trophy, Loader2, ChevronLeft, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
-import { doc, writeBatch, increment, collection, serverTimestamp } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
+import { useSupabaseUser } from "@/hooks/use-supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -14,9 +14,9 @@ const REWARDS = [5, 5, 10, 5, 5, 7, 50]
 
 export default function TaskCenterPage() {
   const router = useRouter()
-  const { user } = useUser()
-  const { firestore } = useFirebase()
+  const { user, profile, isLoading } = useSupabaseUser()
   const { toast } = useToast()
+  
   const [isClaiming, setIsClaiming] = useState(false)
   const [todayStr, setTodayStr] = useState<string>("")
   const [mounted, setMounted] = useState(false)
@@ -26,28 +26,54 @@ export default function TaskCenterPage() {
     setMounted(true);
   }, []);
 
-  const userRef = useMemoFirebase(() => user ? doc(firestore, "userProfiles", user.uid) : null, [firestore, user])
-  const { data: profile, isLoading } = useDoc(userRef)
-  const lastCheckIn = profile?.lastCheckInDate || ""
-  const streak = profile?.checkInStreak || 0
+  const lastCheckIn = profile?.last_check_in_date || ""
+  const streak = profile?.check_in_streak || 0
   const canClaim = !!todayStr && lastCheckIn !== todayStr
 
   const handleClaim = async () => {
-    if (!user || !firestore || !userRef || isClaiming || !canClaim || !todayStr) return
+    if (!user || isClaiming || !canClaim || !todayStr || !profile) return
     setIsClaiming(true)
+    
     try {
-      const yesterday = new Date(); yesterday.setDate(yesterday.getDate() - 1);
+      const yesterday = new Date(); 
+      yesterday.setDate(yesterday.getDate() - 1);
       const yesterdayStr = yesterday.toISOString().split('T')[0];
+      
       let newStreak = 1;
-      if (profile?.lastCheckInDate === yesterdayStr) { newStreak = ((profile?.checkInStreak || 0) % 7) + 1; }
+      if (profile.last_check_in_date === yesterdayStr) { 
+        newStreak = (profile.check_in_streak % 7) + 1; 
+      }
+      
       const rewardAmount = REWARDS[newStreak - 1];
-      const batch = writeBatch(firestore);
-      const txRef = doc(collection(userRef, "transactions"));
-      batch.update(userRef, { coinBalance: increment(rewardAmount), lastCheckInDate: todayStr, checkInStreak: newStreak, lastActiveAt: serverTimestamp(), updatedAt: new Date().toISOString() });
-      batch.set(txRef, { id: txRef.id, type: "check-in", amount: rewardAmount, transactionDate: new Date().toISOString(), description: `Daily check-in Day ${newStreak}` });
-      await batch.commit();
+
+      // 1. Log Transaction
+      const { error: txError } = await supabase.from('transactions').insert({
+        user_id: user.id,
+        type: 'check-in',
+        amount: rewardAmount,
+        description: `Daily check-in Day ${newStreak}`
+      });
+
+      if (txError) throw txError;
+
+      // 2. Update Profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          coin_balance: profile.coin_balance + rewardAmount,
+          last_check_in_date: todayStr,
+          check_in_streak: newStreak,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (profileError) throw profileError;
+
       toast({ title: "Coins Claimed!", description: `You've received ${rewardAmount} coins.` });
+      // In a real app, you might want to trigger a local state refresh or re-fetch profile
+      router.refresh();
     } catch (error: any) {
+      console.error("Claim error:", error);
       toast({ variant: "destructive", title: "Claim Failed" });
     } finally {
       setIsClaiming(false);

@@ -1,34 +1,9 @@
+
 'use client';
-
-import React, { createContext, useContext, ReactNode, useMemo } from 'react';
-import { isSupabaseConfigValid } from '@/firebase/config';
-
-interface FirebaseContextState {
-  areServicesAvailable: boolean;
-}
-
-export const FirebaseContext = createContext<FirebaseContextState | undefined>(undefined);
-
-/**
- * Simple context provider to manage service availability state.
- * Supabase keys are hardcoded, so areServicesAvailable is essentially always true.
- */
+import React, { createContext, useContext, ReactNode } from 'react';
+// Context gutted as Supabase is used directly via lib/supabase.ts
+export const FirebaseContext = createContext<any>(undefined);
 export const FirebaseProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const areServicesAvailable = isSupabaseConfigValid();
-
-  const contextValue = useMemo(() => ({
-    areServicesAvailable,
-  }), [areServicesAvailable]);
-
-  return (
-    <FirebaseContext.Provider value={contextValue}>
-      {children}
-    </FirebaseContext.Provider>
-  );
+  return <>{children}</>;
 };
-
-export const useFirebase = () => {
-  const context = useContext(FirebaseContext);
-  if (!context) throw new Error('useFirebase must be used within a FirebaseProvider.');
-  return context;
-};
+export const useFirebase = () => ({});
