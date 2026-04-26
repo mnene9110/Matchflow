@@ -19,9 +19,7 @@ import {
   X,
   Target,
   Gift as GiftIcon,
-  ArrowRight,
-  Phone,
-  Video
+  ArrowRight
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
@@ -51,7 +49,7 @@ import {
 import { GIFTS } from "@/app/chat/[id]/page"
 import { usePresence } from "@/hooks/use-presence"
 import { useFirebase } from "@/firebase/provider"
-import { doc, getDoc, updateDoc, setDoc, collection, addDoc, serverTimestamp, query, where, orderBy, limit, onSnapshot } from "firebase/firestore"
+import { doc, getDoc, setDoc, collection, addDoc, serverTimestamp, query, where, orderBy, limit, onSnapshot } from "firebase/firestore"
 import { useAuth } from "@/firebase/auth/use-auth"
 
 export default function ProfileDetailPage() {
@@ -137,45 +135,6 @@ export default function ProfileDetailPage() {
       logVisitor();
     }
   }, [currentUser?.uid, id, !!userProfile, !!myProfile, firestore]);
-
-  const handleInitiateCall = async (type: 'video' | 'audio') => {
-    if (!currentUser || !userProfile || !id) return;
-    
-    const cost = type === 'video' ? 160 : 80;
-    if ((myProfile?.coinBalance || 0) < cost) {
-      toast({ 
-        variant: "destructive", 
-        title: "Insufficient Coins", 
-        description: `You need at least ${cost} coins to call.`,
-        action: <Button variant="outline" size="sm" onClick={() => router.push('/recharge')}>Recharge</Button>
-      });
-      return;
-    }
-
-    try {
-      const callId = [currentUser.uid, id as string].sort().join("_");
-      const callRef = doc(firestore, "calls", callId);
-      
-      await setDoc(callRef, {
-        id: callId,
-        callerId: currentUser.uid,
-        receiverId: id,
-        callerName: myProfile?.username || "Someone",
-        callType: type,
-        status: 'ringing',
-        costPerMin: cost,
-        timestamp: Date.now(),
-        participants: [currentUser.uid, id as string]
-      });
-
-      await updateDoc(doc(firestore, "userProfiles", id as string), {
-        incomingCallId: callId
-      });
-    } catch (error: any) {
-      console.error("Call error:", error);
-      toast({ variant: "destructive", title: "Call Failed" });
-    }
-  }
 
   const groupedGifts = useMemo(() => {
     const map = new Map<string, { giftId: string; count: number }>()
@@ -339,13 +298,6 @@ export default function ProfileDetailPage() {
               </div>
             </div>
           </div>
-
-          {id !== currentUser?.uid && (
-            <div className="flex gap-3">
-              <Button onClick={() => handleInitiateCall('audio')} className="flex-1 h-14 rounded-2xl bg-zinc-900 text-white font-black text-[10px] uppercase tracking-widest gap-2"><Phone className="w-3.5 h-3.5" />Voice Call</Button>
-              <Button onClick={() => handleInitiateCall('video')} className="flex-1 h-14 rounded-2xl bg-[#3BC1A8] text-white font-black text-[10px] uppercase tracking-widest gap-2"><Video className="w-3.5 h-3.5" />Video Call</Button>
-            </div>
-          )}
 
           <section className="space-y-4">
             <div className="flex items-center justify-between">

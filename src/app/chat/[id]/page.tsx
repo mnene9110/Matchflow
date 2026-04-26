@@ -71,7 +71,7 @@ function ChatDetailContent() {
     return query(
       collection(firestore, "chats", chatId, "messages"),
       orderBy("timestamp", "asc"),
-      limit(50)
+      limit(100)
     );
   }, [chatId]);
 
@@ -213,7 +213,12 @@ function ChatDetailContent() {
         incomingCallId: callId
       });
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Call Failed" });
+      console.error("Initiate Call Error:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Call Failed",
+        description: "Communication link could not be established. Ensure your region configuration is active."
+      });
     }
   }
 

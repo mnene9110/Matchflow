@@ -50,7 +50,7 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#3BC1A8] z-[9999]">
         <div className="flex flex-col items-center gap-6 animate-pulse">
-           <h1 className="text-4xl font-logo text-white">MatchFlow</h1>
+           <h1 className="text-2xl font-logo text-white">MatchFlow</h1>
         </div>
       </div>
     );
