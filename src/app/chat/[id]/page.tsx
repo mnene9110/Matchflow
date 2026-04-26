@@ -217,7 +217,10 @@ function ChatDetailContent() {
 
     setIsCalling(true);
     try {
-      const { error: callError } = await supabase.from('calls').insert({
+      // Clean up any stale signaling first to avoid PK violations
+      await supabase.from('calls').delete().eq('id', chatId);
+
+      const { error: callError } = await supabase.from('calls').upsert({
         id: chatId,
         caller_id: currentUser.id,
         receiver_id: otherUserId,
@@ -230,8 +233,9 @@ function ChatDetailContent() {
 
       if (callError) throw callError;
       await supabase.from('profiles').update({ incoming_call_id: chatId }).eq('id', otherUserId);
-    } catch (error) {
-      toast({ variant: "destructive", title: "Call Failed", description: "Could not start call." });
+    } catch (error: any) {
+      console.error("Call init error:", error);
+      toast({ variant: "destructive", title: "Call Failed", description: error.message || "Could not start call." });
     } finally {
       setIsCalling(false);
     }

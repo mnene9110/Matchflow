@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -29,6 +30,15 @@ export default function DiscoverPage() {
     setIsLoading(true);
 
     try {
+      // 1. Get blocked users to filter them out
+      const { data: blockedData } = await supabase
+        .from('blocked_users')
+        .select('blocked_user_id')
+        .eq('user_id', user.id);
+      
+      const blockedIds = (blockedData || []).map(b => b.blocked_user_id);
+      
+      // 2. Build query
       const targetGender = (profile.gender || 'male').toLowerCase() === 'male' ? 'female' : 'male';
       
       let query = supabase
@@ -36,7 +46,7 @@ export default function DiscoverPage() {
         .select('*')
         .eq('gender', targetGender)
         .neq('id', user.id)
-        .limit(20);
+        .limit(40);
 
       if (activeTab === 'nearby') {
         query = query.eq('location', profile.location || 'Kenya');
@@ -45,7 +55,11 @@ export default function DiscoverPage() {
       const { data, error } = await query;
 
       if (error) throw error;
-      setUsers(data || []);
+
+      // 3. Filter blocked users client-side for better responsiveness
+      const filtered = (data || []).filter(u => !blockedIds.includes(u.id));
+      
+      setUsers(filtered);
     } catch (error) {
       console.error("Error fetching users:", error);
     } finally {
@@ -53,8 +67,6 @@ export default function DiscoverPage() {
     }
   };
 
-  // Only fetch on initial mount or if list is empty
-  // Avoid refreshing on every tab change unless manually triggered
   useEffect(() => {
     if (user && profile && users.length === 0) {
       fetchUsers();

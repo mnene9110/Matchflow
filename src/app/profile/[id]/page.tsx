@@ -12,10 +12,7 @@ import {
   ShieldAlert,
   UserX,
   Copy,
-  Headset,
-  Lock,
   CheckCircle,
-  ShieldCheck,
   Compass,
   Calendar,
   Zap,
@@ -140,7 +137,10 @@ export default function ProfileDetailPage() {
     const chatId = [currentUser.id, id].sort().join("_");
 
     try {
-      const { error: callError } = await supabase.from('calls').insert({
+      // Clear stale calls first
+      await supabase.from('calls').delete().eq('id', chatId);
+
+      const { error: callError } = await supabase.from('calls').upsert({
         id: chatId,
         caller_id: currentUser.id,
         receiver_id: id,
@@ -153,8 +153,9 @@ export default function ProfileDetailPage() {
 
       if (callError) throw callError;
       await supabase.from('profiles').update({ incoming_call_id: chatId }).eq('id', id);
-    } catch (error) {
-      toast({ variant: "destructive", title: "Call Failed" });
+    } catch (error: any) {
+      console.error("Call error:", error);
+      toast({ variant: "destructive", title: "Call Failed", description: error.message || "Signaling error." });
     }
   }
 
@@ -178,9 +179,7 @@ export default function ProfileDetailPage() {
   }, [api])
 
   const openFullscreen = (url: string) => setFullscreenImage(url);
-  const closeFullscreen = () => {
-      setFullscreenImage(null);
-  };
+  const closeFullscreen = () => setFullscreenImage(null);
 
   const age = useMemo(() => {
     if (!userProfile?.date_of_birth) return null;
@@ -202,12 +201,12 @@ export default function ProfileDetailPage() {
   const handleBlock = async () => {
     if (!currentUser || !id || userProfile?.is_support || userProfile?.is_admin) return
     try {
-      await supabase.from('blocked_users').insert({
+      await supabase.from('blocked_users').upsert({
         user_id: currentUser.id,
         blocked_user_id: id,
         username: userProfile?.username || "Unknown"
       });
-      toast({ title: "User Blocked", description: `${userProfile?.username} has been blocked.` })
+      toast({ title: "User Blocked", description: `${userProfile?.username} has been hidden.` })
       router.push('/discover')
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Could not block user." })
@@ -424,12 +423,21 @@ export default function ProfileDetailPage() {
       <Dialog open={showReportDialog} onOpenChange={setShowReportDialog}>
         <DialogContent className="rounded-[2.5rem] bg-white border-none p-8 max-w-[90%] mx-auto shadow-2xl">
           <DialogHeader>
-            <DialogTitle className="text-2xl font-black font-headline text-gray-900 text-center">Report Profile</DialogTitle>
-            <DialogDescription className="text-center text-gray-500 font-medium">Please provide details about why you are reporting this user.</DialogDescription>
+            <DialogTitle className="text-2xl font-black font-headline text-gray-900 text-center uppercase tracking-tight">Report User</DialogTitle>
+            <DialogDescription className="text-center text-gray-500 font-medium text-xs">Help us keep MatchFlow safe.</DialogDescription>
           </DialogHeader>
-          <div className="py-4"><Textarea placeholder="Tell us what happened..." value={reportDetails} onChange={(e) => setReportDetails(e.target.value)} className="min-h-[140px] rounded-[1.5rem] bg-gray-50 border-none focus-visible:ring-primary/20 py-4 font-medium" /></div>
+          <div className="py-4">
+            <Textarea 
+              placeholder="Describe the issue..." 
+              value={reportDetails} 
+              onChange={(e) => setReportDetails(e.target.value)} 
+              className="min-h-[140px] rounded-[1.5rem] bg-gray-50 border-none focus-visible:ring-primary/20 py-4 font-medium" 
+            />
+          </div>
           <DialogFooter className="flex flex-col gap-3">
-            <Button onClick={handleReport} disabled={!reportDetails.trim() || isSubmittingReport} className="w-full h-14 rounded-full bg-primary text-white font-black shadow-lg">{isSubmittingReport ? <Loader2 className="w-5 h-5 animate-spin" /> : "Submit Report"}</Button>
+            <Button onClick={handleReport} disabled={!reportDetails.trim() || isSubmittingReport} className="w-full h-14 rounded-full bg-primary text-white font-black shadow-lg">
+              {isSubmittingReport ? <Loader2 className="w-5 h-5 animate-spin" /> : "Submit Report"}
+            </Button>
             <Button variant="ghost" onClick={() => setShowReportDialog(false)} className="w-full h-12 rounded-full text-gray-400 font-black uppercase text-[10px] tracking-widest">Cancel</Button>
           </DialogFooter>
         </DialogContent>

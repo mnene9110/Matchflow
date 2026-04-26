@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -23,7 +24,7 @@ export default function DeleteAccountPage() {
 
     setIsDeleting(true)
     try {
-      // 1. Delete profile data
+      // 1. Delete profile data (will cascades if DB is set up right)
       const { error: profileError } = await supabase
         .from('profiles')
         .delete()
@@ -31,21 +32,26 @@ export default function DeleteAccountPage() {
 
       if (profileError) throw profileError;
 
-      // 2. Sign out
+      // 2. Sign out of Auth
       await supabase.auth.signOut();
+
+      // Clear any local cache/storage
+      localStorage.clear();
+      sessionStorage.clear();
 
       toast({
         title: "Account Deleted",
-        description: "Your profile data has been removed.",
+        description: "Your profile has been removed.",
       })
       
-      router.push("/welcome")
+      // Immediate redirect to force session clear
+      window.location.replace("/welcome");
     } catch (error: any) {
       setIsDeleting(false)
       toast({
         variant: "destructive",
         title: "Deletion Failed",
-        description: error.message || "Could not delete account data. Please contact support.",
+        description: error.message || "Could not delete account data.",
       })
     }
   }
@@ -61,7 +67,7 @@ export default function DeleteAccountPage() {
         <div className="space-y-2">
           <h2 className="text-2xl font-black font-headline text-gray-900 tracking-tight">Action Restricted</h2>
           <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-            Administrator accounts cannot be deleted directly for security reasons.
+            Administrator accounts cannot be deleted directly.
           </p>
         </div>
         <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">
@@ -91,7 +97,7 @@ export default function DeleteAccountPage() {
             <Trash2 className="w-10 h-10 text-red-500" />
           </div>
           <div className="space-y-2">
-            <h2 className="text-3xl font-black font-headline text-gray-900 leading-tight">Permanent Action</h2>
+            <h2 className="text-3xl font-black font-headline text-gray-900 leading-tight uppercase tracking-tight">Permanent Action</h2>
             <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[280px] mx-auto">
               This will permanently delete your profile, coins, and messages. This cannot be undone.
             </p>
@@ -104,9 +110,9 @@ export default function DeleteAccountPage() {
               Type <span className="underline">DELETE</span> to confirm
             </Label>
             <Input 
-              placeholder="Type DELETE here" 
+              placeholder="Type DELETE" 
               value={confirmationText}
-              onChange={(e) => setConfirmationText(e.target.value)}
+              onChange={(e) => setConfirmationText(e.target.value.toUpperCase())}
               className="h-16 text-center rounded-2xl bg-gray-50 border-red-100 text-gray-900 placeholder:text-gray-300 text-lg font-black tracking-widest focus-visible:ring-red-500/20" 
             />
           </div>
@@ -118,12 +124,12 @@ export default function DeleteAccountPage() {
             onClick={handleDelete}
             disabled={isDeleting || confirmationText !== "DELETE"}
           >
-            {isDeleting ? <Loader2 className="w-6 h-6 animate-spin" /> : "Confirm Deletion"}
+            {isDeleting ? <Loader2 className="w-6 h-6 animate-spin" /> : "Delete Forever"}
           </Button>
           
           <div className="flex items-center justify-center gap-2 mt-6 text-[10px] font-black uppercase tracking-[0.1em] text-gray-400">
              <AlertTriangle className="w-3.5 h-3.5" />
-             Account will be removed from all systems
+             Immediate and permanent removal
           </div>
         </div>
       </main>
