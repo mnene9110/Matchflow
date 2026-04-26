@@ -1,248 +1,64 @@
+
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect } from "react"
 import Image from "next/image"
 import { RotateCcw, Loader2, CheckCircle, MapPin, UserSearch } from "lucide-react"
-import { useFirebase, useUser, useDoc, useMemoFirebase } from "@/firebase"
-import { 
-  collection, 
-  query, 
-  where, 
-  limit, 
-  getDocs, 
-  doc, 
-  onSnapshot, 
-  orderBy, 
-  startAfter,
-  QueryDocumentSnapshot,
-  DocumentData,
-  Query
-} from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
+import { useSupabaseUser } from "@/hooks/use-supabase"
 import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { usePresence } from "@/hooks/use-presence"
 
-// Sub-component to handle per-user presence dot
 function PresenceDot({ userId }: { userId: string }) {
   const { isOnline } = usePresence(userId);
   if (!isOnline) return null;
   return <div className="ml-auto w-1.5 h-1.5 rounded-full bg-green-50 animate-pulse" />;
 }
 
-// Module-level persistent cache to avoid reloading on every entry
-let cachedUsers: any[] = []
-let cachedLastDoc: QueryDocumentSnapshot<DocumentData> | null = null
-let cachedHasMore: boolean = true
-let cachedTab: 'recommended' | 'nearby' = "recommended"
-let cachedInitialLoaded: boolean = false
-
-export function clearDiscoverCache() {
-  cachedUsers = []
-  cachedLastDoc = null
-  cachedHasMore = true
-  cachedTab = "recommended"
-  cachedInitialLoaded = false
-}
-
-// Utility to shuffle an array
-const shuffleArray = (array: any[]) => {
-  const shuffled = [...array];
-  for (let i = shuffled.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
-  }
-  return shuffled;
-};
-
 export default function DiscoverPage() {
-  const { firestore } = useFirebase()
-  const { user: currentUser } = useUser()
   const router = useRouter()
+  const { user, profile } = useSupabaseUser()
 
-  const [users, setUsers] = useState<any[]>(cachedUsers)
-  const [activeTab, setActiveTab] = useState<'recommended' | 'nearby'>(cachedTab)
-  const [blockedUserIds, setBlockedUsersIds] = useState<Set<string>>(new Set())
-  const [isInitialLoading, setIsInitialLoading] = useState(!cachedInitialLoaded)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(cachedHasMore)
-  
-  const observerTarget = useRef<HTMLDivElement>(null)
+  const [users, setUsers] = useState<any[]>([])
+  const [activeTab, setActiveTab] = useState<'recommended' | 'nearby'>( "recommended")
+  const [isLoading, setIsLoading] = useState(true)
 
-  const userProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: currentUserProfile, isLoading: isProfileLoading } = useDoc(userProfileRef)
-
-  // Sync blocked users once
-  useEffect(() => {
-    if (!firestore || !currentUser) return
-    const blockedRef = collection(firestore, "userProfiles", currentUser.uid, "blockedUsers")
-    return onSnapshot(blockedRef, (snap) => {
-      const ids = new Set(snap.docs.map(d => d.id))
-      setBlockedUsersIds(ids)
-    }, (error) => console.error("Blocked snapshot error:", error))
-  }, [firestore, currentUser])
-
-  const fetchUsers = async (isRefresh = false, isTabChange = false) => {
-    if (!firestore || !currentUser) return;
-    
-    if (!isProfileLoading && !currentUserProfile) {
-      setIsInitialLoading(false);
-      return;
-    }
-
-    if (!currentUserProfile) return;
-
-    if (isRefresh || isTabChange) {
-      setIsInitialLoading(true);
-      cachedInitialLoaded = false;
-    } else if (cachedInitialLoaded && users.length > 0) {
-      setIsInitialLoading(false);
-      return;
-    }
-
-    const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
-    const targetGender = currentGender === 'male' ? 'female' : 'male'
+  const fetchUsers = async () => {
+    if (!user || !profile) return;
+    setIsLoading(true);
 
     try {
-      let q: Query<DocumentData> = query(
-        collection(firestore, "userProfiles"),
-        where("gender", "==", targetGender),
-        limit(12)
-      );
+      const targetGender = (profile.gender || 'male').toLowerCase() === 'male' ? 'female' : 'male';
+      
+      let query = supabase
+        .from('profiles')
+        .select('*')
+        .eq('gender', targetGender)
+        .neq('id', user.id)
+        .limit(20);
 
       if (activeTab === 'nearby') {
-        q = query(
-          collection(firestore, "userProfiles"),
-          where("gender", "==", targetGender),
-          where("location", "==", currentUserProfile.location || "Kenya"),
-          limit(12)
-        );
-      }
-      
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
-        setUsers([]);
-        cachedUsers = [];
-        setHasMore(false);
-        cachedHasMore = false;
-        setIsInitialLoading(false);
-        cachedInitialLoaded = true;
-        return;
+        query = query.eq('location', profile.location || 'Kenya');
       }
 
-      const rawUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      let filtered = rawUsers.filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
-      
-      if (isRefresh) {
-        filtered = shuffleArray(filtered);
-      }
+      const { data, error } = await query;
 
-      setUsers(filtered);
-      cachedUsers = filtered;
-      cachedLastDoc = snap.docs[snap.docs.length - 1];
-      setHasMore(snap.docs.length >= 12);
-      cachedHasMore = snap.docs.length >= 12;
-      cachedInitialLoaded = true;
+      if (error) throw error;
+      setUsers(data || []);
     } catch (error) {
-      console.error("Error fetching users:", error)
-      setHasMore(false);
+      console.error("Error fetching users:", error);
     } finally {
-      setIsInitialLoading(false)
+      setIsLoading(false);
     }
-  }
-
-  const loadMore = async () => {
-    if (isLoadingMore || !hasMore || !cachedLastDoc || !firestore || !currentUserProfile || isInitialLoading) return;
-
-    setIsLoadingMore(true);
-    const currentGender = (currentUserProfile?.gender || 'male').toLowerCase()
-    const targetGender = currentGender === 'male' ? 'female' : 'male'
-
-    try {
-      let q: Query<DocumentData> = query(
-        collection(firestore, "userProfiles"),
-        where("gender", "==", targetGender),
-        startAfter(cachedLastDoc),
-        limit(12)
-      );
-
-      if (activeTab === 'nearby') {
-        q = query(
-          collection(firestore, "userProfiles"),
-          where("gender", "==", targetGender),
-          where("location", "==", currentUserProfile.location || "Kenya"),
-          startAfter(cachedLastDoc),
-          limit(12)
-        );
-      }
-
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
-        setHasMore(false);
-        cachedHasMore = false;
-        return;
-      }
-
-      const rawUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const filtered = rawUsers.filter((u: any) => u.id !== currentUser.uid && !blockedUserIds.has(u.id));
-      
-      const newUsers = [...users, ...filtered];
-      setUsers(newUsers);
-      cachedUsers = newUsers;
-      cachedLastDoc = snap.docs[snap.docs.length - 1];
-      setHasMore(snap.docs.length >= 12);
-      cachedHasMore = snap.docs.length >= 12;
-    } catch (error) {
-      console.error("Error fetching more users:", error)
-    } finally {
-      setIsLoadingMore(false);
-    }
-  }
+  };
 
   useEffect(() => {
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0].isIntersecting && hasMore && !isLoadingMore && !isInitialLoading && users.length > 0) {
-          loadMore();
-        }
-      },
-      { threshold: 0.1 }
-    );
-
-    if (observerTarget.current) {
-      observer.observe(observerTarget.current);
+    if (user && profile) {
+      fetchUsers();
     }
-
-    return () => {
-      if (observerTarget.current) observer.unobserve(observerTarget.current);
-    };
-  }, [hasMore, isLoadingMore, isInitialLoading, users.length]);
-
-  useEffect(() => {
-    if (!isProfileLoading) {
-      if (currentUserProfile) {
-        fetchUsers();
-      } else {
-        setIsInitialLoading(false);
-        router.replace("/onboarding/fast");
-      }
-    }
-  }, [currentUserProfile, isProfileLoading]);
-
-  const handleTabChange = (tab: 'recommended' | 'nearby') => {
-    if (tab === activeTab) return;
-    setActiveTab(tab);
-    cachedTab = tab;
-    cachedLastDoc = null;
-    fetchUsers(false, true);
-  }
-
-  const handleRefresh = async () => {
-    cachedLastDoc = null;
-    await fetchUsers(true);
-  }
+  }, [user, profile, activeTab]);
 
   const calculateAge = (dob: string) => {
     if (!dob) return 20;
@@ -254,11 +70,11 @@ export default function DiscoverPage() {
     return age;
   }
 
-  if (isInitialLoading && users.length === 0) {
+  if (isLoading && users.length === 0) {
     return (
       <div className="flex h-svh w-full flex-col items-center justify-center bg-white">
         <Loader2 className="w-10 h-10 animate-spin text-primary/40" />
-        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.3em] text-gray-300">Finding your matches...</p>
+        <p className="mt-4 text-[10px] font-black uppercase tracking-[0.3em] text-gray-300">Finding matches...</p>
       </div>
     )
   }
@@ -282,7 +98,7 @@ export default function DiscoverPage() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <button 
-              onClick={() => handleTabChange('recommended')}
+              onClick={() => setActiveTab('recommended')}
               className={cn(
                 "text-[10px] font-black uppercase tracking-widest transition-all",
                 activeTab === 'recommended' ? "text-white scale-110" : "text-white/50"
@@ -291,7 +107,7 @@ export default function DiscoverPage() {
               Recommended
             </button>
             <button 
-              onClick={() => handleTabChange('nearby')}
+              onClick={() => setActiveTab('nearby')}
               className={cn(
                 "text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5",
                 activeTab === 'nearby' ? "text-white scale-110" : "text-white/50"
@@ -301,29 +117,28 @@ export default function DiscoverPage() {
               {activeTab === 'nearby' && <MapPin className="w-2.5 h-2.5 fill-current" />}
             </button>
           </div>
-          
-          <button onClick={handleRefresh} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform">
-            {isInitialLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
+          <button onClick={fetchUsers} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform">
+            <RotateCcw className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
 
       {users.length > 0 ? (
         <main className="px-4 grid grid-cols-2 gap-3 mt-3">
-          {users.map((user) => {
-            const age = calculateAge(user.dateOfBirth);
-            const image = (user.profilePhotoUrls && user.profilePhotoUrls[0]) || `https://picsum.photos/seed/${user.id}/400/600`;
+          {users.map((u) => {
+            const age = calculateAge(u.date_of_birth);
+            const image = (u.profile_photo_urls && u.profile_photo_urls[0]) || `https://picsum.photos/seed/${u.id}/400/600`;
 
             return (
-              <div key={user.id} onClick={() => router.push(`/profile/${user.id}`)} className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95 shadow-sm">
-                <Image src={image} alt={user.username} fill className="object-cover" />
+              <div key={u.id} onClick={() => router.push(`/profile/${u.id}`)} className="group relative aspect-[3/3.8] rounded-[2rem] overflow-hidden bg-gray-100 transition-all active:scale-95 shadow-sm">
+                <Image src={image} alt={u.username} fill className="object-cover" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
                 
                 <div className="absolute top-3 right-3 z-10">
                   <button 
                     onClick={(e) => {
                       e.stopPropagation();
-                      router.push(`/chat/${user.id}`);
+                      router.push(`/chat/${u.id}`);
                     }}
                     className="h-7 px-4 rounded-full bg-[#3BC1A8] flex items-center justify-center shadow-lg active:scale-90 transition-transform border border-white/20"
                   >
@@ -333,15 +148,13 @@ export default function DiscoverPage() {
 
                 <div className="absolute inset-x-0 bottom-0 p-4 space-y-2">
                   <div className="flex items-center gap-1.5 truncate">
-                    <h3 className="text-xs font-black truncate tracking-wide text-white">{user.username}</h3>
-                    {user.isVerified && (
-                      <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />
-                    )}
+                    <h3 className="text-xs font-black truncate tracking-wide text-white">{u.username}</h3>
+                    {u.is_verified && <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />}
                   </div>
                   <div className="flex items-center gap-1.5">
                     <div className="w-6 h-6 rounded-full bg-black/40 flex items-center justify-center border border-white/20"><span className="text-[9px] font-black text-white">{age}</span></div>
-                    <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20"><span className="text-[8px] font-black text-white uppercase">{user.location || "Kenya"}</span></div>
-                    <PresenceDot userId={user.id} />
+                    <div className="h-6 px-2.5 rounded-full bg-[#3BC1A8] flex items-center justify-center border border-white/20"><span className="text-[8px] font-black text-white uppercase">{u.location || "Kenya"}</span></div>
+                    <PresenceDot userId={u.id} />
                   </div>
                 </div>
               </div>
@@ -353,28 +166,10 @@ export default function DiscoverPage() {
           <div className="w-24 h-24 bg-gray-50 rounded-[3rem] flex items-center justify-center border border-gray-100 shadow-inner">
             <UserSearch className="w-10 h-10 text-gray-200" />
           </div>
-          <div className="space-y-2">
-            <p className="text-xs font-black text-gray-900 uppercase tracking-widest">No users found</p>
-            <p className="text-[10px] font-bold text-gray-400 uppercase leading-relaxed">Try switching between Recommended and Nearby, or refresh the list.</p>
-          </div>
-          <Button onClick={handleRefresh} variant="outline" className="h-12 px-8 rounded-full border-gray-100 font-black text-[10px] uppercase tracking-[0.2em]">
-            Refresh List
-          </Button>
+          <p className="text-xs font-black text-gray-900 uppercase tracking-widest">No users found</p>
+          <Button onClick={fetchUsers} variant="outline" className="h-12 px-8 rounded-full font-black text-[10px] uppercase tracking-[0.2em]">Refresh</Button>
         </div>
       )}
-
-      <div ref={observerTarget} className="py-12 flex flex-col items-center justify-center gap-4">
-        {isLoadingMore ? (
-          <div className="flex flex-col items-center gap-3">
-            <Loader2 className="w-6 h-6 animate-spin text-primary/40" />
-            <span className="text-[9px] font-black text-gray-300 uppercase tracking-[0.3em]">Loading more...</span>
-          </div>
-        ) : !hasMore && users.length > 0 ? (
-          <div className="flex flex-col items-center gap-3 opacity-20">
-            <span className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">No more users</span>
-          </div>
-        ) : null}
-      </div>
     </div>
   )
 }

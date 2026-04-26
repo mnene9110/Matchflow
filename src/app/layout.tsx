@@ -1,32 +1,51 @@
 "use client"
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
-import { FirebaseClientProvider, useUser } from "@/firebase"
+import { FirebaseClientProvider } from "@/firebase"
 import { OfflineDetector } from "@/components/OfflineDetector"
 import { Navbar } from "@/components/Navbar"
 import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 import { InstallPWA } from "@/components/InstallPWA"
 import { NotificationRequest } from "@/components/NotificationRequest"
+import { supabase } from '@/lib/supabase';
 
-function NavigationGuard({ children }: { children: React.Node }) {
-  const { user, isUserLoading } = useUser();
+function NavigationGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (isUserLoading) return;
+    // If Supabase isn't initialized yet (due to missing keys), let the provider show the error
+    if (!supabase) return;
 
-    const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
-    const isPublicRoute = publicRoutes.includes(pathname);
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
+      const isPublicRoute = publicRoutes.includes(pathname);
 
-    // If not logged in and trying to access private route, force replace to welcome
-    if (!user && !isPublicRoute) {
-      window.location.replace('/welcome');
-    }
-  }, [user, isUserLoading, pathname]);
+      if (!session && !isPublicRoute) {
+        window.location.replace('/welcome');
+      } else {
+        setIsReady(true);
+      }
+    };
+
+    checkAuth();
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChanged((event, session) => {
+      if (event === 'SIGNED_OUT') {
+        window.location.replace('/welcome');
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [pathname, router]);
+
+  if (!isReady) return <div className="h-svh w-full bg-[#3BC1A8]" />;
 
   return <>{children}</>;
 }
@@ -37,31 +56,17 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   useEffect(() => {
-    // Disable browser back button functionality by replacing history state
     window.onbeforeunload = null;
     const preventConfirm = (e: BeforeUnloadEvent) => {
       delete e['returnValue'];
     };
     window.addEventListener('beforeunload', preventConfirm);
 
-    // Register Service Worker for PWA
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js', { scope: '/' })
           .then((registration) => {
             console.log('MatchFlow SW registered:', registration.scope);
-            
-            // Check for updates periodically
-            registration.addEventListener('updatefound', () => {
-              const newWorker = registration.installing;
-              if (newWorker) {
-                newWorker.addEventListener('statechange', () => {
-                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-                    console.log('[SW] New version available, please refresh.');
-                  }
-                });
-              }
-            });
           })
           .catch((err) => {
             console.error('MatchFlow SW registration failed:', err);
@@ -83,11 +88,7 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-capable" content="yes" />
         <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="theme-color" content="#3BC1A8" />
-        <meta name="msapplication-TileColor" content="#3BC1A8" />
-        <meta name="apple-mobile-web-app-title" content="MatchFlow" />
         <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
-        <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
-        <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
       </head>
       <body className="font-body antialiased selection:bg-none">
         <FirebaseClientProvider>

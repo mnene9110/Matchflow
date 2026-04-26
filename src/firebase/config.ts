@@ -17,3 +17,13 @@ export const isFirebaseConfigValid = () => {
     process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID
   );
 };
+
+/**
+ * Validates if the required Supabase configuration is present.
+ */
+export const isSupabaseConfigValid = () => {
+  return !!(
+    process.env.NEXT_PUBLIC_SUPABASE_URL && 
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  );
+};

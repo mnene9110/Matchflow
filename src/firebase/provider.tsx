@@ -8,6 +8,7 @@ import { Database, ref, set, onValue, onDisconnect, serverTimestamp as rtdbTimes
 import { FirebaseErrorListener } from '@/components/FirebaseErrorListener'
 import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert"
 import { ShieldAlert, Terminal } from "lucide-react"
+import { isSupabaseConfigValid } from '@/firebase/config';
 
 interface FirebaseProviderProps {
   children: ReactNode;
@@ -131,7 +132,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
     };
   }, [userAuthState.user, firestore, database]);
 
-  const areServicesAvailable = !!(firebaseApp && firestore && auth && database);
+  const areServicesAvailable = !!(firebaseApp && firestore && auth && database && isSupabaseConfigValid());
 
   const contextValue = useMemo((): FirebaseContextState => {
     return {
@@ -147,6 +148,10 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
   }, [firebaseApp, firestore, auth, database, userAuthState, areServicesAvailable]);
 
   if (!areServicesAvailable) {
+    const missingKeys = [];
+    if (!firebaseApp) missingKeys.push("Firebase Keys (NEXT_PUBLIC_FIREBASE_API_KEY)");
+    if (!isSupabaseConfigValid()) missingKeys.push("Supabase Keys (NEXT_PUBLIC_SUPABASE_URL)");
+
     return (
       <div className="min-h-svh bg-zinc-950 flex items-center justify-center p-6 text-white font-body">
         <div className="max-w-md w-full space-y-8 animate-in fade-in zoom-in-95 duration-500">
@@ -156,7 +161,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             </div>
             <h1 className="text-3xl font-black font-headline tracking-tight">Configuration Required</h1>
             <p className="text-zinc-400 text-sm leading-relaxed">
-              MatchFlow needs your Firebase API keys to connect to the database and authentication services.
+              MatchFlow needs both your Firebase and Supabase API keys to connect to the database and authentication services.
             </p>
           </div>
 
@@ -164,7 +169,7 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             <Terminal className="h-4 w-4" />
             <AlertTitle className="font-black uppercase tracking-widest text-[10px] mb-2">Technical Detail</AlertTitle>
             <AlertDescription className="text-xs font-mono break-all opacity-80">
-              Missing: NEXT_PUBLIC_FIREBASE_API_KEY or NEXT_PUBLIC_FIREBASE_PROJECT_ID
+              Missing or Invalid: {missingKeys.join(", ")}
             </AlertDescription>
           </Alert>
 
@@ -173,21 +178,23 @@ export const FirebaseProvider: React.FC<FirebaseProviderProps> = ({
             <div className="bg-white/5 border border-white/10 rounded-2xl p-6 space-y-4">
               <div className="flex gap-4">
                 <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-black shrink-0">1</div>
-                <p className="text-[11px] text-zinc-300">Go to your project <b>Settings</b> in the Firebase Console.</p>
+                <p className="text-[11px] text-zinc-300">Go to your <b>Vercel Environment Variables</b>.</p>
               </div>
               <div className="flex gap-4">
                 <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-black shrink-0">2</div>
-                <p className="text-[11px] text-zinc-300">Copy your Web App configuration object.</p>
+                <div className="text-[11px] text-zinc-300">
+                  Add <code>NEXT_PUBLIC_SUPABASE_URL</code> and <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
+                </div>
               </div>
               <div className="flex gap-4">
                 <div className="w-6 h-6 rounded-full bg-primary/20 text-primary flex items-center justify-center text-[10px] font-black shrink-0">3</div>
-                <p className="text-[11px] text-zinc-300">Add the keys to your <b>Vercel Environment Variables</b> or local <b>.env</b> file.</p>
+                <p className="text-[11px] text-zinc-300">The app will reload automatically once keys are detected.</p>
               </div>
             </div>
           </div>
           
           <p className="text-[9px] text-center text-zinc-600 font-bold uppercase tracking-widest">
-            The app will reload automatically once keys are detected.
+            Configuration is necessary for all features.
           </p>
         </div>
       </div>

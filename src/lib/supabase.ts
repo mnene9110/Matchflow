@@ -1,43 +1,49 @@
-
-import { createClient } from '@supabase/supabase-js';
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { isSupabaseConfigValid } from '@/firebase/config';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
 
 /**
  * Standard Supabase client for Client-side usage.
- * Handles Auth, Database, and Storage.
+ * Safely initialized to prevent module evaluation crashes if keys are missing.
  */
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  }
-});
+export const supabase: SupabaseClient = (isSupabaseConfigValid()) 
+  ? createClient(supabaseUrl, supabaseAnonKey, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true
+      }
+    })
+  : null as unknown as SupabaseClient;
 
 /**
- * Helper to fetch a single profile from Supabase Database
- * (If you choose to migrate UserProfiles table to Supabase)
+ * Helper to fetch a profile
  */
-export async function getSupabaseProfile(userId: string) {
+export async function getProfile(userId: string) {
+  if (!supabase) return null;
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', userId)
     .single();
   
-  if (error) return null;
+  if (error) {
+    console.error('Error fetching profile:', error);
+    return null;
+  }
   return data;
 }
 
 /**
- * Helper to update Supabase profile
+ * Helper to update profile
  */
-export async function updateSupabaseProfile(userId: string, updates: any) {
+export async function updateProfile(userId: string, updates: any) {
+  if (!supabase) return { data: null, error: new Error('Supabase not initialized') };
   const { data, error } = await supabase
     .from('profiles')
-    .update(updates)
+    .update({ ...updates, updated_at: new Date().toISOString() })
     .eq('id', userId);
   
   return { data, error };

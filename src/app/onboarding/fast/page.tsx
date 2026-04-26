@@ -7,8 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { useUser, useFirebase } from "@/firebase"
-import { doc, setDoc, serverTimestamp } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
 import { Loader2 } from "lucide-react"
 
@@ -24,43 +23,30 @@ export default function FastOnboardingPage() {
   const [country, setCountry] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const router = useRouter()
-  const { user } = useUser()
-  const { firestore } = useFirebase()
 
   const handleConfirm = async () => {
-    if (!user || !gender || !country || isSubmitting || !firestore) return
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session?.user || !gender || !country || isSubmitting) return
     setIsSubmitting(true)
 
     try {
       const numericId = Math.floor(10000000 + Math.random() * 90000000);
       const welcomeCoins = 500;
 
-      const profileData = {
-        id: user.uid,
-        numericId,
-        authProviderId: "anonymous",
-        username: `Guest_${user.uid.slice(0, 5)}`,
-        gender,
-        location: country,
-        profilePhotoUrls: [`https://picsum.photos/seed/${user.uid}/600/800`],
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        lastActiveAt: serverTimestamp(),
-        interests: ["Travel"],
-        coinBalance: welcomeCoins,
-        diamondBalance: 0,
-        isAdmin: false,
-        isCoinseller: false,
-        isSupport: false,
-        isAgent: false,
-        dateOfBirth: "2000-01-01",
-        isVerified: false,
-        isOnline: true,
-        agencyJoinStatus: "none",
-        visitorsUnlocked: false
-      }
+      const { error } = await supabase
+        .from('profiles')
+        .insert({
+          id: session.user.id,
+          numeric_id: numericId,
+          username: `Guest_${session.user.id.slice(0, 5)}`,
+          gender,
+          location: country,
+          profile_photo_urls: [`https://picsum.photos/seed/${session.user.id}/600/800`],
+          coin_balance: welcomeCoins,
+          is_online: true
+        });
 
-      await setDoc(doc(firestore, "userProfiles", user.uid), profileData);
+      if (error) throw error;
       router.push("/discover")
     } catch (error) {
       console.error("Fast onboarding failed:", error)
@@ -68,46 +54,31 @@ export default function FastOnboardingPage() {
     }
   }
 
-  const darkMaroonText = "text-[#5A1010]";
-  const darkMaroonBg = "bg-[#5A1010]";
-
   return (
-    <div className="flex flex-col min-h-svh bg-transparent p-8 overflow-y-auto">
+    <div className="flex flex-col min-h-svh bg-white p-8 overflow-y-auto">
       <div className="mt-12 space-y-10 flex-1 flex flex-col max-w-sm mx-auto w-full pb-20">
         <header className="space-y-3">
-          <h1 className={cn("text-4xl font-black font-headline leading-tight drop-shadow-sm", darkMaroonText)}>Fast Setup</h1>
+          <h1 className="text-4xl font-black font-headline text-[#5A1010] leading-tight">Fast Setup</h1>
           <p className="text-[#5A1010] font-bold uppercase text-[10px] tracking-widest">Quickly set your basic info</p>
         </header>
 
         <div className="space-y-8 flex-1">
           <div className="space-y-4">
-            <Label className={cn("text-[10px] font-black uppercase tracking-[0.2em] ml-1", darkMaroonText)}>I am a</Label>
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#5A1010] ml-1">I am a</Label>
             <RadioGroup value={gender} onValueChange={setGender} className="flex gap-4">
-              <div 
-                onClick={() => setGender("male")}
-                className={cn(
-                  "flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
-                  gender === "male" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
-                )}
-              >
+              <div onClick={() => setGender("male")} className={cn("flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm", gender === "male" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100")}>
                 <RadioGroupItem value="male" id="male" />
-                <Label htmlFor="male" className={cn("cursor-pointer font-black text-xs tracking-widest uppercase", gender === "male" ? darkMaroonText : "text-gray-400")}>Man</Label>
+                <Label htmlFor="male" className={cn("cursor-pointer font-black text-xs tracking-widest uppercase", gender === "male" ? "text-[#5A1010]" : "text-gray-400")}>Man</Label>
               </div>
-              <div 
-                onClick={() => setGender("female")}
-                className={cn(
-                  "flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm",
-                  gender === "female" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100"
-                )}
-              >
+              <div onClick={() => setGender("female")} className={cn("flex items-center space-x-3 bg-white border px-5 py-5 rounded-[2.25rem] flex-1 cursor-pointer transition-all shadow-sm", gender === "female" ? "border-[#5A1010] ring-1 ring-[#5A1010]" : "border-gray-100")}>
                 <RadioGroupItem value="female" id="female" />
-                <Label htmlFor="female" className={cn("cursor-pointer font-black text-xs tracking-widest uppercase", gender === "female" ? darkMaroonText : "text-gray-400")}>Woman</Label>
+                <Label htmlFor="female" className={cn("cursor-pointer font-black text-xs tracking-widest uppercase", gender === "female" ? "text-[#5A1010]" : "text-gray-400")}>Woman</Label>
               </div>
             </RadioGroup>
           </div>
 
           <div className="space-y-4">
-            <Label className={cn("text-[10px] font-black uppercase tracking-[0.2em] ml-1", darkMaroonText)}>My Country</Label>
+            <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#5A1010] ml-1">My Country</Label>
             <Select onValueChange={setCountry}>
               <SelectTrigger className="h-16 rounded-[2.25rem] bg-white border-[#5A1010]/20 text-gray-900 text-lg font-black px-8 shadow-sm">
                 <SelectValue placeholder="Select country" />
@@ -120,7 +91,7 @@ export default function FastOnboardingPage() {
         </div>
 
         <Button 
-          className={cn("w-full h-18 rounded-full text-white text-xl font-black mb-10 shadow-2xl active:scale-95 transition-all", darkMaroonBg)} 
+          className="w-full h-18 rounded-full bg-[#5A1010] text-white text-xl font-black mb-10 shadow-2xl active:scale-95 transition-all" 
           disabled={!gender || !country || isSubmitting} 
           onClick={handleConfirm}
         >
