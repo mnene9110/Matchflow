@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense, useCallback } from "react"
@@ -67,7 +66,7 @@ function ChatDetailContent() {
   const [otherUser, setOtherUser] = useState<any>(null)
   const [isLoadingMessages, setIsLoadingLoadingMessages] = useState(true)
   const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(true)
+  const [hasMore, setHasMore] = useState(false)
   
   const [isGiftSheetOpen, setIsGiftSheetOpen] = useState(false)
   const [isCalling, setIsCalling] = useState(false)
@@ -103,6 +102,8 @@ function ChatDetailContent() {
     if (data) {
       setMessages(data.reverse());
       setHasMore(data.length === PAGE_SIZE);
+    } else {
+      setHasMore(false);
     }
     setIsLoadingLoadingMessages(false);
   }, [chatId, currentUser]);
@@ -208,7 +209,6 @@ function ChatDetailContent() {
 
     setIsCalling(true);
     try {
-      // First, ensure any old call with this ID is cleared
       await supabase.from('calls').delete().eq('id', chatId);
 
       const { error: callError } = await supabase.from('calls').upsert({
@@ -230,7 +230,7 @@ function ChatDetailContent() {
       toast({ 
         variant: "destructive", 
         title: "Call Failed",
-        description: "Make sure the 'calls' table exists in Supabase." 
+        description: "Communication link could not be established." 
       });
     } finally {
       setIsCalling(false);

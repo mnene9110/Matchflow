@@ -35,9 +35,9 @@ export default function MysteryNotePage() {
 
     setIsSending(true)
     try {
-      const targetGender = profile.gender?.toLowerCase() === 'male' ? 'female' : 'male'
+      const targetGender = (profile.gender || 'male').toLowerCase() === 'male' ? 'female' : 'male'
       
-      // Fetch online users of opposite gender
+      // 1. Fetch potential targets (online of opposite gender)
       const { data: potentialTargets, error: userError } = await supabase
         .from('profiles')
         .select('id')
@@ -50,29 +50,19 @@ export default function MysteryNotePage() {
         throw new Error("NO_USERS_ONLINE")
       }
 
-      // Deduct balance
-      const { error: deductionError } = await supabase
-        .from('profiles')
-        .update({ coin_balance: profile.coin_balance - totalCost })
-        .eq('id', user.id);
-
-      if (deductionError) throw deductionError;
-
-      // Log Transaction
-      await supabase.from('transactions').insert({
-        user_id: user.id,
-        type: 'mystery_note',
-        amount: -totalCost,
-        description: `Sent Mystery Note to ${potentialTargets.length} online users`
+      // 2. SECURE PAYMENT: Use RPC to deduct coins on server
+      const { error: paymentError } = await supabase.rpc('secure_mystery_note_payment', {
+        p_count: potentialTargets.length
       });
 
-      // Send notes (multiple inserts)
+      if (paymentError) throw paymentError;
+
+      // 3. Send notes (Standard inserts for real-time delivery)
       const noteText = `🤫 Mystery Note: ${messageText}`;
       
       for (const target of potentialTargets) {
         const chatId = [user.id, target.id].sort().join("_");
         
-        // Upsert Chat
         await supabase.from('chats').upsert({
           id: chatId,
           participants: [user.id, target.id],
@@ -80,7 +70,6 @@ export default function MysteryNotePage() {
           last_message_at: new Date().toISOString()
         });
 
-        // Insert Message
         await supabase.from('messages').insert({
           chat_id: chatId,
           sender_id: user.id,
@@ -93,6 +82,8 @@ export default function MysteryNotePage() {
     } catch (error: any) {
       if (error.message === "NO_USERS_ONLINE") {
         toast({ variant: "destructive", title: "No users found", description: "No online users of the opposite gender were found." })
+      } else if (error.message.includes('INSUFFICIENT_FUNDS')) {
+        toast({ variant: "destructive", title: "Insufficient Coins" });
       } else {
         toast({ variant: "destructive", title: "Error", description: "Failed to send mystery note." })
       }

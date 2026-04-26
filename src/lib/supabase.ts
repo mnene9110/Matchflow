@@ -5,8 +5,7 @@ const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYm
 
 /**
  * Standard Supabase client singleton.
- * Using a module-level variable to prevent multiple initializations 
- * which can cause the 'Lock broken by another request' error.
+ * Optimized to prevent the 'Lock broken by another request' error.
  */
 let supabaseInstance: SupabaseClient | null = null;
 
@@ -18,7 +17,8 @@ export const supabase: SupabaseClient = (() => {
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
-      storageKey: 'mf-auth-token', // Custom key to avoid collisions
+      storageKey: 'matchflow-auth-lock', // Unique key to avoid collisions
+      flowType: 'pkce'
     }
   });
   

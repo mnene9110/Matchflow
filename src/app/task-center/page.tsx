@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
@@ -35,42 +34,19 @@ export default function TaskCenterPage() {
     setIsClaiming(true)
     
     try {
-      const yesterday = new Date(); 
-      yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toISOString().split('T')[0];
-      
-      let newStreak = 1;
-      if (profile.last_check_in_date === yesterdayStr) { 
-        newStreak = (profile.check_in_streak % 7) + 1; 
+      // SECURE RPC CALL: Handles all logic server-side to prevent hacking
+      const { data: rewardAmount, error } = await supabase.rpc('process_daily_checkin');
+
+      if (error) {
+        if (error.message.includes('ALREADY_CLAIMED')) {
+          toast({ variant: "destructive", title: "Already Claimed", description: "Come back tomorrow!" });
+        } else {
+          throw error;
+        }
+        return;
       }
-      
-      const rewardAmount = REWARDS[newStreak - 1];
-
-      // 1. Log Transaction
-      const { error: txError } = await supabase.from('transactions').insert({
-        user_id: user.id,
-        type: 'check-in',
-        amount: rewardAmount,
-        description: `Daily check-in Day ${newStreak}`
-      });
-
-      if (txError) throw txError;
-
-      // 2. Update Profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          coin_balance: profile.coin_balance + rewardAmount,
-          last_check_in_date: todayStr,
-          check_in_streak: newStreak,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id);
-
-      if (profileError) throw profileError;
 
       toast({ title: "Coins Claimed!", description: `You've received ${rewardAmount} coins.` });
-      // In a real app, you might want to trigger a local state refresh or re-fetch profile
       router.refresh();
     } catch (error: any) {
       console.error("Claim error:", error);
