@@ -1,14 +1,16 @@
-
 "use client"
 
-import { useState, useEffect, useRef } from "react"
-import { MessageSquare, CheckCircle, Loader2, RotateCcw } from "lucide-react"
+import { useState, useEffect, useCallback } from "react"
+import { MessageSquare, CheckCircle, Loader2, RotateCcw, Plus } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 import { useFirebase } from "@/firebase/provider"
-import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"
+import { collection, query, where, orderBy, limit, getDocs, startAfter, doc, getDoc, QueryDocumentSnapshot, DocumentData } from "firebase/firestore"
 import { useAuth } from "@/firebase/auth/use-auth"
+import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
+
+const PAGE_SIZE = 15;
 
 function ChatSessionItem({ session, currentUserId }: { session: any, currentUserId: string }) {
   const router = useRouter()
@@ -34,7 +36,7 @@ function ChatSessionItem({ session, currentUserId }: { session: any, currentUser
   return (
     <div 
       onClick={() => router.push(`/chat/${otherUserId}`)}
-      className="flex items-center gap-4 py-4 hover:bg-slate-50 transition-all active:scale-[0.98] cursor-pointer border-b border-gray-50"
+      className="flex items-center gap-4 py-4 hover:bg-slate-50 transition-all active:scale-[0.98] cursor-pointer border-b border-gray-50 animate-in fade-in"
     >
       <div className="relative shrink-0">
         <Avatar className="w-16 h-16 border-2 border-white shadow-sm bg-gray-50">
@@ -60,55 +62,92 @@ function ChatSessionItem({ session, currentUserId }: { session: any, currentUser
 
 export default function ChatListPage() {
   const { auth, firestore } = useFirebase()
-  const { user, isLoading: isAuthLoading } = useAuth(auth)
-  const [sessions, setSessions] = useState<any[]>([])
-  const [isSyncing, setIsSyncing] = useState(true)
+  const { user } = useAuth(auth)
   const router = useRouter()
 
-  useEffect(() => {
+  const [sessions, setSessions] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null)
+  const [hasMore, setHasMore] = useState(true)
+
+  const fetchChats = useCallback(async (isLoadMore = false) => {
     if (!user) return;
 
-    const chatsQuery = query(
-      collection(firestore, "chats"),
-      where("participants", "array-contains", user.uid),
-      orderBy("lastMessageAt", "desc")
-    );
+    if (isLoadMore) setIsLoadingMore(true);
+    else {
+      setIsLoading(true);
+      setSessions([]);
+    }
 
-    const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
-      const chatList = snapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      }));
-      setSessions(chatList);
-      setIsSyncing(false);
-    }, (error) => {
+    try {
+      let q = query(
+        collection(firestore, "chats"),
+        where("participants", "array-contains", user.uid),
+        orderBy("lastMessageAt", "desc"),
+        limit(PAGE_SIZE)
+      );
+
+      if (isLoadMore && lastDoc) {
+        q = query(q, startAfter(lastDoc));
+      }
+
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        setHasMore(false);
+      } else {
+        const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        setLastDoc(snap.docs[snap.docs.length - 1]);
+        if (items.length < PAGE_SIZE) setHasMore(false);
+        setSessions(prev => isLoadMore ? [...prev, ...items] : items);
+      }
+    } catch (error) {
       console.error("Chat list error:", error);
-      setIsSyncing(false);
-    });
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [user, firestore, lastDoc]);
 
-    return () => unsubscribe();
-  }, [user, firestore]);
+  useEffect(() => {
+    if (user && sessions.length === 0) {
+      fetchChats();
+    }
+  }, [user, fetchChats]);
 
   return (
     <div className="flex flex-col h-svh pb-20 bg-white">
       <header className="bg-[#3BC1A8] pt-[env(safe-area-inset-top)] pb-3 px-6 sticky top-0 z-20 shrink-0">
         <div className="flex items-center justify-between pt-6">
           <h1 className="text-3xl font-logo text-white drop-shadow-sm">Chats</h1>
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center">
-              <MessageSquare className="w-4 h-4 text-white fill-current" />
-            </div>
-          </div>
+          <button onClick={() => fetchChats(false)} className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:rotate-180 transition-all">
+            <RotateCcw className={cn("w-4 h-4", isLoading && "animate-spin")} />
+          </button>
         </div>
       </header>
 
       <main className="flex-1 px-6 pt-2 bg-white overflow-y-auto">
-        {isAuthLoading || (isSyncing && sessions.length === 0) ? (
+        {isLoading ? (
           <div className="flex flex-col items-center justify-center py-32 gap-4 opacity-10">
             <Loader2 className="w-10 h-10 animate-spin" />
           </div>
         ) : sessions.length > 0 ? (
-          sessions.map(s => <ChatSessionItem key={s.id} session={s} currentUserId={user!.uid} />)
+          <div className="pb-10">
+            {sessions.map(s => <ChatSessionItem key={s.id} session={s} currentUserId={user!.uid} />)}
+            
+            {hasMore && (
+              <Button 
+                onClick={() => fetchChats(true)} 
+                disabled={isLoadingMore}
+                variant="outline"
+                className="w-full mt-4 rounded-full h-14 border-gray-100 font-black text-[10px] uppercase tracking-widest gap-2 bg-gray-50/50"
+              >
+                {isLoadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Load More Chats
+              </Button>
+            )}
+          </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-32 text-gray-400 font-medium gap-4">
             <MessageSquare className="w-10 h-10 text-gray-200" />

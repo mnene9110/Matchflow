@@ -1,42 +1,73 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Gem, Loader2, History, ArrowUpRight, ArrowDownLeft } from "lucide-react"
+import { ChevronLeft, Gem, Loader2, History, ArrowUpRight, ArrowDownLeft, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirebase } from "@/firebase/provider"
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore"
+import { collection, query, orderBy, limit, getDocs, startAfter, QueryDocumentSnapshot, DocumentData } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+
+const PAGE_SIZE = 20;
 
 export default function DiamondHistoryPage() {
   const router = useRouter()
   const { firestore } = useFirebase()
   const { user } = useSupabaseUser()
+  
   const [transactions, setTransactions] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null)
+  const [hasMore, setHasMore] = useState(true)
 
-  useEffect(() => {
+  const fetchTransactions = useCallback(async (isLoadMore = false) => {
     if (!user) return
 
-    const q = query(
-      collection(firestore, `userProfiles/${user.id}/transactions`),
-      orderBy('transactionDate', 'desc'),
-      limit(50)
-    );
+    if (isLoadMore) setIsLoadingMore(true);
+    else {
+      setIsLoading(true);
+      setTransactions([]);
+    }
 
-    const unsubscribe = onSnapshot(q, (snap) => {
-      const all = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-      const diamondRelated = all.filter((tx: any) => 
-        ['diamond_exchange', 'diamond_received', 'gift_received', 'agency_withdrawal'].includes(tx.type)
+    try {
+      let q = query(
+        collection(firestore, `userProfiles/${user.id}/transactions`),
+        orderBy('transactionDate', 'desc'),
+        limit(PAGE_SIZE)
       );
-      setTransactions(diamondRelated);
-      setIsLoading(false);
-    });
 
-    return () => unsubscribe();
-  }, [user, firestore])
+      if (isLoadMore && lastDoc) {
+        q = query(q, startAfter(lastDoc));
+      }
+
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        setHasMore(false);
+      } else {
+        const allFetched = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const diamondRelated = allFetched.filter((tx: any) => 
+          ['diamond_exchange', 'diamond_received', 'gift_received', 'agency_withdrawal'].includes(tx.type)
+        );
+
+        setLastDoc(snap.docs[snap.docs.length - 1]);
+        if (allFetched.length < PAGE_SIZE) setHasMore(false);
+        setTransactions(prev => isLoadMore ? [...prev, ...diamondRelated] : diamondRelated);
+      }
+    } catch (e) {
+      console.error("Fetch error:", e);
+    } finally {
+      setIsLoading(false);
+      setIsLoadingMore(false);
+    }
+  }, [user, firestore, lastDoc]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [user]);
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-hidden font-body">
@@ -89,6 +120,18 @@ export default function DiamondHistoryPage() {
                 </div>
               )
             })}
+            
+            {hasMore && (
+              <Button 
+                onClick={() => fetchTransactions(true)} 
+                disabled={isLoadingMore}
+                variant="outline"
+                className="w-full rounded-full h-14 border-gray-100 font-black text-[10px] uppercase tracking-widest gap-2 bg-gray-50/50"
+              >
+                {isLoadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Load More Earnings
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-40 text-center space-y-4 opacity-30">

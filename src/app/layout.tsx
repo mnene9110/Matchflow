@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from 'react';
@@ -23,12 +22,10 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
 
-  // 1. Initial Mount Check
   useEffect(() => {
     setMounted(true);
   }, []);
 
-  // 2. Unified Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -37,22 +34,19 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [auth]);
 
-  // 3. Route Protection Logic
   useEffect(() => {
     if (!isInitialized || !mounted) return;
 
     const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
     const isPublicRoute = publicRoutes.includes(pathname);
 
-    // If no user and trying to access private route, redirect to welcome
     if (!user && !isPublicRoute) {
       router.replace('/welcome');
     }
   }, [user, isInitialized, mounted, pathname, router]);
 
-  // 4. Stable rendering to prevent hydration mismatch
-  // We render the splash if we aren't initialized OR if the client hasn't mounted yet
-  // This ensures the Server and the First Client Render are identical
+  // To prevent hydration errors, we ensure the server and client 
+  // render the same initial skeleton until mounted.
   if (!mounted || !isInitialized) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#3BC1A8] z-[9999]">

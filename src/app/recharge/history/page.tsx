@@ -1,38 +1,69 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { ChevronLeft, Loader2, ArrowUpRight, ArrowDownLeft, Coins, Gem } from "lucide-react"
+import { ChevronLeft, Loader2, ArrowUpRight, ArrowDownLeft, Coins, Gem, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useFirebase } from "@/firebase/provider"
-import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore"
+import { collection, query, orderBy, limit, getDocs, startAfter, QueryDocumentSnapshot, DocumentData } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+
+const PAGE_SIZE = 20;
 
 export default function CoinHistoryPage() {
   const router = useRouter()
   const { firestore } = useFirebase()
   const { user } = useSupabaseUser()
+  
   const [transactions, setTransactions] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingMore, setIsLoadingMore] = useState(false)
+  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null)
+  const [hasMore, setHasMore] = useState(true)
 
-  useEffect(() => {
+  const fetchTransactions = useCallback(async (isLoadMore = false) => {
     if (!user) return;
 
-    const q = query(
-      collection(firestore, `userProfiles/${user.id}/transactions`),
-      orderBy('transactionDate', 'desc'),
-      limit(100)
-    );
+    if (isLoadMore) setIsLoadingMore(true);
+    else {
+      setIsLoading(true);
+      setTransactions([]);
+    }
 
-    const unsubscribe = onSnapshot(q, (snap) => {
-      setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    try {
+      let q = query(
+        collection(firestore, `userProfiles/${user.id}/transactions`),
+        orderBy('transactionDate', 'desc'),
+        limit(PAGE_SIZE)
+      );
+
+      if (isLoadMore && lastDoc) {
+        q = query(q, startAfter(lastDoc));
+      }
+
+      const snap = await getDocs(q);
+      
+      if (snap.empty) {
+        setHasMore(false);
+      } else {
+        const items = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+        setLastDoc(snap.docs[snap.docs.length - 1]);
+        if (items.length < PAGE_SIZE) setHasMore(false);
+        setTransactions(prev => isLoadMore ? [...prev, ...items] : items);
+      }
+    } catch (error) {
+      console.error("Fetch error:", error);
+    } finally {
       setIsLoading(false);
-    });
+      setIsLoadingMore(false);
+    }
+  }, [user, firestore, lastDoc]);
 
-    return () => unsubscribe();
-  }, [user, firestore])
+  useEffect(() => {
+    fetchTransactions();
+  }, [user]);
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-hidden font-body">
@@ -65,7 +96,7 @@ export default function CoinHistoryPage() {
               const isAddition = amount > 0;
               
               return (
-                <div key={tx.id} className="bg-gray-50 border border-gray-100 p-5 rounded-[2rem] flex items-center gap-4 shadow-sm">
+                <div key={tx.id} className="bg-gray-50 border border-gray-100 p-5 rounded-[2rem] flex items-center gap-4 shadow-sm animate-in fade-in slide-in-from-bottom-2">
                   <div className={cn(
                     "w-12 h-12 rounded-2xl flex items-center justify-center shrink-0", 
                     isAddition ? "bg-green-500/10 text-green-500" : "bg-red-500/10 text-red-500"
@@ -92,6 +123,18 @@ export default function CoinHistoryPage() {
                 </div>
               )
             })}
+            
+            {hasMore && (
+              <Button 
+                onClick={() => fetchTransactions(true)} 
+                disabled={isLoadingMore}
+                variant="outline"
+                className="w-full rounded-full h-14 border-gray-100 font-black text-[10px] uppercase tracking-widest gap-2 bg-gray-50/50"
+              >
+                {isLoadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+                Load More History
+              </Button>
+            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-24 text-center space-y-4">
