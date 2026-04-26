@@ -54,7 +54,6 @@ const PAGE_SIZE = 10;
 
 function ChatDetailContent() {
   const params = useParams()
-  const searchParams = useSearchParams()
   const otherUserId = params?.id as string
   
   const { user: currentUser, profile: currentUserProfile, isLoading: isUserLoading } = useSupabaseUser()
@@ -194,7 +193,7 @@ function ChatDetailContent() {
   }
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
-    if (!currentUser || !otherUser || isCalling) return;
+    if (!currentUser || !otherUser || isCalling || !chatId) return;
     
     const cost = type === 'video' ? 160 : 80;
     if ((currentUserProfile?.coin_balance || 0) < cost) {
@@ -209,7 +208,10 @@ function ChatDetailContent() {
 
     setIsCalling(true);
     try {
-      await supabase.from('calls').upsert({
+      // First, ensure any old call with this ID is cleared
+      await supabase.from('calls').delete().eq('id', chatId);
+
+      const { error: callError } = await supabase.from('calls').upsert({
         id: chatId,
         caller_id: currentUser.id,
         receiver_id: otherUserId,
@@ -219,9 +221,17 @@ function ChatDetailContent() {
         cost_per_min: cost,
         timestamp: Date.now()
       });
+
+      if (callError) throw callError;
+
       await supabase.from('profiles').update({ incoming_call_id: chatId }).eq('id', otherUserId);
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Call Failed" });
+      console.error("Call error:", error);
+      toast({ 
+        variant: "destructive", 
+        title: "Call Failed",
+        description: "Make sure the 'calls' table exists in Supabase." 
+      });
     } finally {
       setIsCalling(false);
     }
@@ -232,7 +242,6 @@ function ChatDetailContent() {
     
     setIsSending(true);
     try {
-      // SECURE RPC CALL: Replaces manual balance updates
       const { error } = await supabase.rpc('process_gift_transfer', {
         p_receiver_id: otherUserId,
         p_gift_price: gift.price,
@@ -346,7 +355,7 @@ function ChatDetailContent() {
               {GIFTS.map((gift) => (
                 <button key={gift.id} onClick={() => handleSendGift(gift)} className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-gray-50 transition-colors active:scale-95">
                   <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-3xl shadow-inner overflow-hidden">
-                    {gift.image ? <img src={gift.image} className="w-10 h-10 object-contain" /> : gift.emoji}
+                    {gift.image ? <img src={gift.image} className="w-10 h-10 object-contain" alt={gift.name} /> : gift.emoji}
                   </div>
                   <span className="text-[10px] font-black uppercase text-gray-400 truncate w-full text-center">{gift.name}</span>
                   <div className="flex items-center gap-1 px-2 py-0.5 bg-[#3BC1A8]/10 rounded-full">

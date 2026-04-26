@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
@@ -30,7 +31,6 @@ export function GlobalCallOverlay() {
   const callDurationRef = useRef(0)
   const wasCallAcceptedRef = useRef(false)
   const activeChatIdRef = useRef<string | null>(null)
-  const logRecordedRef = useRef(false)
   const statusRef = useRef<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
 
   useEffect(() => {
@@ -61,10 +61,11 @@ export function GlobalCallOverlay() {
   useEffect(() => {
     if (!currentUser) return;
 
+    // Listen to profile changes for incoming_call_id
     const channel = supabase
       .channel('call_listener')
       .on('postgres_changes', { 
-        event: '*', 
+        event: 'UPDATE', 
         schema: 'public', 
         table: 'profiles', 
         filter: `id=eq.${currentUser.id}` 
@@ -81,7 +82,7 @@ export function GlobalCallOverlay() {
         if (chatId !== activeChatIdRef.current) {
           activeChatIdRef.current = chatId;
           
-          // Listen to call details
+          // Fetch initial call details
           supabase
             .from('calls')
             .select('*')
@@ -94,13 +95,18 @@ export function GlobalCallOverlay() {
               }
             });
 
-          // Subscription for status changes
+          // Subscribe to call status changes
           supabase.channel(`call_details:${chatId}`)
-            .on('postgres_changes', { event: '*', schema: 'public', table: 'calls', filter: `id=eq.${chatId}` }, (p) => {
+            .on('postgres_changes', { 
+              event: '*', 
+              schema: 'public', 
+              table: 'calls', 
+              filter: `id=eq.${chatId}` 
+            }, (p) => {
               if (p.new) {
                 setCallData(p.new);
                 updateCallState(p.new);
-              } else {
+              } else if (p.eventType === 'DELETE') {
                 handleCleanup();
               }
             })
@@ -154,6 +160,8 @@ export function GlobalCallOverlay() {
         initiateAgoraConnection(activeChatIdRef.current!, data.call_type);
         supabase.from('profiles').update({ in_call: true }).eq('id', currentUser.id);
       }
+    } else if (data.status === 'rejected' || data.status === 'ended') {
+      handleCleanup();
     }
   };
 
@@ -281,9 +289,13 @@ export function GlobalCallOverlay() {
     const receiverId = callData?.receiver_id;
     const callerId = callData?.caller_id;
 
+    // Delete the call record to notify both parties via realtime delete event
     await supabase.from('calls').delete().eq('id', cid);
+    
+    // Clear signals on profiles
     if (receiverId) await supabase.from('profiles').update({ incoming_call_id: null }).eq('id', receiverId);
     if (callerId) await supabase.from('profiles').update({ incoming_call_id: null }).eq('id', callerId);
+    
     handleCleanup();
   }
 
@@ -304,7 +316,8 @@ export function GlobalCallOverlay() {
   if (callStatus === 'idle') return null;
 
   const isCaller = callData?.caller_id === currentUser?.id;
-  const otherUserImage = `https://picsum.photos/seed/${isCaller ? callData?.receiver_id : callData?.caller_id}/400/600`
+  const otherUserId = isCaller ? callData?.receiver_id : callData?.caller_id;
+  const otherUserImage = `https://picsum.photos/seed/${otherUserId}/400/600`
 
   return (
     <div className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col overflow-hidden text-white font-body pointer-events-auto">
