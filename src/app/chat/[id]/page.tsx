@@ -78,11 +78,9 @@ function ChatDetailContent() {
     return [currentUser.id, otherUserId].sort().join("_")
   }, [currentUser?.id, otherUserId])
 
-  // Presence and Typing
   const { isOnline, lastActiveAt } = usePresence(otherUserId)
   const { isOtherUserTyping, setTyping } = useTyping(chatId, currentUser?.id || null, otherUserId)
 
-  // Fetch Other User Profile
   useEffect(() => {
     if (!otherUserId) return;
     const fetchOther = async () => {
@@ -92,12 +90,11 @@ function ChatDetailContent() {
     fetchOther();
   }, [otherUserId]);
 
-  // Fetch Messages (Initial Load - Last 10)
   const fetchInitialMessages = useCallback(async () => {
     if (!chatId || !currentUser) return;
     setIsLoadingLoadingMessages(true);
     
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('messages')
       .select('*')
       .eq('chat_id', chatId)
@@ -105,7 +102,6 @@ function ChatDetailContent() {
       .limit(PAGE_SIZE);
 
     if (data) {
-      // Reverse to show in chronological order
       setMessages(data.reverse());
       setHasMore(data.length === PAGE_SIZE);
     }
@@ -126,7 +122,6 @@ function ChatDetailContent() {
         filter: `chat_id=eq.${chatId}` 
       }, (payload) => {
         setMessages(prev => [...prev, payload.new]);
-        // Auto scroll to bottom for new messages
         setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       })
       .subscribe();
@@ -142,7 +137,7 @@ function ChatDetailContent() {
 
     const oldestMessageAt = messages[0].created_at;
 
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from('messages')
       .select('*')
       .eq('chat_id', chatId)
@@ -160,7 +155,6 @@ function ChatDetailContent() {
   };
 
   useEffect(() => {
-    // Initial scroll to bottom on first load
     if (!isLoadingMessages && messages.length > 0 && !isLoadingMore) {
       scrollRef.current?.scrollIntoView({ behavior: 'auto' });
     }
@@ -171,31 +165,24 @@ function ChatDetailContent() {
     if (!textToUse.trim() || !currentUser || !chatId || isSending) return
     
     setIsSending(true);
-    setTyping(false); // Stop typing immediately on send
+    setTyping(false);
     try {
-      // 1. Create/Update Chat first to ensure relationship
-      const { error: chatError } = await supabase.from('chats').upsert({
+      await supabase.from('chats').upsert({
         id: chatId,
         participants: [currentUser.id, otherUserId],
         last_message: textToUse,
         last_message_at: new Date().toISOString()
       }, { onConflict: 'id' });
 
-      if (chatError) throw chatError;
-
-      // 2. Insert message
-      const { error: msgError } = await supabase.from('messages').insert({
+      await supabase.from('messages').insert({
         chat_id: chatId,
         sender_id: currentUser.id,
         message_text: textToUse
       });
 
-      if (msgError) throw msgError;
-
       if (!textOverride) setInputText("");
     } catch (e: any) {
-      console.error("Send error:", e);
-      toast({ variant: "destructive", title: "Send Failed", description: "Your message couldn't be delivered." });
+      toast({ variant: "destructive", title: "Send Failed" });
     } finally {
       setIsSending(false);
     }
@@ -214,7 +201,7 @@ function ChatDetailContent() {
       toast({ 
         variant: "destructive", 
         title: "Insufficient Coins", 
-        description: `You need at least ${cost} coins to call.`,
+        description: `You need ${cost} coins.`,
         action: <Button variant="outline" size="sm" onClick={() => router.push('/recharge')}>Recharge</Button>
       });
       return;
@@ -222,9 +209,7 @@ function ChatDetailContent() {
 
     setIsCalling(true);
     try {
-      await supabase.from('calls').delete().eq('id', chatId);
-
-      const { error: callError } = await supabase.from('calls').upsert({
+      await supabase.from('calls').upsert({
         id: chatId,
         caller_id: currentUser.id,
         receiver_id: otherUserId,
@@ -234,12 +219,9 @@ function ChatDetailContent() {
         cost_per_min: cost,
         timestamp: Date.now()
       });
-
-      if (callError) throw callError;
       await supabase.from('profiles').update({ incoming_call_id: chatId }).eq('id', otherUserId);
     } catch (error: any) {
-      console.error("Call init error:", error);
-      toast({ variant: "destructive", title: "Call Failed", description: error.message || "Could not start call." });
+      toast({ variant: "destructive", title: "Call Failed" });
     } finally {
       setIsCalling(false);
     }
@@ -247,35 +229,32 @@ function ChatDetailContent() {
 
   const handleSendGift = async (gift: typeof GIFTS[0]) => {
     if (!currentUser || !otherUser || isSending) return;
-    if ((currentUserProfile?.coin_balance || 0) < gift.price) {
-      toast({ variant: "destructive", title: "Insufficient Coins" });
-      return;
-    }
-
+    
     setIsSending(true);
     try {
-      // Use atomic logic where possible or handle failure gracefully
-      const { error: deductionError } = await supabase.from('profiles').update({ 
-        coin_balance: currentUserProfile.coin_balance - gift.price 
-      }).eq('id', currentUser.id);
+      // SECURE RPC CALL: Replaces manual balance updates
+      const { error } = await supabase.rpc('process_gift_transfer', {
+        p_receiver_id: otherUserId,
+        p_gift_price: gift.price,
+        p_gift_name: gift.name,
+        p_gift_id: gift.id
+      });
 
-      if (deductionError) throw deductionError;
-
-      await supabase.from('profiles').update({ 
-        diamond_balance: (otherUser.diamond_balance || 0) + gift.price 
-      }).eq('id', otherUserId);
-
-      await supabase.from('transactions').insert([
-        { user_id: currentUser.id, type: 'gift_sent', amount: -gift.price, description: `Sent ${gift.name}`, gift_id: gift.id },
-        { user_id: otherUserId, type: 'gift_received', amount: gift.price, description: `Received ${gift.name}`, gift_id: gift.id }
-      ]);
+      if (error) {
+        if (error.message.includes('INSUFFICIENT_FUNDS')) {
+          toast({ variant: "destructive", title: "Insufficient Coins" });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       await handleSendMessage(`🎁 Sent a ${gift.name}!`);
       setIsGiftSheetOpen(false);
       toast({ title: "Gift Sent!" });
     } catch (e: any) {
       console.error("Gift error:", e);
-      toast({ variant: "destructive", title: "Gift Failed", description: "Could not complete transaction." });
+      toast({ variant: "destructive", title: "Gift Failed" });
     } finally {
       setIsSending(false);
     }
@@ -343,7 +322,7 @@ function ChatDetailContent() {
               <div key={msg.id || idx} className={cn("flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300", isMe ? "justify-end" : "justify-start")}>
                 <div className={cn(
                   "max-w-[80%] px-4 py-3 text-[13px] font-medium leading-relaxed shadow-sm transition-all", 
-                  isMe ? "bg-primary text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none"
+                  isMe ? "bg-[#3BC1A8] text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none"
                 )}>
                   <p className="whitespace-pre-wrap">{msg.message_text}</p>
                 </div>
@@ -370,8 +349,8 @@ function ChatDetailContent() {
                     {gift.image ? <img src={gift.image} className="w-10 h-10 object-contain" /> : gift.emoji}
                   </div>
                   <span className="text-[10px] font-black uppercase text-gray-400 truncate w-full text-center">{gift.name}</span>
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-primary/10 rounded-full">
-                    <span className="text-[9px] font-black text-primary">{gift.price}</span>
+                  <div className="flex items-center gap-1 px-2 py-0.5 bg-[#3BC1A8]/10 rounded-full">
+                    <span className="text-[9px] font-black text-[#3BC1A8]">{gift.price}</span>
                   </div>
                 </button>
               ))}
@@ -384,7 +363,7 @@ function ChatDetailContent() {
             value={inputText} 
             onChange={handleInputChange} 
             placeholder="Message..." 
-            className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12 focus-visible:ring-primary/20" 
+            className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12 focus-visible:ring-[#3BC1A8]/20" 
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
           />
           <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -12,7 +13,7 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function AwardCoinsPage() {
   const router = useRouter()
-  const { user: currentUser, profile } = useSupabaseUser()
+  const { profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const [targetNumericId, setTargetNumericId] = useState("")
@@ -56,44 +57,27 @@ export default function AwardCoinsPage() {
     setIsAwarding(true)
     
     try {
-      // 1. Logic for Coinseller deduction
-      if (profile.is_coinseller && !profile.is_admin) {
-        if ((profile.coin_balance || 0) < amount) {
-          throw new Error("INSUFFICIENT_COINS");
-        }
-
-        // Deduct from seller
-        await supabase
-          .from('profiles')
-          .update({ coin_balance: profile.coin_balance - amount })
-          .eq('id', profile.id);
-        
-        await supabase.from('transactions').insert({
-          user_id: profile.id,
-          type: "award_deduction",
-          amount: -amount,
-          description: `Awarded coins to ID: ${foundUser.numeric_id}`
-        });
-      }
-
-      // 2. Award to target
-      await supabase
-        .from('profiles')
-        .update({ coin_balance: (foundUser.coin_balance || 0) + amount })
-        .eq('id', foundUser.id);
-
-      await supabase.from('transactions').insert({
-        user_id: foundUser.id,
-        type: "award_received",
-        amount: amount,
-        description: `Received coins from ${profile.is_admin ? 'Admin' : 'Official Seller'}`
+      // SECURE RPC CALL: Handles both Admin and Coinseller logic server-side
+      const { error } = await supabase.rpc('process_coin_award', {
+        p_target_numeric_id: Number(targetNumericId),
+        p_amount: amount
       });
+
+      if (error) {
+        if (error.message.includes('INSUFFICIENT_FUNDS')) {
+          toast({ variant: "destructive", title: "Insufficient balance" });
+        } else if (error.message.includes('UNAUTHORIZED')) {
+          toast({ variant: "destructive", title: "Access denied" });
+        } else {
+          throw error;
+        }
+        return;
+      }
 
       toast({ title: "Award Successful", description: `${amount} coins granted.` })
       router.back()
     } catch (error: any) {
-      const msg = error.message === "INSUFFICIENT_COINS" ? "Insufficient coins." : "An error occurred.";
-      toast({ variant: "destructive", title: "Award failed", description: msg })
+      toast({ variant: "destructive", title: "Award failed" })
     } finally {
       setIsAwarding(false)
     }
