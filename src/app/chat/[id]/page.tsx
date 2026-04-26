@@ -11,7 +11,8 @@ import {
   Gift, 
   Phone, 
   Video,
-  X
+  X,
+  CheckCircle2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase } from "@/firebase/provider"
-import { doc, collection, addDoc, serverTimestamp, query, orderBy, limit, setDoc, runTransaction, increment } from "firebase/firestore"
+import { doc, collection, addDoc, serverTimestamp, query, orderBy, limit, setDoc, runTransaction, increment, updateDoc } from "firebase/firestore"
 import { useDoc } from "@/firebase/firestore/use-doc"
 import { useCollection } from "@/firebase/firestore/use-collection"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
@@ -52,6 +53,7 @@ function ChatDetailContent() {
   const [isGiftSheetOpen, setIsGiftSheetOpen] = useState(false)
   const [selectedGift, setSelectedGift] = useState<typeof GIFTS[0] | null>(null)
   const [isGifting, setIsGifting] = useState(false)
+  const [isGiftSent, setIsGiftSent] = useState(false)
 
   const chatId = useMemo(() => {
     if (!currentUser || !otherUserId) return ""
@@ -164,14 +166,17 @@ function ChatDetailContent() {
       });
 
       await handleSendMessage(`🎁 Sent a ${selectedGift.name}! ${selectedGift.emoji}`);
-      setIsGiftSheetOpen(false);
-      setSelectedGift(null);
-      toast({ title: "Gift Sent!", description: `${selectedGift.name} delivered.` });
+      setIsGiftSent(true);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Gifting Failed" });
     } finally {
       setIsGifting(false);
     }
+  }
+
+  const handleSendMore = () => {
+    setIsGiftSent(false);
+    setSelectedGift(null);
   }
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
@@ -259,56 +264,79 @@ function ChatDetailContent() {
       </ScrollArea>
 
       <footer className="px-5 py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] bg-white border-t border-gray-50 flex items-center gap-3">
-        <Sheet open={isGiftSheetOpen} onOpenChange={setIsGiftSheetOpen}>
+        <Sheet open={isGiftSheetOpen} onOpenChange={(open) => {
+          setIsGiftSheetOpen(open);
+          if (!open) {
+            setIsGiftSent(false);
+            setSelectedGift(null);
+          }
+        }}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-amber-50 text-amber-500 shrink-0"><Gift className="w-6 h-6" /></Button>
           </SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-[2.5rem] p-6 pb-12 max-h-[85svh]">
-            <SheetHeader className="mb-6">
-              <SheetTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Select a Gift</SheetTitle>
-            </SheetHeader>
-            <div className="grid grid-cols-4 gap-4 overflow-y-auto max-h-[40svh] px-1 no-scrollbar">
-              {GIFTS.map((gift) => (
-                <button 
-                  key={gift.id} 
-                  onClick={() => setSelectedGift(gift)} 
-                  className={cn(
-                    "flex flex-col items-center gap-2 p-3 rounded-2xl transition-all border-2",
-                    selectedGift?.id === gift.id ? "bg-[#3BC1A8]/10 border-[#3BC1A8]" : "bg-gray-50 border-transparent"
-                  )}
-                >
-                  <span className="text-3xl drop-shadow-sm">{gift.emoji}</span>
-                  <span className="text-[9px] font-black uppercase text-gray-500 truncate w-full text-center">{gift.name}</span>
-                  <div className="flex items-center gap-0.5">
-                    <span className="text-[10px] font-black text-[#3BC1A8] italic">S</span>
-                    <span className="text-[9px] font-black text-[#3BC1A8]">{gift.price}</span>
-                  </div>
-                </button>
-              ))}
-            </div>
-            
-            {selectedGift && (
-              <div className="mt-8 flex flex-col gap-4 animate-in slide-in-from-bottom-4">
-                 <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                    <div className="flex items-center gap-3">
-                       <span className="text-3xl">{selectedGift.emoji}</span>
-                       <div className="flex flex-col">
-                          <span className="text-xs font-black uppercase tracking-widest">{selectedGift.name}</span>
-                          <span className="text-[10px] font-bold text-gray-400">Recipient receives diamonds</span>
-                       </div>
-                    </div>
-                    <div className="text-right">
-                       <span className="text-sm font-black text-[#3BC1A8]">{selectedGift.price} Coins</span>
-                    </div>
-                 </div>
-                 <Button 
-                   onClick={handleSendGift} 
-                   disabled={isGifting} 
-                   className="w-full h-16 rounded-full bg-[#3BC1A8] text-white font-black text-lg shadow-xl"
-                 >
-                   {isGifting ? <Loader2 className="w-6 h-6 animate-spin" /> : `Send ${selectedGift.name}`}
-                 </Button>
+            {isGiftSent ? (
+              <div className="flex flex-col items-center justify-center py-12 space-y-6 animate-in zoom-in duration-300">
+                <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-xl shadow-green-500/20">
+                  <CheckCircle2 className="w-10 h-10 text-white" />
+                </div>
+                <div className="text-center space-y-1">
+                  <h3 className="text-2xl font-black font-headline uppercase tracking-tighter">Gift Sent!</h3>
+                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Your gift has been delivered</p>
+                </div>
+                <Button onClick={handleSendMore} className="w-full h-16 rounded-full bg-[#3BC1A8] text-white font-black text-lg shadow-xl active:scale-95 transition-all">
+                  Send one more
+                </Button>
               </div>
+            ) : (
+              <>
+                <SheetHeader className="mb-6">
+                  <SheetTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Select a Gift</SheetTitle>
+                </SheetHeader>
+                <div className="grid grid-cols-4 gap-4 overflow-y-auto max-h-[40svh] px-1 no-scrollbar">
+                  {GIFTS.map((gift) => (
+                    <button 
+                      key={gift.id} 
+                      onClick={() => setSelectedGift(gift)} 
+                      className={cn(
+                        "flex flex-col items-center gap-2 p-3 rounded-2xl transition-all border-2",
+                        selectedGift?.id === gift.id ? "bg-[#3BC1A8]/10 border-[#3BC1A8]" : "bg-gray-50 border-transparent"
+                      )}
+                    >
+                      <span className="text-3xl drop-shadow-sm">{gift.emoji}</span>
+                      <span className="text-[9px] font-black uppercase text-gray-500 truncate w-full text-center">{gift.name}</span>
+                      <div className="flex items-center gap-0.5">
+                        <span className="text-[10px] font-black text-[#3BC1A8] italic">S</span>
+                        <span className="text-[9px] font-black text-[#3BC1A8]">{gift.price}</span>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+                
+                {selectedGift && (
+                  <div className="mt-8 flex flex-col gap-4 animate-in slide-in-from-bottom-4">
+                     <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                        <div className="flex items-center gap-3">
+                           <span className="text-3xl">{selectedGift.emoji}</span>
+                           <div className="flex flex-col">
+                              <span className="text-xs font-black uppercase tracking-widest">{selectedGift.name}</span>
+                              <span className="text-[10px] font-bold text-gray-400">Recipient receives diamonds</span>
+                           </div>
+                        </div>
+                        <div className="text-right">
+                           <span className="text-sm font-black text-[#3BC1A8]">{selectedGift.price} Coins</span>
+                        </div>
+                     </div>
+                     <Button 
+                       onClick={handleSendGift} 
+                       disabled={isGifting} 
+                       className="w-full h-16 rounded-full bg-[#3BC1A8] text-white font-black text-lg shadow-xl"
+                     >
+                       {isGifting ? <Loader2 className="w-6 h-6 animate-spin" /> : `Send ${selectedGift.name}`}
+                     </Button>
+                  </div>
+                )}
+              </>
             )}
           </SheetContent>
         </Sheet>
