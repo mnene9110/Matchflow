@@ -16,31 +16,47 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    if (!supabase) return;
+    // Ensure we are in the browser and supabase auth is available
+    if (typeof window === 'undefined' || !supabase?.auth) {
+      setIsReady(true);
+      return;
+    }
 
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
-      const isPublicRoute = publicRoutes.includes(pathname);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
+        const isPublicRoute = publicRoutes.includes(pathname);
 
-      if (!session && !isPublicRoute) {
-        window.location.replace('/welcome');
-      } else {
+        if (!session && !isPublicRoute) {
+          window.location.replace('/welcome');
+        } else {
+          setIsReady(true);
+        }
+      } catch (e) {
+        console.error("Auth check failed:", e);
         setIsReady(true);
       }
     };
 
     checkAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChanged((event, session) => {
+    // Use safe access for onAuthStateChanged
+    const authStateResult = supabase.auth.onAuthStateChanged((event) => {
       if (event === 'SIGNED_OUT') {
         window.location.replace('/welcome');
       }
     });
 
-    return () => subscription.unsubscribe();
-  }, [pathname, router]);
+    const subscription = authStateResult?.data?.subscription;
+
+    return () => {
+      if (subscription) {
+        subscription.unsubscribe();
+      }
+    };
+  }, [pathname]);
 
   if (!isReady) return <div className="h-svh w-full bg-[#3BC1A8]" />;
 
