@@ -28,7 +28,7 @@ export default function DiscoverPage() {
       orderBy("lastActiveAt", "desc"),
       limit(20)
     );
-  }, [user, activeTab]);
+  }, [user, activeTab, firestore]);
 
   const { data: users, isLoading } = useCollection(usersQuery);
 
@@ -72,7 +72,7 @@ export default function DiscoverPage() {
             <button onClick={() => setActiveTab('recommended')} className={cn("text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'recommended' ? "text-white scale-110" : "text-white/50")}>Recommended</button>
             <button onClick={() => setActiveTab('nearby')} className={cn("text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5", activeTab === 'nearby' ? "text-white scale-110" : "text-white/50")}>Nearby <MapPin className="w-2.5 h-2.5 fill-current" /></button>
           </div>
-          <button className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform"><RotateCcw className="w-3.5 h-3.5" /></button>
+          <button onClick={() => window.location.reload()} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform"><RotateCcw className="w-3.5 h-3.5" /></button>
         </div>
       </div>
 

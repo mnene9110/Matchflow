@@ -9,8 +9,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useFirebase } from "@/firebase/provider"
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
+import { useAuth } from "@/firebase/auth/use-auth"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
@@ -46,7 +48,9 @@ const ZODIAC_OPTIONS = [
 
 export default function EditProfilePage() {
   const router = useRouter()
-  const { user: currentUser, profile, isLoading } = useSupabaseUser()
+  const { firestore } = useFirebase()
+  const { user: authUser } = useAuth(useFirebase().auth)
+  const { profile, isLoading } = useSupabaseUser()
   const { toast } = useToast()
   
   const mainFileInputRef = useRef<HTMLInputElement>(null)
@@ -78,10 +82,10 @@ export default function EditProfilePage() {
         username: profile.username || "",
         bio: profile.bio || "",
         location: profile.location || "",
-        profile_photo_urls: profile.profile_photo_urls || [],
+        profile_photo_urls: profile.profilePhotoUrls || [],
         interests: profile.interests || [],
         education: profile.education || "",
-        relationship_goal: profile.relationship_goal || "",
+        relationship_goal: profile.relationshipGoal || "",
         horoscope: profile.horoscope || ""
       })
     }
@@ -111,14 +115,12 @@ export default function EditProfilePage() {
   }
 
   const handleApplyCrop = async () => {
-    if (!currentUser) return;
+    if (!authUser) return;
     setIsCropping(true)
     try {
       const croppedImage = await getCroppedImg()
       if (croppedImage && activePhotoSlot !== null) {
-        // Construct path: profiles/USER_ID/photo_SLOT_TIMESTAMP.jpg
-        // This format matches the RLS policy requiring the UID in folder position [2]
-        const path = `profiles/${currentUser.id}/photo_${activePhotoSlot}_${Date.now()}.jpg`;
+        const path = `profiles/${authUser.uid}/photo_${activePhotoSlot}_${Date.now()}.jpg`;
         const url = await uploadToSupabase(croppedImage, path);
 
         setFormData(prev => {
@@ -138,7 +140,7 @@ export default function EditProfilePage() {
       toast({ 
         variant: "destructive", 
         title: "Upload Error", 
-        description: e.message || "Could not save photo. Ensure RLS policies are set in Supabase." 
+        description: e.message || "Could not save photo." 
       }) 
     } finally { 
       setIsCropping(false) 
@@ -163,18 +165,20 @@ export default function EditProfilePage() {
   }
 
   const handleSave = async () => {
-    if (!currentUser || isSaving) return
+    if (!authUser || isSaving) return
     setIsSaving(true)
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          ...formData,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUser.id);
-
-      if (error) throw error;
+      await updateDoc(doc(firestore, "userProfiles", authUser.uid), {
+        username: formData.username,
+        bio: formData.bio,
+        location: formData.location,
+        profilePhotoUrls: formData.profile_photo_urls,
+        interests: formData.interests,
+        education: formData.education,
+        relationshipGoal: formData.relationship_goal,
+        horoscope: formData.horoscope,
+        updatedAt: serverTimestamp()
+      });
       
       toast({ title: "Profile Updated" })
       router.push("/profile")

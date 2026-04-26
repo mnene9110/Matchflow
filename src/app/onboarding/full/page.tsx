@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
@@ -7,10 +8,12 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { doc, setDoc, serverTimestamp } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Loader2 } from "lucide-react"
+import { useAuth } from "@/firebase/auth/use-auth"
 
 const TARGET_COUNTRIES = [
   "Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", 
@@ -29,6 +32,8 @@ export default function FullOnboardingPage() {
   
   const router = useRouter()
   const { toast } = useToast()
+  const { auth, firestore } = useFirebase()
+  const { user } = useAuth(auth)
 
   const maxDobDate = useMemo(() => {
     const today = new Date()
@@ -36,7 +41,7 @@ export default function FullOnboardingPage() {
   }, [])
 
   const handleSave = useCallback(async () => {
-    if (!name || !dob || !gender || !country || !lookingFor || isSubmitting) return
+    if (!name || !dob || !gender || !country || !lookingFor || isSubmitting || !user) return
 
     const birthDate = new Date(dob)
     const today = new Date()
@@ -57,31 +62,25 @@ export default function FullOnboardingPage() {
 
     setIsSubmitting(true)
     try {
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session?.user) {
-        throw new Error("Auth session not found. Please log in again.");
-      }
-
-      const user = session.user;
       const numericId = Math.floor(10000000 + Math.random() * 90000000);
 
-      const { error: insertError } = await supabase
-        .from('profiles')
-        .insert({
-          id: user.id, // CRITICAL: Must match auth.uid() for RLS
-          numeric_id: numericId,
-          username: name,
-          gender: gender,
-          location: country,
-          relationship_goal: lookingFor,
-          date_of_birth: dob,
-          profile_photo_urls: [`https://picsum.photos/seed/${user.id}/600/800`],
-          coin_balance: 500,
-          is_online: true,
-          updated_at: new Date().toISOString()
-        });
+      await setDoc(doc(firestore, "userProfiles", user.uid), {
+        id: user.uid,
+        authProviderId: user.providerId || "anonymous",
+        numericId: numericId,
+        username: name,
+        gender: gender,
+        location: country,
+        relationshipGoal: lookingFor,
+        dateOfBirth: dob,
+        profilePhotoUrls: [`https://picsum.photos/seed/${user.uid}/600/800`],
+        coinBalance: 500,
+        diamondBalance: 0,
+        isOnline: true,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
 
-      if (insertError) throw insertError;
       router.push("/discover")
     } catch (error: any) {
       console.error("Full onboarding failed:", error)
@@ -92,13 +91,13 @@ export default function FullOnboardingPage() {
       })
       setIsSubmitting(false)
     }
-  }, [name, dob, gender, country, lookingFor, isSubmitting, router, toast])
+  }, [name, dob, gender, country, lookingFor, isSubmitting, user, firestore, router, toast])
 
   const darkMaroonText = "text-[#5A1010]";
   const darkMaroonBg = "bg-[#5A1010]";
 
   return (
-    <div className="h-svh bg-transparent overflow-y-auto bg-white">
+    <div className="h-svh bg-white overflow-y-auto">
       <div className="flex flex-col p-6 min-h-full">
         <div className="mt-8 space-y-8 pb-32 max-w-sm mx-auto w-full">
           <header className="space-y-2">

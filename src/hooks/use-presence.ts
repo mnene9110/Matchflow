@@ -1,60 +1,40 @@
+
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { useFirebase } from '@/firebase/provider';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 /**
  * Hook to get real-time presence information for a specific user.
- * Now using Supabase Realtime Postgres Changes.
+ * Uses Firestore snapshots for presence detection.
  */
 export function usePresence(userId: string | null | undefined) {
-  const [presence, setPresence] = useState<{ isOnline: boolean; lastActiveAt: string | null }>({
+  const { firestore } = useFirebase();
+  const [presence, setPresence] = useState<{ isOnline: boolean; lastActiveAt: any }>({
     isOnline: false,
     lastActiveAt: null
   });
 
   useEffect(() => {
-    if (!userId || !supabase) {
+    if (!userId) {
       setPresence({ isOnline: false, lastActiveAt: null });
       return;
     }
 
-    const fetchStatus = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('is_online, last_active_at')
-        .eq('id', userId)
-        .single();
-      
-      if (data) {
+    const profileRef = doc(firestore, 'userProfiles', userId);
+    const unsubscribe = onSnapshot(profileRef, (snapshot) => {
+      if (snapshot.exists()) {
+        const data = snapshot.data();
         setPresence({
-          isOnline: !!data.is_online,
-          lastActiveAt: data.last_active_at
+          isOnline: !!data.isOnline,
+          lastActiveAt: data.lastActiveAt
         });
       }
-    };
+    });
 
-    fetchStatus();
-
-    const channel = supabase
-      .channel(`user_presence:${userId}`)
-      .on('postgres_changes', {
-        event: 'UPDATE',
-        schema: 'public',
-        table: 'profiles',
-        filter: `id=eq.${userId}`
-      }, (payload) => {
-        setPresence({
-          isOnline: !!payload.new.is_online,
-          lastActiveAt: payload.new.last_active_at
-        });
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [userId]);
+    return () => unsubscribe();
+  }, [userId, firestore]);
 
   return { isOnline: presence.isOnline, lastActiveAt: presence.lastActiveAt };
 }

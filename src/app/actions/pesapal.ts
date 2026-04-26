@@ -1,12 +1,12 @@
+
 'use server';
 
 /**
- * @fileOverview Server actions for PesaPal V3 integration.
- * Handles authentication, IPN registration, and order submission.
- * Completely migrated to Supabase.
+ * @fileOverview Server actions for PesaPal V3 integration using Firebase.
  */
 
-import { supabase } from '@/lib/supabase';
+import { initializeFirebase } from '@/firebase';
+import { doc, getDoc, setDoc, updateDoc, increment, collection, addDoc } from 'firebase/firestore';
 
 const PESAPAL_URL = 'https://pay.pesapal.com/v3';
 const CONSUMER_KEY = process.env.PESAPAL_CONSUMER_KEY;
@@ -86,30 +86,16 @@ export async function initializePesaPalTransaction(email: string, amount: number
 
     const merchantRef = `MF${Date.now().toString().slice(-10)}`;
     
-    // SECURE FIX: Use RPC to insert pending payment. 
-    // Direct server-side insert fails if RLS is on and auth context is not forwarded.
-    const { error: rpcError } = await supabase.rpc('initiate_pending_payment', {
-      p_id: merchantRef,
-      p_package_amount: metadata.packageAmount,
-      p_merchant_ref: merchantRef
+    const { firestore } = initializeFirebase();
+    
+    // Store pending payment in Firestore
+    await setDoc(doc(firestore, 'pendingPayments', merchantRef), {
+      userId: metadata.userId,
+      packageAmount: metadata.packageAmount,
+      merchantRef: merchantRef,
+      status: "pending",
+      createdAt: new Date().toISOString()
     });
-
-    if (rpcError) {
-        console.error("Pending payment RPC error:", rpcError);
-        // Fallback for missing RPC: if RPC not found, try normal insert (user must ensure policy is right)
-        if (rpcError.message.includes('function') && rpcError.message.includes('does not exist')) {
-            const { error: insertError } = await supabase.from('pending_payments').insert({
-                id: merchantRef,
-                user_id: metadata.userId,
-                package_amount: metadata.packageAmount,
-                merchant_ref: merchantRef,
-                status: "pending"
-            });
-            if (insertError) throw insertError;
-        } else {
-            throw rpcError;
-        }
-    }
 
     const orderData = {
       id: merchantRef,
@@ -142,10 +128,9 @@ export async function initializePesaPalTransaction(email: string, amount: number
     const result = await response.json();
     
     if (result.redirect_url) {
-      await supabase
-        .from('pending_payments')
-        .update({ order_tracking_id: result.order_tracking_id })
-        .eq('id', merchantRef);
+      await updateDoc(doc(firestore, 'pendingPayments', merchantRef), {
+        orderTrackingId: result.order_tracking_id
+      });
         
       return { redirect_url: result.redirect_url, order_tracking_id: result.order_tracking_id };
     } else {
@@ -181,36 +166,37 @@ export async function processServerPaymentConfirmation(orderTrackingId: string) 
     
     if (result.status_code === 1 || result.payment_status_description === 'Completed') {
       const merchantRef = result.merchant_reference;
+      const { firestore } = initializeFirebase();
       
-      const { data: paymentData, error: fetchError } = await supabase
-        .from('pending_payments')
-        .select('*')
-        .eq('id', merchantRef)
-        .single();
+      const paymentRef = doc(firestore, 'pendingPayments', merchantRef);
+      const paymentSnap = await getDoc(paymentRef);
       
-      if (fetchError || !paymentData) return { status: 'error', message: 'Mapping not found' };
-      if (paymentData.status === 'completed') return { status: 'already_processed', coins: paymentData.package_amount };
+      if (!paymentSnap.exists()) return { status: 'error', message: 'Mapping not found' };
+      const paymentData = paymentSnap.data();
+      
+      if (paymentData.status === 'completed') return { status: 'already_processed', coins: paymentData.packageAmount };
 
-      const targetUserId = paymentData.user_id;
-      const coinsToGain = paymentData.package_amount;
+      const targetUserId = paymentData.userId;
+      const coinsToGain = paymentData.packageAmount;
 
       if (targetUserId) {
-        const { data: currentProfile } = await supabase.from('profiles').select('coin_balance').eq('id', targetUserId).single();
-        const newBalance = (currentProfile?.coin_balance || 0) + coinsToGain;
+        const userProfileRef = doc(firestore, 'userProfiles', targetUserId);
         
-        await supabase.from('profiles').update({ coin_balance: newBalance }).eq('id', targetUserId);
+        await updateDoc(userProfileRef, {
+          coinBalance: increment(coinsToGain)
+        });
 
-        await supabase.from('pending_payments').update({ 
+        await updateDoc(paymentRef, { 
           status: 'completed', 
-          order_tracking_id: orderTrackingId,
-          completed_at: new Date().toISOString() 
-        }).eq('id', merchantRef);
+          orderTrackingId: orderTrackingId,
+          completedAt: new Date().toISOString() 
+        });
 
-        await supabase.from('transactions').insert({
-          user_id: targetUserId,
+        await addDoc(collection(firestore, 'userProfiles', targetUserId, 'transactions'), {
           type: "recharge",
           amount: coinsToGain,
-          description: `Coin Recharge (${coinsToGain} coins)`
+          description: `Coin Recharge (${coinsToGain} coins)`,
+          transactionDate: new Date().toISOString()
         });
         
         return { status: 'success', coins: coinsToGain };

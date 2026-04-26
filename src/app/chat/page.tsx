@@ -1,29 +1,35 @@
+
 "use client"
 
 import { useState, useEffect, useRef } from "react"
 import { MessageSquare, CheckCircle, Loader2, RotateCcw } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
-import { useSupabaseUser } from "@/hooks/use-supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, orderBy, onSnapshot, doc, getDoc } from "firebase/firestore"
+import { useAuth } from "@/firebase/auth/use-auth"
 import { cn } from "@/lib/utils"
 
 function ChatSessionItem({ session, currentUserId }: { session: any, currentUserId: string }) {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const otherUserId = session.participants.find((p: string) => p !== currentUserId)
   const [otherUser, setOtherUser] = useState<any>(null)
 
   useEffect(() => {
     if (!otherUserId) return;
     const fetchOther = async () => {
-      const { data } = await supabase.from('profiles').select('*').eq('id', otherUserId).single();
-      setOtherUser(data);
+      const docRef = doc(firestore, 'userProfiles', otherUserId);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        setOtherUser(snap.data());
+      }
     };
     fetchOther();
-  }, [otherUserId]);
+  }, [otherUserId, firestore]);
 
   const name = otherUser?.username || "User"
-  const image = (otherUser?.profile_photo_urls && otherUser.profile_photo_urls[0]) || ""
+  const image = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || ""
 
   return (
     <div 
@@ -41,11 +47,11 @@ function ChatSessionItem({ session, currentUserId }: { session: any, currentUser
         <div className="flex justify-between items-baseline mb-1">
           <div className="flex items-center gap-1.5 min-w-0">
             <h3 className="font-black text-base truncate text-[#3BC1A8]">{name}</h3>
-            {otherUser?.is_verified && <CheckCircle className="w-4 h-4 text-blue-500 fill-current" />}
+            {otherUser?.isVerified && <CheckCircle className="w-4 h-4 text-blue-500 fill-current" />}
           </div>
         </div>
         <p className="text-[13px] truncate font-bold text-gray-400">
-          {session.last_message || "Start a conversation"}
+          {session.lastMessage || "Start a conversation"}
         </p>
       </div>
     </div>
@@ -53,44 +59,35 @@ function ChatSessionItem({ session, currentUserId }: { session: any, currentUser
 }
 
 export default function ChatListPage() {
-  const { user, isLoading } = useSupabaseUser()
+  const { auth, firestore } = useFirebase()
+  const { user, isLoading: isAuthLoading } = useAuth(auth)
   const [sessions, setSessions] = useState<any[]>([])
-  const [isSyncing, setIsSyncing] = useState(false)
-  const initialFetchedRef = useRef(false)
-
-  const fetchChats = async () => {
-    if (!user) return;
-    setIsSyncing(true);
-    const { data } = await supabase
-      .from('chats')
-      .select('*')
-      .contains('participants', [user.id])
-      .order('last_message_at', { ascending: false });
-    setSessions(data || []);
-    setIsSyncing(false);
-  };
+  const [isSyncing, setIsSyncing] = useState(true)
+  const router = useRouter()
 
   useEffect(() => {
-    if (!user || initialFetchedRef.current) return;
+    if (!user) return;
 
-    fetchChats();
-    initialFetchedRef.current = true;
+    const chatsQuery = query(
+      collection(firestore, "chats"),
+      where("participants", "array-contains", user.uid),
+      orderBy("lastMessageAt", "desc")
+    );
 
-    const channel = supabase
-      .channel('chat_list')
-      .on('postgres_changes', { 
-        event: '*', 
-        schema: 'public', 
-        table: 'chats',
-        filter: `participants=cs.{${user.id}}`
-      }, () => {
-        // Only re-fetch if we are already showing a list
-        fetchChats();
-      })
-      .subscribe();
+    const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
+      const chatList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setSessions(chatList);
+      setIsSyncing(false);
+    }, (error) => {
+      console.error("Chat list error:", error);
+      setIsSyncing(false);
+    });
 
-    return () => { supabase.removeChannel(channel); };
-  }, [user]);
+    return () => unsubscribe();
+  }, [user, firestore]);
 
   return (
     <div className="flex flex-col h-svh pb-20 bg-white">
@@ -98,13 +95,6 @@ export default function ChatListPage() {
         <div className="flex items-center justify-between pt-6">
           <h1 className="text-3xl font-logo text-white drop-shadow-sm">Chats</h1>
           <div className="flex items-center gap-3">
-            <button 
-              onClick={fetchChats} 
-              disabled={isSyncing}
-              className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform disabled:opacity-30"
-            >
-              <RotateCcw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
-            </button>
             <div className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center">
               <MessageSquare className="w-4 h-4 text-white fill-current" />
             </div>
@@ -113,12 +103,12 @@ export default function ChatListPage() {
       </header>
 
       <main className="flex-1 px-6 pt-2 bg-white overflow-y-auto">
-        {isLoading || (isSyncing && sessions.length === 0) ? (
+        {isAuthLoading || (isSyncing && sessions.length === 0) ? (
           <div className="flex flex-col items-center justify-center py-32 gap-4 opacity-10">
             <Loader2 className="w-10 h-10 animate-spin" />
           </div>
         ) : sessions.length > 0 ? (
-          sessions.map(s => <ChatSessionItem key={s.id} session={s} currentUserId={user!.id} />)
+          sessions.map(s => <ChatSessionItem key={s.id} session={s} currentUserId={user!.uid} />)
         ) : (
           <div className="flex flex-col items-center justify-center py-32 text-gray-400 font-medium gap-4">
             <MessageSquare className="w-10 h-10 text-gray-200" />

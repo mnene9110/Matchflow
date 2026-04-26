@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, Eye, ArrowRight, Lock, Coins } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, increment, addDoc, serverTimestamp } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
@@ -16,57 +17,36 @@ const UNLOCK_COST = 500
 
 export default function VisitorsPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user, profile, isLoading: isUserLoading } = useSupabaseUser()
   const { toast } = useToast()
   
   const [visitors, setVisitors] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isUnlocking, setIsUnlocking] = useState(false)
-  const [isTableMissing, setIsTableMissing] = useState(false)
 
   useEffect(() => {
     if (!user) return
 
-    const fetchVisitors = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('visitors')
-          .select('*')
-          .eq('target_user_id', user.id)
-          .order('timestamp', { ascending: false });
-        
-        if (error) {
-          if (error.code === 'PGRST116' || error.message.includes('not found')) {
-            setIsTableMissing(true);
-          } else {
-            throw error;
-          }
-        } else {
-          setVisitors(data || []);
-        }
-      } catch (err) {
-        console.error("Visitors fetch failed:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    const visitorsQuery = query(
+      collection(firestore, "userProfiles", user.id, "visitors"),
+      orderBy("timestamp", "desc")
+    );
 
-    fetchVisitors();
+    const unsubscribe = onSnapshot(visitorsQuery, (snapshot) => {
+      const vList = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      }));
+      setVisitors(vList);
+      setIsLoading(false);
+    }, (error) => {
+      console.error("Visitors fetch failed:", error);
+      setIsLoading(false);
+    });
 
-    const channel = supabase
-      .channel(`visitors:${user.id}`)
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'visitors', 
-        filter: `target_user_id=eq.${user.id}` 
-      }, (payload) => {
-        setVisitors(prev => [payload.new, ...prev]);
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [user])
+    return () => unsubscribe();
+  }, [user, firestore])
 
   const handleUnlock = async () => {
     if (!user || !profile || isUnlocking) return
@@ -78,25 +58,21 @@ export default function VisitorsPage() {
 
     setIsUnlocking(true)
     try {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({ 
-          coin_balance: profile.coin_balance - UNLOCK_COST,
-          visitors_unlocked: true 
-        })
-        .eq('id', user.id);
+      const userRef = doc(firestore, "userProfiles", user.id);
+      
+      await updateDoc(userRef, {
+        coinBalance: increment(-UNLOCK_COST),
+        visitorsUnlocked: true
+      });
 
-      if (profileError) throw profileError;
-
-      await supabase.from('transactions').insert({
-        user_id: user.id,
+      await addDoc(collection(firestore, "userProfiles", user.id, "transactions"), {
         type: 'visitor_unlock',
         amount: -UNLOCK_COST,
-        description: "Unlocked profile visitors list"
+        description: "Unlocked profile visitors list",
+        transactionDate: serverTimestamp()
       });
 
       toast({ title: "Unlocked!", description: "You can now see your visitors." })
-      router.refresh();
     } catch (e: any) {
       toast({ variant: "destructive", title: "Unlock Failed" })
     } finally {
@@ -104,7 +80,7 @@ export default function VisitorsPage() {
     }
   }
 
-  const isUnlocked = !!profile?.visitors_unlocked || profile?.is_admin || profile?.is_support
+  const isUnlocked = !!profile?.visitorsUnlocked || profile?.isAdmin || profile?.isSupport
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900">
@@ -116,24 +92,19 @@ export default function VisitorsPage() {
       <main className="flex-1 overflow-y-auto px-6 pt-8 pb-20 relative">
         {isLoading || isUserLoading ? (
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-        ) : isTableMissing ? (
-          <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 opacity-30">
-            <Eye className="w-12 h-12" />
-            <p className="text-[10px] font-black uppercase tracking-widest">Visitor log pending setup</p>
-          </div>
         ) : (
           <div className="space-y-4">
             {visitors.length > 0 ? (
               <div className="space-y-4">
                 {visitors.map((v) => (
-                  <div key={v.id} onClick={() => isUnlocked && router.push(`/profile/${v.visitor_id}`)} className={cn("bg-gray-50 border border-gray-100 p-4 rounded-[2rem] flex items-center gap-4", isUnlocked ? "cursor-pointer" : "cursor-default")}>
+                  <div key={v.id} onClick={() => isUnlocked && router.push(`/profile/${v.visitorId}`)} className={cn("bg-gray-50 border border-gray-100 p-4 rounded-[2rem] flex items-center gap-4", isUnlocked ? "cursor-pointer" : "cursor-default")}>
                     <Avatar className={cn("w-14 h-14 border-2 border-white shadow-sm", !isUnlocked && "blur-sm")}>
                       <AvatarImage src={v.photo} className="object-cover" />
                       <AvatarFallback className="bg-primary text-white font-black">{v.username?.[0]}</AvatarFallback>
                     </Avatar>
                     <div className="flex-1">
                       <h3 className={cn("text-sm font-black text-gray-900 leading-tight", !isUnlocked && "blur-[4px]")}>{isUnlocked ? v.username : "Someone"}</h3>
-                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{v.timestamp ? format(new Date(v.timestamp), "MMM d, HH:mm") : "Recently"}</p>
+                      <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mt-0.5">{v.timestamp?.toDate ? format(v.timestamp.toDate(), "MMM d, HH:mm") : "Recently"}</p>
                     </div>
                     {isUnlocked && <ArrowRight className="w-4 h-4 text-gray-300" />}
                   </div>
@@ -145,7 +116,7 @@ export default function VisitorsPage() {
           </div>
         )}
 
-        {!isUnlocked && !isLoading && !isUserLoading && !isTableMissing && (
+        {!isUnlocked && !isLoading && !isUserLoading && (
           <div className="fixed inset-0 top-[88px] z-20 bg-white/40 backdrop-blur-md flex items-center justify-center p-8">
             <div className="bg-white rounded-[3rem] p-10 shadow-2xl border border-gray-100 text-center space-y-8 w-full max-w-sm">
               <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto border-4 border-white shadow-lg"><Lock className="w-8 h-8 text-primary" /></div>

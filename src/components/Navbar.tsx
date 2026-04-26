@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -5,12 +6,14 @@ import Link from "next/link"
 import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { supabase } from "@/lib/supabase"
-import { useSupabaseUser } from "@/hooks/use-supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, onSnapshot } from "firebase/firestore"
+import { useAuth } from "@/firebase/auth/use-auth"
 
 export function Navbar() {
   const pathname = usePathname()
-  const { user: currentUser } = useSupabaseUser()
+  const { auth, firestore } = useFirebase()
+  const { user: currentUser } = useAuth(auth)
   const [totalUnread, setTotalUnread] = useState(0)
 
   useEffect(() => {
@@ -19,41 +22,22 @@ export function Navbar() {
       return
     }
 
-    const fetchUnreadCount = async () => {
-      // Fetch initial unread counts from chats where user is a participant
-      const { data, error } = await supabase
-        .from('chats')
-        .select('unread_count_map')
-        .contains('participants', [currentUser.id])
+    const chatsQuery = query(
+      collection(firestore, "chats"),
+      where("participants", "array-contains", currentUser.uid)
+    );
 
-      if (data && !error) {
-        const count = data.reduce((acc, chat) => {
-          const unreadMap = chat.unread_count_map || {}
-          return acc + (unreadMap[currentUser.id] || 0)
-        }, 0)
-        setTotalUnread(count)
-      }
-    }
+    const unsubscribe = onSnapshot(chatsQuery, (snapshot) => {
+      let count = 0;
+      snapshot.docs.forEach(doc => {
+        const unreadMap = doc.data().unreadCountMap || {};
+        count += (unreadMap[currentUser.uid] || 0);
+      });
+      setTotalUnread(count);
+    });
 
-    fetchUnreadCount()
-
-    // Subscribe to chat updates
-    const channel = supabase
-      .channel('navbar_unread_sync')
-      .on('postgres_changes', { 
-        event: 'UPDATE', 
-        schema: 'public', 
-        table: 'chats',
-        filter: `participants=cs.{${currentUser.id}}`
-      }, () => {
-        fetchUnreadCount()
-      })
-      .subscribe()
-
-    return () => {
-      supabase.removeChannel(channel)
-    }
-  }, [currentUser])
+    return () => unsubscribe();
+  }, [currentUser, firestore]);
 
   const hiddenRoutes = [
     "/welcome",

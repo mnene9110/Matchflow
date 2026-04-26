@@ -1,89 +1,64 @@
+
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
-import { supabase } from '@/lib/supabase';
-import type { User } from '@supabase/supabase-js';
+import { useEffect, useState } from 'react';
+import { useFirebase } from '@/firebase/provider';
+import { onAuthStateChanged, User } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
 
 /**
- * Hook to manage Supabase Auth state and Profile data.
- * Optimized to handle background/foreground transitions without infinite loading.
+ * Migration Hook: Previously useSupabaseUser, now provides Firebase user and profile data.
+ * This maintains compatibility with components during the transition.
  */
 export function useSupabaseUser() {
+  const { auth, firestore } = useFirebase();
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const isInitialMount = useRef(true);
-
-  const fetchProfile = async (userId: string) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle(); // Better for handling missing profiles during transitions
-      
-      if (!error && data) {
-        setProfile(data);
-      } else {
-        setProfile(null);
-      }
-    } catch (e) {
-      console.error("Profile fetch error:", e);
-    }
-  };
 
   useEffect(() => {
-    if (!supabase) {
-      setIsLoading(false);
-      return;
-    }
-
-    const initAuth = async () => {
-      // 1. Get initial session
-      const { data: { session } } = await supabase.auth.getSession();
-      const currentUser = session?.user ?? null;
+    const unsubscribeAuth = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
       
       if (currentUser) {
-        await fetchProfile(currentUser.id);
-      }
-      
-      setIsLoading(false);
-      isInitialMount.current = false;
-    };
+        const profileRef = doc(firestore, 'userProfiles', currentUser.uid);
+        const unsubscribeProfile = onSnapshot(profileRef, (docSnap) => {
+          if (docSnap.exists()) {
+            // Map snake_case fields back to camelCase or vice versa as needed for Firebase
+            const data = docSnap.data();
+            setProfile({
+              ...data,
+              id: currentUser.uid,
+              // Compatibility mapping if fields were renamed in DB
+              coin_balance: data.coinBalance ?? 0,
+              diamond_balance: data.diamondBalance ?? 0,
+              is_admin: data.isAdmin,
+              is_verified: data.isVerified,
+              is_coinseller: data.isCoinseller,
+              is_support: data.isSupport,
+              is_agent: data.isAgent,
+              is_party_admin: data.isPartyAdmin
+            });
+          } else {
+            setProfile(null);
+          }
+          setIsLoading(false);
+        });
 
-    initAuth();
-
-    // 2. Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      const currentUser = session?.user ?? null;
-      setUser(currentUser);
-      
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-        if (currentUser) {
-          await fetchProfile(currentUser.id);
-        }
-      } else if (event === 'SIGNED_OUT') {
+        return () => unsubscribeProfile();
+      } else {
         setProfile(null);
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     });
 
-    // 3. Handle visibility change (coming back to app)
-    const handleVisibility = () => {
-      if (document.visibilityState === 'visible') {
-        // Just refresh the session in background
-        supabase.auth.getSession();
-      }
-    };
-    window.addEventListener('visibilitychange', handleVisibility);
+    return () => unsubscribeAuth();
+  }, [auth, firestore]);
 
-    return () => {
-      if (subscription) subscription.unsubscribe();
-      window.removeEventListener('visibilitychange', handleVisibility);
-    };
-  }, []);
-
-  return { user, profile, isLoading };
+  // Return structure matching what components expect
+  return { 
+    user: user ? { ...user, id: user.uid } : null, 
+    profile, 
+    isLoading 
+  };
 }

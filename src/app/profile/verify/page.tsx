@@ -5,13 +5,15 @@ import { useState, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Camera, RotateCcw, CheckCircle, AlertCircle, Loader2, ShieldCheck, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useFirebase } from "@/firebase/provider"
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { verifyFace } from "@/ai/flows/verify-face-flow"
 
 export default function VerifyIdentityPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user: currentUser, profile, isLoading: isUserLoading } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -99,7 +101,7 @@ export default function VerifyIdentityPage() {
     
     setIsVerifying(true);
     try {
-      const profilePhoto = (profile.profile_photo_urls && profile.profile_photo_urls[0]) || "";
+      const profilePhoto = (profile.profilePhotoUrls && profile.profilePhotoUrls[0]) || "";
       
       if (!profilePhoto) {
         toast({
@@ -117,15 +119,10 @@ export default function VerifyIdentityPage() {
       });
 
       if (result.isMatch) {
-        const { error } = await supabase
-          .from('profiles')
-          .update({ 
-            is_verified: true,
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', currentUser.id);
-
-        if (error) throw error;
+        await updateDoc(doc(firestore, "userProfiles", currentUser.id), {
+          isVerified: true,
+          updatedAt: serverTimestamp()
+        });
         
         stopCamera();
         
