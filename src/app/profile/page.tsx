@@ -1,4 +1,3 @@
-
 "use client"
 
 import { 
@@ -15,7 +14,6 @@ import {
   Award,
   UserCog,
   Eye,
-  Music,
   Building2,
   ClipboardList
 } from "lucide-react"
@@ -56,7 +54,6 @@ export default function ProfilePage() {
   const isCoinseller = !!profile?.isCoinseller
   const isAgent = !!profile?.isAgent
   const isSupport = !!profile?.isSupport
-  const isHost = !!profile?.isPartyAdmin || isAdmin
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#3BC1A8]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
 
@@ -102,7 +99,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {(isAdmin || isCoinseller || isAgent || isSupport || isHost) && (
+        {(isAdmin || isCoinseller || isAgent || isSupport) && (
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Official Tools</h2></div>
             <div className="grid grid-cols-1 gap-2.5">
@@ -111,9 +108,6 @@ export default function ProfilePage() {
               )}
               {(isAdmin || isCoinseller) && (
                 <button onClick={() => router.push('/coinseller/award')} className="w-full h-16 rounded-[1.5rem] bg-amber-500 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Award className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Award Coins</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
-              )}
-              {isHost && (
-                <button onClick={() => router.push('/profile/host-center')} className="w-full h-16 rounded-[1.5rem] bg-[#3BC1A8] flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Music className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Host Console</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
               )}
               {(isAdmin || isAgent) && (
                 <button onClick={() => router.push('/profile/agent-center')} className="w-full h-16 rounded-[1.5rem] bg-purple-600 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Building2 className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Agent Anchor</div><ChevronRight className="w-4 h-4 text-white/40" /></button>

@@ -51,35 +51,26 @@ service cloud.firestore {
 
       allow create: if isOwner(userId);
 
-      // Allow owner, admin, or coinseller to update. 
-      // Also allow any authenticated user to update specific fields (gifting/handshakes).
       allow update: if isOwner(userId) || isAdmin() || isCoinseller() || (
         isAuthenticated() && (
-          // Allowing anyone to send a gift (increment diamond balance)
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['diamondBalance']) ||
-          // Hardware signaling fields for calling
           request.resource.data.diff(resource.data).affectedKeys().hasOnly(['isOnline', 'lastActiveAt', 'incomingCallId', 'inCall'])
         )
       );
 
-      // Standard users can delete their own account, admins cannot delete themselves via client
       allow delete: if isOwner(userId) && !isAdmin();
 
-      // Transactions (coins history)
       match /transactions/{transactionId} {
         allow read: if isOwner(userId) || isAdmin();
-        // Allow admins, coinsellers, or gift senders to log appropriate transaction types
         allow write: if isAdmin() || isCoinseller() || (
           isAuthenticated() && request.resource.data.type in ['gift_received', 'diamond_received']
         );
       }
 
-      // Block list
       match /blockedUsers/{blockedId} {
         allow read, write: if isOwner(userId);
       }
 
-      // Visitors
       match /visitors/{visitorId} {
         allow read: if isOwner(userId) || isAdmin();
         allow write: if isAuthenticated();
@@ -91,8 +82,6 @@ service cloud.firestore {
     // -------------------------
 
     match /chats/{chatId} {
-
-      // allow read if user is participant OR if doc doesn't exist yet (essential for existence check handshake)
       allow read: if isAuthenticated()
         && (resource == null || isChatMember(resource.data));
 
@@ -108,7 +97,6 @@ service cloud.firestore {
         && isChatMember(resource.data);
 
       match /messages/{messageId} {
-
         allow read: if isAuthenticated()
           && (
             !exists(/databases/$(database)/documents/chats/$(chatId)) ||
@@ -151,28 +139,10 @@ service cloud.firestore {
 
     match /agencies/{agencyId} {
       allow read: if isAuthenticated();
-
       allow write: if isAuthenticated() && isAdmin();
 
       match /{allPaths=**} {
         allow read, write: if isAdmin();
-      }
-    }
-
-    // -------------------------
-    // PARTY ROOMS (LOCKED)
-    // -------------------------
-
-    match /partyRooms/{roomId} {
-      allow read: if isAuthenticated();
-
-      allow write: if isAuthenticated()
-        && (resource == null || request.auth.uid == resource.data.hostId);
-
-      match /{allPaths=**} {
-        allow read: if isAuthenticated();
-        allow write: if isAuthenticated()
-          && request.auth.uid == get(/databases/$(database)/documents/partyRooms/$(roomId)).data.hostId;
       }
     }
 
