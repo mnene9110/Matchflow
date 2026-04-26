@@ -304,7 +304,7 @@ export function GlobalCallOverlay() {
 
       <div className={cn(
         "absolute bg-zinc-900 overflow-hidden border-2 border-white/10 z-50 shadow-2xl transition-all duration-500",
-        callStatus === 'ongoing' 
+        (callStatus === 'ongoing' && callData?.callType === 'video')
           ? "top-12 right-6 w-32 aspect-[3/4] rounded-2xl" 
           : "inset-0 rounded-none border-none" 
       )}>
@@ -312,7 +312,7 @@ export function GlobalCallOverlay() {
           ref={previewVideoRef as any} 
           className={cn(
             "w-full h-full object-cover scale-x-[-1] [&_video]:scale-x-[-1]",
-            callStatus !== 'ongoing' && "opacity-40 blur-sm" 
+            (callStatus !== 'ongoing' || callData?.callType === 'audio') && "opacity-40 blur-sm" 
           )} 
         />
       </div>
@@ -332,8 +332,25 @@ export function GlobalCallOverlay() {
               <h2 className="text-4xl font-black font-headline tracking-tight text-white drop-shadow-lg">
                 {isConnecting ? 'Securing Link' : isCaller ? 'Ringing...' : (callData?.callerName || 'Incoming...')}
               </h2>
+              {callData?.callType === 'audio' && <p className="text-xs font-black uppercase text-primary tracking-[0.2em]">Voice Call</p>}
             </div>
           </div>
+        </div>
+      )}
+
+      {callStatus === 'ongoing' && callData?.callType === 'audio' && !isConnecting && (
+        <div className="absolute inset-0 z-[55] flex flex-col items-center justify-center p-8 bg-zinc-950">
+           <div className="relative">
+              <div className="absolute -inset-12 bg-primary/10 rounded-full animate-ping duration-[3000ms]" />
+              <Avatar className="w-48 h-48 rounded-full border-4 border-primary/20 shadow-2xl">
+                <AvatarImage src={otherUserImage} className="object-cover" />
+                <AvatarFallback className="text-6xl bg-zinc-900">?</AvatarFallback>
+              </Avatar>
+           </div>
+           <div className="mt-12 text-center space-y-2">
+              <h3 className="text-2xl font-black font-headline uppercase tracking-tight">{callData?.callerName || 'Connection'}</h3>
+              <p className="text-xs font-black text-primary uppercase tracking-[0.3em]">{Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')}</p>
+           </div>
         </div>
       )}
 

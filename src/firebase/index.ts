@@ -18,15 +18,12 @@ export const initializeFirebase = () => {
   const firestore = getFirestore(firebaseApp);
   const storage = getStorage(firebaseApp);
 
-  // Initialize Realtime Database only if configuration allows
+  // Initialize Realtime Database with the provided URL
   let database = null;
   try {
-    // Database requires a URL or inferred project ID
-    if (firebaseConfig.databaseURL || firebaseConfig.projectId) {
-      database = getDatabase(firebaseApp);
-    }
+    database = getDatabase(firebaseApp, firebaseConfig.databaseURL);
   } catch (e) {
-    console.warn("Firebase Realtime Database could not be initialized. Typing indicators will be disabled.");
+    console.warn("Firebase Realtime Database could not be initialized.");
   }
 
   return { firebaseApp, auth, firestore, database, storage };

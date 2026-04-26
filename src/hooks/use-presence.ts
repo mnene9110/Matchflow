@@ -3,38 +3,39 @@
 
 import { useState, useEffect } from 'react';
 import { useFirebase } from '@/firebase/provider';
-import { doc, onSnapshot } from 'firebase/firestore';
+import { ref, onValue } from 'firebase/database';
 
 /**
  * Hook to get real-time presence information for a specific user.
- * Uses Firestore snapshots for presence detection.
+ * Uses Realtime Database for immediate detection.
  */
 export function usePresence(userId: string | null | undefined) {
-  const { firestore } = useFirebase();
+  const { database } = useFirebase();
   const [presence, setPresence] = useState<{ isOnline: boolean; lastActiveAt: any }>({
     isOnline: false,
     lastActiveAt: null
   });
 
   useEffect(() => {
-    if (!userId) {
+    if (!userId || !database) {
       setPresence({ isOnline: false, lastActiveAt: null });
       return;
     }
 
-    const profileRef = doc(firestore, 'userProfiles', userId);
-    const unsubscribe = onSnapshot(profileRef, (snapshot) => {
-      if (snapshot.exists()) {
-        const data = snapshot.data();
+    const userStatusRef = ref(database, `/status/${userId}`);
+    
+    const unsubscribe = onValue(userStatusRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
         setPresence({
-          isOnline: !!data.isOnline,
-          lastActiveAt: data.lastActiveAt
+          isOnline: data.state === 'online',
+          lastActiveAt: data.last_changed
         });
       }
     });
 
     return () => unsubscribe();
-  }, [userId, firestore]);
+  }, [userId, database]);
 
   return { isOnline: presence.isOnline, lastActiveAt: presence.lastActiveAt };
 }

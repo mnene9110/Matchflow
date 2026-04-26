@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
@@ -27,6 +28,8 @@ import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { useAuth } from "@/firebase/auth/use-auth"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
+import { useTyping } from "@/hooks/use-typing"
+import { usePresence } from "@/hooks/use-presence"
 
 export const GIFTS = [
   { id: 'butterfly', name: 'Butterfly', icon: '/butterfly.png', price: 100 },
@@ -58,6 +61,9 @@ function ChatDetailContent() {
     if (!currentUser || !otherUserId) return ""
     return [currentUser.uid, otherUserId].sort().join("_")
   }, [currentUser, otherUserId])
+
+  const { isOtherUserTyping, setTyping } = useTyping(chatId, currentUser?.uid || null, otherUserId)
+  const { isOnline } = usePresence(otherUserId)
 
   const otherUserRef = useMemoFirebase(() => doc(firestore, "userProfiles", otherUserId), [otherUserId]);
   const { data: otherUser } = useDoc(otherUserRef);
@@ -101,6 +107,7 @@ function ChatDetailContent() {
       });
 
       if (!textOverride) setInputText("");
+      setTyping(false);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Send Failed" });
     } finally {
@@ -235,7 +242,9 @@ function ChatDetailContent() {
               <h3 className="font-black text-[12px] leading-tight truncate">{otherUserName}</h3>
               {otherUser?.isVerified && <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />}
             </div>
-            <span className="text-[8px] font-bold uppercase tracking-widest text-white/50">{otherUser?.isOnline ? "Online" : "Offline"}</span>
+            <span className="text-[8px] font-bold uppercase tracking-widest text-white/50">
+              {isOtherUserTyping ? "Typing..." : (isOnline ? "Online" : "Offline")}
+            </span>
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
@@ -249,6 +258,7 @@ function ChatDetailContent() {
           {messages?.map((msg, idx) => {
             const isMe = msg.senderId === currentUser?.uid;
             const isGift = msg.type === 'gift';
+            const giftInfo = isGift ? GIFTS.find(g => g.id === msg.giftId) : null;
             
             return (
               <div key={msg.id || idx} className={cn("flex flex-col w-full animate-in fade-in slide-in-from-bottom-2 duration-300", isMe ? "items-end" : "items-start")}>
@@ -256,7 +266,13 @@ function ChatDetailContent() {
                   {isGift ? (
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
-                        <Image src={GIFTS.find(g => g.id === msg.giftId)?.icon || '/heart_gift.png'} alt="Gift" width={32} height={32} className="object-contain" />
+                        <Image 
+                          src={giftInfo?.icon || '/heart_gift.png'} 
+                          alt="Gift" 
+                          width={32} 
+                          height={32} 
+                          className="object-contain" 
+                        />
                       </div>
                       <p className="whitespace-pre-wrap font-bold">{msg.text}</p>
                     </div>
@@ -343,7 +359,16 @@ function ChatDetailContent() {
         </Sheet>
 
         <div className="relative flex-1 group">
-          <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
+          <Input 
+            value={inputText} 
+            onChange={(e) => {
+              setInputText(e.target.value);
+              setTyping(e.target.value.length > 0);
+            }} 
+            placeholder="Message..." 
+            className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" 
+            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
+          />
           <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
             {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           </Button>

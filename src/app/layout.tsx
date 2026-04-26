@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from 'react';
@@ -13,6 +14,7 @@ import { FirebaseClientProvider } from '@/firebase/client-provider';
 import { useFirebase } from '@/firebase/provider';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, set, onDisconnect, serverTimestamp as rtdbTimestamp } from 'firebase/database';
 
 function NavigationGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -56,14 +58,28 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 }
 
 function PresenceManager() {
-  const { auth, firestore } = useFirebase();
+  const { auth, firestore, database } = useFirebase();
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (!user) return;
 
+      const userStatusRef = ref(database, `/status/${user.uid}`);
+      const isOnlineData = {
+        state: 'online',
+        last_changed: rtdbTimestamp(),
+      };
+      const isOfflineData = {
+        state: 'offline',
+        last_changed: rtdbTimestamp(),
+      };
+
       const updatePresence = async (isOnline: boolean) => {
         try {
+          // Update RTDB
+          set(userStatusRef, isOnline ? isOnlineData : isOfflineData);
+          
+          // Keep Firestore in sync for Discover queries
           await updateDoc(doc(firestore, 'userProfiles', user.uid), {
             isOnline,
             lastActiveAt: serverTimestamp()
@@ -72,6 +88,7 @@ function PresenceManager() {
       };
 
       updatePresence(true);
+      onDisconnect(userStatusRef).set(isOfflineData);
 
       const handleVisibilityChange = () => {
         updatePresence(document.visibilityState === 'visible');
@@ -86,7 +103,7 @@ function PresenceManager() {
     });
 
     return () => unsubscribe();
-  }, [auth, firestore]);
+  }, [auth, firestore, database]);
 
   return null;
 }
