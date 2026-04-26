@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft, Send, Users, Loader2, Coins } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, getDocs, limit, runTransaction, doc, serverTimestamp, setDoc, addDoc } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -16,6 +17,7 @@ const COST_PER_PERSON = 10
 
 export default function MysteryNotePage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user, profile } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -28,7 +30,7 @@ export default function MysteryNotePage() {
   const handleSend = async () => {
     if (!user || !profile || !messageText.trim() || isSending) return
 
-    if ((profile.coin_balance || 0) < totalCost) {
+    if ((profile.coinBalance || 0) < totalCost) {
       toast({ variant: "destructive", title: "Insufficient Coins", description: "Please recharge to send notes." });
       return;
     }
@@ -37,43 +39,62 @@ export default function MysteryNotePage() {
     try {
       const targetGender = (profile.gender || 'male').toLowerCase() === 'male' ? 'female' : 'male'
       
-      // 1. Fetch potential targets (online of opposite gender)
-      const { data: potentialTargets, error: userError } = await supabase
-        .from('profiles')
-        .select('id')
-        .eq('gender', targetGender)
-        .eq('is_online', true)
-        .neq('id', user.id)
-        .limit(recipientCount);
+      const q = query(
+        collection(firestore, "userProfiles"),
+        where("gender", "==", targetGender),
+        where("isOnline", "==", true),
+        limit(recipientCount)
+      );
+      
+      const snap = await getDocs(q);
+      const potentialTargets = snap.docs
+        .map(d => ({ id: d.id, ...d.data() }))
+        .filter(t => t.id !== user.id);
 
-      if (userError || !potentialTargets || potentialTargets.length === 0) {
+      if (potentialTargets.length === 0) {
         throw new Error("NO_USERS_ONLINE")
       }
 
-      // 2. SECURE PAYMENT: Use RPC to deduct coins on server
-      const { error: paymentError } = await supabase.rpc('secure_mystery_note_payment', {
-        p_count: potentialTargets.length
+      // SECURE PAYMENT & DELIVERY
+      await runTransaction(firestore, async (transaction) => {
+        const profileRef = doc(firestore, "userProfiles", user.id);
+        const profDoc = await transaction.get(profileRef);
+        if (!profDoc.exists()) throw new Error("Profile not found");
+
+        const actualCost = potentialTargets.length * COST_PER_PERSON;
+        if (profDoc.data().coinBalance < actualCost) {
+          throw new Error("INSUFFICIENT_FUNDS");
+        }
+
+        // Deduct coins
+        transaction.update(profileRef, { coinBalance: profDoc.data().coinBalance - actualCost });
+
+        // Log Transaction
+        const logRef = doc(collection(firestore, `userProfiles/${user.id}/transactions`));
+        transaction.set(logRef, {
+          type: "mystery_note",
+          amount: -actualCost,
+          description: `Sent Mystery Note to ${potentialTargets.length} people`,
+          transactionDate: new Date().toISOString()
+        });
       });
 
-      if (paymentError) throw paymentError;
-
-      // 3. Send notes (Standard inserts for real-time delivery)
+      // Send notes
       const noteText = `🤫 Mystery Note: ${messageText}`;
-      
       for (const target of potentialTargets) {
         const chatId = [user.id, target.id].sort().join("_");
+        const chatRef = doc(firestore, "chats", chatId);
         
-        await supabase.from('chats').upsert({
-          id: chatId,
+        await setDoc(chatRef, {
           participants: [user.id, target.id],
-          last_message: noteText,
-          last_message_at: new Date().toISOString()
-        });
+          lastMessage: noteText,
+          lastMessageAt: serverTimestamp()
+        }, { merge: true });
 
-        await supabase.from('messages').insert({
-          chat_id: chatId,
-          sender_id: user.id,
-          message_text: noteText
+        await addDoc(collection(firestore, "chats", chatId, "messages"), {
+          senderId: user.id,
+          text: noteText,
+          timestamp: serverTimestamp()
         });
       }
 

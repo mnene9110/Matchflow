@@ -1,10 +1,11 @@
 "use client"
 
-import { useState, useEffect, use, Suspense } from "react"
+import { useState, useEffect, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Users, Zap, Loader2, ShieldCheck, MessageCircle, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, getDocs, limit } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { initializePesaPalTransaction } from "@/app/actions/pesapal"
 import { useToast } from "@/hooks/use-toast"
@@ -15,12 +16,12 @@ import { COUNTRY_CURRENCIES } from "../page"
 function PaymentMethodContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { firestore } = useFirebase()
   const { profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const amount = Number(searchParams?.get('amount'))
   const localPrice = Number(searchParams?.get('price'))
-  const currencyCode = searchParams?.get('currency') || "KES"
 
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
   const [coinsellers, setCoinsellers] = useState<any[]>([])
@@ -31,15 +32,13 @@ function PaymentMethodContent() {
 
   useEffect(() => {
     const fetchSellers = async () => {
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('is_coinseller', true);
-      setCoinsellers(data || []);
+      const q = query(collection(firestore, 'userProfiles'), where('isCoinseller', '==', true), limit(10));
+      const snap = await getDocs(q);
+      setCoinsellers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setIsSellersLoading(false);
     };
     fetchSellers();
-  }, []);
+  }, [firestore]);
 
   const handlePesapal = async () => {
     if (!profile || !amount || !localPrice) return
@@ -133,7 +132,7 @@ function PaymentMethodContent() {
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="w-10 h-10 border border-white shadow-sm">
-                        <AvatarImage src={seller.profile_photo_urls?.[0]} className="object-cover" />
+                        <AvatarImage src={seller.profilePhotoUrls?.[0]} className="object-cover" />
                         <AvatarFallback className="bg-primary text-white text-[10px] font-black">{seller.username?.[0]}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">

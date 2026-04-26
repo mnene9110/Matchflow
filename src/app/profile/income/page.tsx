@@ -1,22 +1,23 @@
-
 "use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Gem, Coins, ArrowRightLeft, Loader2, Info, History } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useFirebase } from "@/firebase/provider"
+import { doc, runTransaction, collection, serverTimestamp } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
 export default function IncomePage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user: currentUser, profile, isLoading: isProfileLoading } = useSupabaseUser()
   const { toast } = useToast()
   const [isExchanging, setIsExchanging] = useState(false)
 
-  const diamondBalance = profile?.diamond_balance || 0
+  const diamondBalance = profile?.diamondBalance || 0
   const canExchange = diamondBalance >= 500
 
   const handleExchange = async () => {
@@ -28,24 +29,29 @@ export default function IncomePage() {
     const coinsToGain = blocks * 80 // 500 diamonds = 80 coins
     
     try {
-      // 1. Update Profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          diamond_balance: profile.diamond_balance - diamondsToDeduct,
-          coin_balance: profile.coin_balance + coinsToGain,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUser.id);
+      await runTransaction(firestore, async (transaction) => {
+        const profileRef = doc(firestore, "userProfiles", currentUser.id);
+        const profDoc = await transaction.get(profileRef);
+        if (!profDoc.exists()) throw new Error("Profile not found");
 
-      if (profileError) throw profileError;
+        const curDiamonds = profDoc.data().diamondBalance || 0;
+        const curCoins = profDoc.data().coinBalance || 0;
 
-      // 2. Log Transaction
-      await supabase.from('transactions').insert({
-        user_id: currentUser.id,
-        type: "diamond_exchange",
-        amount: coinsToGain,
-        description: `Exchanged ${diamondsToDeduct} diamonds for ${coinsToGain} coins`
+        if (curDiamonds < diamondsToDeduct) throw new Error("INSUFFICIENT_DIAMONDS");
+
+        transaction.update(profileRef, {
+          diamondBalance: curDiamonds - diamondsToDeduct,
+          coinBalance: curCoins + coinsToGain,
+          updatedAt: serverTimestamp()
+        });
+
+        const logRef = doc(collection(firestore, `userProfiles/${currentUser.id}/transactions`));
+        transaction.set(logRef, {
+          type: "diamond_exchange",
+          amount: coinsToGain,
+          description: `Exchanged ${diamondsToDeduct} diamonds for ${coinsToGain} coins`,
+          transactionDate: new Date().toISOString()
+        });
       });
 
       toast({ title: "Exchange Successful!", description: `Received ${coinsToGain} coins.` });

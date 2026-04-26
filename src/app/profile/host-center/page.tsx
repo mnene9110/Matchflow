@@ -16,7 +16,8 @@ import {
   Settings2
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, getDocs, updateDoc, doc, onSnapshot, limit } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { cn } from "@/lib/utils"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -39,11 +40,11 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 
 export default function HostCenterPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { profile } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -55,42 +56,34 @@ export default function HostCenterPage() {
   const [foundAssistant, setFoundAssistant] = useState<any>(null)
   const [isAppointing, setIsUpdatingAssistant] = useState(false)
 
-  const [editingRoom, setEditingRoom] = useState<any | null>(null)
-  const [newCapacity, setNewCapacity] = useState<string>("")
-
   useEffect(() => {
-    if (!profile) return
+    if (!profile?.id) return
 
-    const fetchRooms = async () => {
-      const { data } = await supabase
-        .from('party_rooms')
-        .select('*')
-        .eq('host_id', profile.id)
-        .eq('status', 'active');
-      setActiveRooms(data || []);
+    const q = query(
+      collection(firestore, 'partyRooms'),
+      where('hostId', '==', profile.id),
+      where('status', '==', 'active')
+    );
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setActiveRooms(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setIsRoomsLoading(false);
-    }
-    fetchRooms();
+    });
 
-    const channel = supabase.channel(`host_rooms_${profile.id}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'party_rooms', filter: `host_id=eq.${profile.id}` }, () => {
-        fetchRooms();
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); };
-  }, [profile?.id])
+    return () => unsubscribe();
+  }, [profile?.id, firestore])
 
   const handleSearchAssistant = async () => {
     if (!assistantId.trim()) return
     setIsSearchingAssistant(true)
     setFoundAssistant(null)
     try {
-      const { data, error } = await supabase.from('profiles').select('*').eq('numeric_id', Number(assistantId)).single();
-      if (error || !data) {
+      const q = query(collection(firestore, "userProfiles"), where("numericId", "==", Number(assistantId)), limit(1));
+      const snap = await getDocs(q);
+      if (snap.empty) {
         toast({ variant: "destructive", title: "User not found" })
       } else {
-        setFoundAssistant(data)
+        setFoundAssistant({ id: snap.docs[0].id, ...snap.docs[0].data() });
       }
     } catch (e) {
       toast({ variant: "destructive", title: "Error" })
@@ -103,11 +96,11 @@ export default function HostCenterPage() {
     if (!foundAssistant || isAppointing || !profile) return
     setIsUpdatingAssistant(true)
     try {
-      const newStatus = !foundAssistant.is_assistant
-      await supabase.from('profiles').update({ 
-        is_assistant: newStatus,
-        appointed_by: newStatus ? profile.id : null 
-      }).eq('id', foundAssistant.id);
+      const newStatus = !foundAssistant.isAssistant
+      await updateDoc(doc(firestore, "userProfiles", foundAssistant.id), { 
+        isAssistant: newStatus,
+        appointedBy: newStatus ? profile.id : null 
+      });
 
       toast({ title: "Updated", description: `${foundAssistant.username} updated.` })
       setFoundAssistant(null); setAssistantId("");
@@ -120,14 +113,14 @@ export default function HostCenterPage() {
 
   const handleDeleteRoom = async (roomId: string) => {
     try {
-      await supabase.from('party_rooms').update({ status: 'deleted' }).eq('id', roomId);
+      await updateDoc(doc(firestore, "partyRooms", roomId), { status: 'deleted' });
       toast({ title: "Room Deleted" })
     } catch (error) {
       toast({ variant: "destructive", title: "Delete Failed" })
     }
   }
 
-  if (profile && !profile.is_party_admin && !profile.is_admin) {
+  if (profile && !profile.isPartyAdmin && !profile.isAdmin) {
     return <div className="flex h-svh items-center justify-center bg-white text-zinc-400 font-black uppercase text-xs tracking-widest">Access Denied</div>
   }
 
@@ -142,11 +135,11 @@ export default function HostCenterPage() {
         <section className="grid grid-cols-2 gap-3">
           <div className="bg-zinc-900 rounded-[2.5rem] p-6 text-white shadow-xl flex flex-col gap-3 relative overflow-hidden">
             <div className="w-10 h-10 rounded-2xl bg-blue-500/20 flex items-center justify-center border border-blue-500/10"><Gem className="w-5 h-5 text-blue-400" /></div>
-            <div><p className="text-[20px] font-black font-headline">{(profile?.diamond_balance || 0).toLocaleString()}</p><p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Diamond Earnings</p></div>
+            <div><p className="text-[20px] font-black font-headline">{(profile?.diamondBalance || 0).toLocaleString()}</p><p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">Diamond Earnings</p></div>
           </div>
           <div className="bg-zinc-900 rounded-[2.5rem] p-6 text-white shadow-xl flex flex-col gap-3 relative overflow-hidden">
             <div className="w-10 h-10 rounded-2xl bg-amber-500/20 flex items-center justify-center border border-amber-500/10"><Trophy className="w-5 h-5 text-amber-500" /></div>
-            <div><p className="text-[20px] font-black font-headline">LVL {profile?.vip_level || 0}</p><p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">VIP Rank</p></div>
+            <div><p className="text-[20px] font-black font-headline">LVL {profile?.vipLevel || 0}</p><p className="text-[8px] font-black text-zinc-500 uppercase tracking-widest">VIP Rank</p></div>
           </div>
         </section>
 
@@ -163,8 +156,8 @@ export default function HostCenterPage() {
               {activeRooms.map(room => (
                 <div key={room.id} className="bg-gray-50 border border-gray-100 p-5 rounded-[2.25rem] flex items-center justify-between shadow-sm">
                   <div className="flex items-center gap-4 flex-1 cursor-pointer" onClick={() => router.push(`/party/${room.id}`)}>
-                    <Avatar className="w-12 h-12 border-2 border-white shadow-md"><AvatarImage src={room.cover_photo} /><AvatarFallback>P</AvatarFallback></Avatar>
-                    <div className="flex flex-col"><h3 className="text-sm font-black text-gray-900">{room.title}</h3><span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">{room.max_seats} Seats</span></div>
+                    <Avatar className="w-12 h-12 border-2 border-white shadow-md"><AvatarImage src={room.coverPhoto} /><AvatarFallback>P</AvatarFallback></Avatar>
+                    <div className="flex flex-col"><h3 className="text-sm font-black text-gray-900">{room.title}</h3><span className="text-[9px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">{room.maxSeats} Seats</span></div>
                   </div>
                   <div className="flex items-center gap-2">
                     <AlertDialog><AlertDialogTrigger asChild><Button variant="ghost" size="icon" className="w-10 h-10 rounded-full bg-red-50 text-red-500"><Trash2 className="w-4 h-4" /></Button></AlertDialogTrigger><AlertDialogContent className="rounded-[2rem] border-none shadow-2xl"><AlertDialogHeader><AlertDialogTitle className="font-headline font-black text-xl">Delete Room?</AlertDialogTitle></AlertDialogHeader><AlertDialogFooter className="flex flex-col gap-2 mt-4"><AlertDialogAction onClick={() => handleDeleteRoom(room.id)} className="h-14 rounded-full bg-red-500 text-white font-black uppercase text-xs w-full">Yes, Delete</AlertDialogAction><AlertDialogCancel className="h-14 rounded-full border-none bg-gray-50 text-gray-400 font-black uppercase text-xs w-full">Cancel</AlertDialogCancel></AlertDialogFooter></AlertDialogContent></AlertDialog>
@@ -186,8 +179,8 @@ export default function HostCenterPage() {
             </div>
             {foundAssistant && (
               <div className="p-4 bg-primary/5 rounded-2xl border border-primary/10 flex items-center justify-between animate-in fade-in">
-                <div className="flex items-center gap-3"><Avatar className="w-10 h-10"><AvatarImage src={foundAssistant.profile_photo_urls?.[0]} /><AvatarFallback>{foundAssistant.username?.[0]}</AvatarFallback></Avatar><div><p className="text-sm font-black">{foundAssistant.username}</p></div></div>
-                <Button onClick={handleToggleAssistant} disabled={isAppointing} variant={foundAssistant.is_assistant ? "destructive" : "default"} className="h-10 px-4 rounded-full font-black text-[9px] uppercase">{isAppointing ? <Loader2 className="w-4 h-4 animate-spin" /> : (foundAssistant.is_assistant ? "Dismiss" : "Appoint")}</Button>
+                <div className="flex items-center gap-3"><Avatar className="w-10 h-10"><AvatarImage src={foundAssistant.profilePhotoUrls?.[0]} /><AvatarFallback>{foundAssistant.username?.[0]}</AvatarFallback></Avatar><div><p className="text-sm font-black">{foundAssistant.username}</p></div></div>
+                <Button onClick={handleToggleAssistant} disabled={isAppointing} variant={foundAssistant.isAssistant ? "destructive" : "default"} className="h-10 px-4 rounded-full font-black text-[9px] uppercase">{isAppointing ? <Loader2 className="w-4 h-4 animate-spin" /> : (foundAssistant.isAssistant ? "Dismiss" : "Appoint")}</Button>
               </div>
             )}
           </div>

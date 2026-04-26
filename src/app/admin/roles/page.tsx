@@ -5,7 +5,8 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft, Search, Loader2, ShieldCheck, UserCheck, Coins, Building2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, getDocs, updateDoc, doc, limit } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { useToast } from "@/hooks/use-toast"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
@@ -13,6 +14,7 @@ import { Label } from "@/components/ui/label"
 
 export default function ManageRolesPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { profile: currentUserProfile } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -22,7 +24,7 @@ export default function ManageRolesPage() {
   const [foundUser, setFoundUser] = useState<any>(null)
   const [selectedRole, setSelectedRole] = useState<string>("")
 
-  if (currentUserProfile && !currentUserProfile.is_admin) {
+  if (currentUserProfile && !currentUserProfile.isAdmin) {
     return <div className="flex h-svh items-center justify-center bg-white text-zinc-400 font-black uppercase text-xs tracking-widest">Access Denied</div>
   }
 
@@ -32,19 +34,21 @@ export default function ManageRolesPage() {
     setFoundUser(null)
     
     try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('numeric_id', Number(targetNumericId))
-        .single();
+      const q = query(
+        collection(firestore, 'userProfiles'),
+        where('numericId', '==', Number(targetNumericId)),
+        limit(1)
+      );
+      const snap = await getDocs(q);
       
-      if (error || !data) {
+      if (snap.empty) {
         toast({ variant: "destructive", title: "User not found" })
       } else {
+        const data = { id: snap.docs[0].id, ...snap.docs[0].data() } as any;
         setFoundUser(data);
-        if (data.is_support) setSelectedRole("support")
-        else if (data.is_coinseller) setSelectedRole("coinseller")
-        else if (data.is_agent) setSelectedRole("agent")
+        if (data.isSupport) setSelectedRole("support")
+        else if (data.isCoinseller) setSelectedRole("coinseller")
+        else if (data.isAgent) setSelectedRole("agent")
         else setSelectedRole("none")
       }
     } catch (error) {
@@ -70,21 +74,17 @@ export default function ManageRolesPage() {
 
     setIsUpdating(true)
     try {
-      const is_support = selectedRole === "support"
-      const is_coinseller = selectedRole === "coinseller"
-      const is_agent = selectedRole === "agent"
+      const isAdmin = false; // Admin remains restricted to manual setup
+      const isSupport = selectedRole === "support"
+      const isCoinseller = selectedRole === "coinseller"
+      const isAgent = selectedRole === "agent"
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          is_support,
-          is_coinseller,
-          is_agent,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', foundUser.id)
-
-      if (error) throw error;
+      await updateDoc(doc(firestore, "userProfiles", foundUser.id), {
+        isSupport,
+        isCoinseller,
+        isAgent,
+        updatedAt: new Date().toISOString()
+      });
 
       toast({ title: "Role Updated", description: `${foundUser.username} position has been applied.` })
       setFoundUser(null)
@@ -123,11 +123,11 @@ export default function ManageRolesPage() {
               <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center"><UserCheck className="w-8 h-8 text-primary" /></div>
               <div className="flex-1 min-w-0">
                 <h3 className="font-black text-lg text-gray-900 truncate leading-tight">{foundUser.username}</h3>
-                <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest">ID: {foundUser.numeric_id} • {foundUser.gender} • {foundUser.location}</p>
+                <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest">ID: {foundUser.numericId} • {foundUser.gender} • {foundUser.location}</p>
                 <div className="flex gap-2 mt-2 flex-wrap">
-                   {foundUser.is_support && <span className="text-[8px] font-black bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase">Support</span>}
-                   {foundUser.is_coinseller && <span className="text-[8px] font-black bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase">Coinseller</span>}
-                   {foundUser.is_agent && <span className="text-[8px] font-black bg-purple-500/10 text-purple-500 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase">Agency Head</span>}
+                   {foundUser.isSupport && <span className="text-[8px] font-black bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase">Support</span>}
+                   {foundUser.isCoinseller && <span className="text-[8px] font-black bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase">Coinseller</span>}
+                   {foundUser.isAgent && <span className="text-[8px] font-black bg-purple-500/10 text-purple-500 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase">Agency Head</span>}
                 </div>
               </div>
             </div>

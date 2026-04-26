@@ -4,8 +4,9 @@ import { useState, useEffect, useMemo, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Gamepad2, Coins, Trophy, Loader2, Sparkles, Dice5 } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useFirebase } from "@/firebase/provider"
+import { doc, runTransaction, collection, serverTimestamp } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -19,6 +20,7 @@ const WHEEL_CONFIGS = {
 
 export default function GamesCenterPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -28,7 +30,7 @@ export default function GamesCenterPage() {
   const [gameResult, setGameResult] = useState<{ winner: boolean; pot: number } | null>(null)
   const [pendingResult, setPendingResult] = useState<{ winner: boolean; pot: number } | null>(null)
 
-  const userCoins = profile?.coin_balance || 0
+  const userCoins = profile?.coinBalance || 0
 
   const currentWheelValues = useMemo(() => {
     if (!selectedBet) return WHEEL_CONFIGS.low;
@@ -61,23 +63,24 @@ export default function GamesCenterPage() {
       const winAmount = currentWheelValues[winnerIndex]
       const netChange = winAmount - selectedBet;
 
-      // Update balance
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ 
-          coin_balance: profile.coin_balance + netChange,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUser.id);
+      await runTransaction(firestore, async (transaction) => {
+        const profileRef = doc(firestore, "userProfiles", currentUser.id);
+        const profDoc = await transaction.get(profileRef);
+        if (!profDoc.exists()) throw new Error("Profile not found");
+        
+        const currentBal = profDoc.data().coinBalance || 0;
+        transaction.update(profileRef, { 
+          coinBalance: currentBal + netChange,
+          updatedAt: serverTimestamp()
+        });
 
-      if (updateError) throw updateError;
-
-      // Log Transaction
-      await supabase.from('transactions').insert({
-        user_id: currentUser.id,
-        type: "game_result",
-        amount: netChange,
-        description: `Lucky Spin: Won ${winAmount} coins`
+        const logRef = doc(collection(firestore, `userProfiles/${currentUser.id}/transactions`));
+        transaction.set(logRef, {
+          type: "game_result",
+          amount: netChange,
+          description: `Lucky Spin: Won ${winAmount} coins`,
+          transactionDate: new Date().toISOString()
+        });
       });
 
       const extraSpins = 15; const segmentSize = 360 / 18; const randomOffset = (Math.random() - 0.5) * (segmentSize * 0.7); const targetLandingAngle = 270 - (winnerIndex * segmentSize + (segmentSize / 2)) + randomOffset;

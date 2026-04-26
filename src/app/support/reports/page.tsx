@@ -4,13 +4,15 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, CheckCircle, ShieldAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, onSnapshot, updateDoc, doc, addDoc, serverTimestamp, orderBy } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { format } from "date-fns"
 import { useToast } from "@/hooks/use-toast"
 
 export default function ReviewReportsPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { profile: supportProfile } = useSupabaseUser()
   const { toast } = useToast()
   
@@ -21,27 +23,21 @@ export default function ReviewReportsPage() {
   useEffect(() => {
     if (!supportProfile) return
     
-    const fetchReports = async () => {
-      const { data } = await supabase
-        .from('reports')
-        .select('*')
-        .eq('status', 'pending')
-        .order('created_at', { ascending: false });
-      setReports(data || []);
+    const q = query(
+      collection(firestore, 'reports'),
+      where('status', '==', 'pending'),
+      orderBy('createdAt', 'desc')
+    );
+
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setReports(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setIsLoading(false);
-    }
-    fetchReports();
+    });
 
-    const channel = supabase.channel('review_reports')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, () => {
-        fetchReports();
-      })
-      .subscribe();
+    return () => unsubscribe();
+  }, [supportProfile, firestore])
 
-    return () => { supabase.removeChannel(channel); };
-  }, [supportProfile])
-
-  if (supportProfile && !supportProfile.is_support && !supportProfile.is_admin) {
+  if (supportProfile && !supportProfile.isSupport && !supportProfile.isAdmin) {
     return <div className="flex h-svh items-center justify-center bg-white text-zinc-400 font-black uppercase text-xs tracking-widest">Access Denied</div>
   }
 
@@ -50,15 +46,15 @@ export default function ReviewReportsPage() {
     setProcessingId(report.id)
 
     try {
-      const chatId = [report.reporter_id, supportProfile.id].sort().join("_")
+      const chatId = [report.reporterId, supportProfile.id].sort().join("_")
       const feedbackText = "✅ Your complaint has been reviewed by our safety team. Thank you for helping keep MatchFlow safe."
       
-      await supabase.from('reports').update({ status: 'reviewed' }).eq('id', report.id);
+      await updateDoc(doc(firestore, "reports", report.id), { status: 'reviewed' });
       
-      await supabase.from('messages').insert({
-        chat_id: chatId,
-        sender_id: supportProfile.id,
-        message_text: feedbackText
+      await addDoc(collection(firestore, "chats", chatId, "messages"), {
+        senderId: supportProfile.id,
+        text: feedbackText,
+        timestamp: serverTimestamp()
       });
 
       toast({ title: "Report Processed" })
@@ -86,9 +82,9 @@ export default function ReviewReportsPage() {
                 <div className="flex justify-between items-start">
                    <div className="flex items-center gap-3">
                       <div className="w-10 h-10 rounded-xl bg-red-500/10 flex items-center justify-center"><ShieldAlert className="w-5 h-5 text-red-500" /></div>
-                      <div><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reported User ID</p><p className="text-xs font-bold text-gray-900">{report.reported_user_id}</p></div>
+                      <div><p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">Reported User ID</p><p className="text-xs font-bold text-gray-900">{report.reportedUserId}</p></div>
                    </div>
-                   <p className="text-[9px] font-bold text-gray-300 uppercase">{report.created_at ? format(new Date(report.created_at), "MMM d, HH:mm") : ""}</p>
+                   <p className="text-[9px] font-bold text-gray-300 uppercase">{report.createdAt ? format(new Date(report.createdAt), "MMM d, HH:mm") : ""}</p>
                 </div>
                 <p className="text-sm font-bold text-gray-900 bg-white p-4 rounded-2xl border border-gray-100">{report.details}</p>
                 <Button className="w-full h-12 rounded-full bg-zinc-900 text-white font-black text-xs uppercase" onClick={() => handleReviewed(report)} disabled={!!processingId}>{processingId === report.id ? <Loader2 className="w-4 h-4 animate-spin" /> : "Reviewed & Dismiss"}</Button>

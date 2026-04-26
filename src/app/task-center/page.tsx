@@ -4,7 +4,8 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { RotateCcw, Trophy, Loader2, ChevronLeft, Check } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { doc, runTransaction, serverTimestamp, collection } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -13,6 +14,7 @@ const REWARDS = [5, 5, 10, 5, 5, 7, 50]
 
 export default function TaskCenterPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user, profile, isLoading } = useSupabaseUser()
   const { toast } = useToast()
   
@@ -34,23 +36,51 @@ export default function TaskCenterPage() {
     setIsClaiming(true)
     
     try {
-      // SECURE RPC CALL: Handles all logic server-side to prevent hacking
-      const { data: rewardAmount, error } = await supabase.rpc('process_daily_checkin');
+      await runTransaction(firestore, async (transaction) => {
+        const profileRef = doc(firestore, "userProfiles", user.id);
+        const profDoc = await transaction.get(profileRef);
+        if (!profDoc.exists()) throw new Error("Profile not found");
 
-      if (error) {
-        if (error.message.includes('ALREADY_CLAIMED')) {
-          toast({ variant: "destructive", title: "Already Claimed", description: "Come back tomorrow!" });
-        } else {
-          throw error;
+        const data = profDoc.data();
+        const lastCheck = data.lastCheckInDate || "";
+        if (lastCheck === todayStr) throw new Error("ALREADY_CLAIMED");
+
+        // Calculate streak
+        const yesterday = new Date();
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+
+        let newStreak = 1;
+        if (lastCheck === yesterdayStr) {
+          newStreak = (data.checkInStreak % 7) + 1;
         }
-        return;
-      }
 
-      toast({ title: "Coins Claimed!", description: `You've received ${rewardAmount} coins.` });
+        const reward = REWARDS[newStreak - 1];
+
+        transaction.update(profileRef, {
+          coinBalance: (data.coinBalance || 0) + reward,
+          lastCheckInDate: todayStr,
+          checkInStreak: newStreak,
+          updatedAt: serverTimestamp()
+        });
+
+        const logRef = doc(collection(firestore, `userProfiles/${user.id}/transactions`));
+        transaction.set(logRef, {
+          type: "check-in",
+          amount: reward,
+          description: `Daily check-in Day ${newStreak}`,
+          transactionDate: new Date().toISOString()
+        });
+      });
+
+      toast({ title: "Coins Claimed!", description: "Come back tomorrow!" });
       router.refresh();
     } catch (error: any) {
-      console.error("Claim error:", error);
-      toast({ variant: "destructive", title: "Claim Failed" });
+      if (error.message === "ALREADY_CLAIMED") {
+        toast({ variant: "destructive", title: "Already Claimed", description: "Come back tomorrow!" });
+      } else {
+        toast({ variant: "destructive", title: "Claim Failed" });
+      }
     } finally {
       setIsClaiming(false);
     }

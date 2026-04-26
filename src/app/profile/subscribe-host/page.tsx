@@ -4,8 +4,9 @@ import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Star, Check, ShieldCheck, Loader2, Sparkles } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useFirebase } from "@/firebase/provider"
+import { doc, runTransaction, collection, serverTimestamp } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -22,6 +23,7 @@ const HOST_PERKS = [
 
 export default function SubscribeHostPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -30,7 +32,7 @@ export default function SubscribeHostPage() {
   const handleSubscribe = async () => {
     if (!currentUser || !profile || isSubscribing) return
 
-    if ((profile.coin_balance || 0) < HOST_SUBSCRIPTION_COST) {
+    if ((profile.coinBalance || 0) < HOST_SUBSCRIPTION_COST) {
       toast({
         variant: "destructive",
         title: "Insufficient Coins",
@@ -42,22 +44,27 @@ export default function SubscribeHostPage() {
 
     setIsSubscribing(true)
     try {
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          is_party_admin: true,
-          coin_balance: profile.coin_balance - HOST_SUBSCRIPTION_COST,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUser.id);
+      await runTransaction(firestore, async (transaction) => {
+        const profileRef = doc(firestore, "userProfiles", currentUser.id);
+        const profDoc = await transaction.get(profileRef);
+        if (!profDoc.exists()) throw new Error("Profile not found");
 
-      if (profileError) throw profileError;
+        const curBal = profDoc.data().coinBalance || 0;
+        if (curBal < HOST_SUBSCRIPTION_COST) throw new Error("INSUFFICIENT_FUNDS");
 
-      await supabase.from('transactions').insert({
-        user_id: currentUser.id,
-        type: "host_subscription",
-        amount: -HOST_SUBSCRIPTION_COST,
-        description: "Purchased Official Host Subscription"
+        transaction.update(profileRef, {
+          isPartyAdmin: true,
+          coinBalance: curBal - HOST_SUBSCRIPTION_COST,
+          updatedAt: serverTimestamp()
+        });
+
+        const logRef = doc(collection(firestore, `userProfiles/${currentUser.id}/transactions`));
+        transaction.set(logRef, {
+          type: "host_subscription",
+          amount: -HOST_SUBSCRIPTION_COST,
+          description: "Purchased Official Host Subscription",
+          transactionDate: new Date().toISOString()
+        });
       });
 
       toast({ 

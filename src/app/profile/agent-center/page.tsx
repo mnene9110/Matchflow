@@ -17,7 +17,8 @@ import {
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, onSnapshot, doc, setDoc, updateDoc, deleteDoc, getDocs, limit, addDoc, serverTimestamp } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -25,10 +26,10 @@ import { cn } from "@/lib/utils"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const PAGE_SIZE = 20
-const MAX_AGENCY_MEMBERS = 100
 
 export default function AgentCenterPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -39,48 +40,38 @@ export default function AgentCenterPage() {
   const [pendingRequests, setPendingRequests] = useState<any[]>([])
   const [members, setMembers] = useState<any[]>([])
   const [withdrawals, setWithdrawals] = useState<any[]>([])
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
   const [isInitialMembersLoading, setIsInitialMembersLoading] = useState(true)
 
   useEffect(() => {
-    if (!profile?.agency_id) return
+    if (!profile?.agencyId) return
 
-    const aid = profile.agency_id;
+    const aid = profile.agencyId;
 
     // Listen to Requests
-    const reqChannel = supabase.channel(`agency_reqs_${aid}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_requests', filter: `agency_id=eq.${aid}` }, async () => {
-        const { data } = await supabase.from('agency_requests').select('*').eq('agency_id', aid);
-        setPendingRequests(data || []);
-      })
-      .subscribe();
+    const qReqs = query(collection(firestore, "agency_requests"), where("agencyId", "==", aid));
+    const unsubscribeReqs = onSnapshot(qReqs, (snap) => {
+      setPendingRequests(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
 
     // Listen to Withdrawals
-    const withChannel = supabase.channel(`agency_with_${aid}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'agency_withdrawals', filter: `agency_id=eq.${aid}` }, async () => {
-        const { data } = await supabase.from('agency_withdrawals').select('*').eq('agency_id', aid);
-        setWithdrawals(data || []);
-      })
-      .subscribe();
+    const qWiths = query(collection(firestore, "agency_withdrawals"), where("agencyId", "==", aid));
+    const unsubscribeWiths = onSnapshot(qWiths, (snap) => {
+      setWithdrawals(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
 
-    const fetchInitial = async () => {
-      const { data: reqs } = await supabase.from('agency_requests').select('*').eq('agency_id', aid);
-      setPendingRequests(reqs || []);
-
-      const { data: withs } = await supabase.from('agency_withdrawals').select('*').eq('agency_id', aid);
-      setWithdrawals(withs || []);
-
-      const { data: mems } = await supabase.from('profiles').select('*').eq('member_of_agency_id', aid).limit(PAGE_SIZE);
-      setMembers(mems || []);
+    // Fetch Members
+    const qMembers = query(collection(firestore, "userProfiles"), where("memberOfAgencyId", "==", aid), limit(PAGE_SIZE));
+    const unsubscribeMembers = onSnapshot(qMembers, (snap) => {
+      setMembers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
       setIsInitialMembersLoading(false);
-    }
-    fetchInitial();
+    });
 
     return () => {
-      supabase.removeChannel(reqChannel);
-      supabase.removeChannel(withChannel);
+      unsubscribeReqs();
+      unsubscribeWiths();
+      unsubscribeMembers();
     }
-  }, [profile?.agency_id])
+  }, [profile?.agencyId, firestore])
 
   const handleCreateAgency = async () => {
     if (!agencyName.trim() || !currentUser) return
@@ -88,21 +79,16 @@ export default function AgentCenterPage() {
     try {
       const generatedId = Math.random().toString(36).substring(2, 8).toUpperCase()
       
-      const { error: agencyError } = await supabase
-        .from('agencies')
-        .insert({
-          id: generatedId,
-          name: agencyName,
-          agent_id: currentUser.id,
-          member_count: 1
-        });
+      await setDoc(doc(firestore, "agencies", generatedId), {
+        name: agencyName,
+        agentId: currentUser.id,
+        memberCount: 1,
+        createdAt: serverTimestamp()
+      });
 
-      if (agencyError) throw agencyError;
-
-      await supabase
-        .from('profiles')
-        .update({ agency_id: generatedId })
-        .eq('id', currentUser.id);
+      await updateDoc(doc(firestore, "userProfiles", currentUser.id), {
+        agencyId: generatedId
+      });
 
       toast({ title: "Agency Created", description: `Your Agency ID is: ${generatedId}` })
     } catch (e) {
@@ -113,23 +99,23 @@ export default function AgentCenterPage() {
   }
 
   const handleRequestAction = async (userId: string, action: 'approved' | 'rejected', requestId: string) => {
-    if (!profile?.agency_id || processingId) return
+    if (!profile?.agencyId || processingId) return
     
     setProcessingId(userId)
     try {
       if (action === 'approved') {
-        await supabase.from('profiles').update({
-          agency_join_status: 'approved',
-          member_of_agency_id: profile.agency_id
-        }).eq('id', userId);
+        await updateDoc(doc(firestore, "userProfiles", userId), {
+          agencyJoinStatus: 'approved',
+          memberOfAgencyId: profile.agencyId
+        });
       } else {
-        await supabase.from('profiles').update({
-          agency_join_status: 'none',
-          member_of_agency_id: null
-        }).eq('id', userId);
+        await updateDoc(doc(firestore, "userProfiles", userId), {
+          agencyJoinStatus: 'none',
+          memberOfAgencyId: null
+        });
       }
 
-      await supabase.from('agency_requests').delete().eq('id', requestId);
+      await deleteDoc(doc(firestore, "agency_requests", requestId));
       toast({ title: action === 'approved' ? "User Approved" : "User Rejected" })
     } catch (e) {
       toast({ variant: "destructive", title: "Action failed" })
@@ -139,18 +125,18 @@ export default function AgentCenterPage() {
   }
 
   const handleMarkAsPaid = async (withdrawal: any) => {
-    if (!profile?.agency_id || !currentUser || processingId) return
+    if (!profile?.agencyId || !currentUser || processingId) return
     setProcessingId(withdrawal.id)
     try {
       const feedbackText = "✅ Your withdrawal request has been paid through the agency anchor."
-      const chatId = [withdrawal.user_id, currentUser.id].sort().join("_")
+      const chatId = [withdrawal.userId, currentUser.id].sort().join("_")
 
-      await supabase.from('agency_withdrawals').update({ status: 'paid' }).eq('id', withdrawal.id);
+      await updateDoc(doc(firestore, "agency_withdrawals", withdrawal.id), { status: 'paid' });
 
-      await supabase.from('messages').insert({
-        chat_id: chatId,
-        sender_id: currentUser.id,
-        message_text: feedbackText
+      await addDoc(collection(firestore, "chats", chatId, "messages"), {
+        senderId: currentUser.id,
+        text: feedbackText,
+        timestamp: serverTimestamp()
       });
 
       toast({ title: "Paid", description: "Member notified via chat." })
@@ -161,7 +147,7 @@ export default function AgentCenterPage() {
     }
   }
 
-  if (profile && !profile.is_agent) {
+  if (profile && !profile.isAgent) {
     return <div className="flex h-svh items-center justify-center bg-white text-zinc-400 font-black uppercase text-xs tracking-widest">Access Denied</div>
   }
 
@@ -173,7 +159,7 @@ export default function AgentCenterPage() {
       </header>
 
       <main className="flex-1 p-6 space-y-8 pb-32">
-        {!profile?.agency_id ? (
+        {!profile?.agencyId ? (
           <section className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
             <div className="space-y-4"><div className="w-16 h-16 bg-purple-100 rounded-2xl flex items-center justify-center"><Building2 className="w-8 h-8 text-purple-600" /></div><h2 className="text-3xl font-black font-headline text-gray-900">Create your Agency</h2><p className="text-sm text-gray-500 font-medium leading-relaxed">As an official agent, you can manage members and payouts.</p></div>
             <div className="space-y-4"><Label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">Agency Name</Label><Input placeholder="e.g., Global Star Anchor" value={agencyName} onChange={(e) => setAgencyName(e.target.value)} className="h-14 rounded-2xl bg-gray-50 border-none font-bold" /></div>
@@ -187,7 +173,7 @@ export default function AgentCenterPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3"><div className="w-10 h-10 rounded-xl bg-purple-500/20 flex items-center justify-center border border-purple-500/10"><Building2 className="w-5 h-5 text-purple-400" /></div><span className="text-[10px] font-black uppercase tracking-widest text-purple-400">Your Agency</span></div>
                 </div>
-                <div><h2 className="text-2xl font-black font-headline uppercase truncate">{profile.username}'s Team</h2><button onClick={() => { navigator.clipboard.writeText(profile.agency_id); toast({ title: "Copied" }); }} className="flex items-center gap-2 mt-2 px-4 py-2 bg-white/10 rounded-full border border-white/5 active:scale-95 transition-all"><span className="text-xs font-black uppercase tracking-widest text-purple-200">ID: {profile.agency_id}</span><Copy className="w-3.5 h-3.5 text-purple-400" /></button></div>
+                <div><h2 className="text-2xl font-black font-headline uppercase truncate">{profile.username}'s Team</h2><button onClick={() => { navigator.clipboard.writeText(profile.agencyId); toast({ title: "Copied" }); }} className="flex items-center gap-2 mt-2 px-4 py-2 bg-white/10 rounded-full border border-white/5 active:scale-95 transition-all"><span className="text-xs font-black uppercase tracking-widest text-purple-200">ID: {profile.agencyId}</span><Copy className="w-3.5 h-3.5 text-purple-400" /></button></div>
               </div>
             </section>
 
@@ -201,10 +187,10 @@ export default function AgentCenterPage() {
               <TabsContent value="requests" className="space-y-4">
                 {pendingRequests.map(req => (
                   <div key={req.id} className="bg-gray-50 p-4 rounded-[2rem] flex items-center justify-between">
-                    <div className="flex items-center gap-3"><Avatar className="w-12 h-12"><AvatarImage src={req.photo} /><AvatarFallback>{req.username?.[0]}</AvatarFallback></Avatar><div><p className="text-sm font-black">{req.username}</p><p className="text-[9px] font-bold text-gray-400 uppercase">ID: {req.numeric_id}</p></div></div>
+                    <div className="flex items-center gap-3"><Avatar className="w-12 h-12"><AvatarImage src={req.photo} /><AvatarFallback>{req.username?.[0]}</AvatarFallback></Avatar><div><p className="text-sm font-black">{req.username}</p><p className="text-[9px] font-bold text-gray-400 uppercase">ID: {req.numericId}</p></div></div>
                     <div className="flex gap-2">
-                      <Button size="icon" variant="ghost" onClick={() => handleRequestAction(req.user_id, 'rejected', req.id)} disabled={!!processingId} className="w-10 h-10 rounded-full bg-red-50 text-red-500"><XCircle className="w-5 h-5" /></Button>
-                      <Button size="icon" onClick={() => handleRequestAction(req.user_id, 'approved', req.id)} disabled={!!processingId} className="w-10 h-10 rounded-full bg-green-500 text-white"><CheckCircle2 className="w-5 h-5" /></Button>
+                      <Button size="icon" variant="ghost" onClick={() => handleRequestAction(req.userId, 'rejected', req.id)} disabled={!!processingId} className="w-10 h-10 rounded-full bg-red-50 text-red-500"><XCircle className="w-5 h-5" /></Button>
+                      <Button size="icon" onClick={() => handleRequestAction(req.userId, 'approved', req.id)} disabled={!!processingId} className="w-10 h-10 rounded-full bg-green-500 text-white"><CheckCircle2 className="w-5 h-5" /></Button>
                     </div>
                   </div>
                 ))}
@@ -214,7 +200,7 @@ export default function AgentCenterPage() {
               <TabsContent value="members" className="space-y-4">
                 {members.map(member => (
                   <div key={member.id} className="bg-white border border-gray-100 p-4 rounded-[2.25rem] flex items-center justify-between shadow-sm">
-                    <div className="flex items-center gap-3"><Avatar className="w-12 h-12"><AvatarImage src={member.profile_photo_urls?.[0]} /><AvatarFallback>{member.username?.[0]}</AvatarFallback></Avatar><div><p className="text-sm font-black">{member.username}</p></div></div>
+                    <div className="flex items-center gap-3"><Avatar className="w-12 h-12"><AvatarImage src={member.profilePhotoUrls?.[0]} /><AvatarFallback>{member.username?.[0]}</AvatarFallback></Avatar><div><p className="text-sm font-black">{member.username}</p></div></div>
                     <Button size="sm" variant="ghost" onClick={() => router.push(`/chat/${member.id}`)} className="h-10 px-4 rounded-full bg-primary/5 text-primary font-black text-[9px]">Chat</Button>
                   </div>
                 ))}

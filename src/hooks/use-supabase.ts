@@ -1,4 +1,3 @@
-
 'use client';
 
 import { useEffect, useState } from 'react';
@@ -7,7 +6,7 @@ import { onAuthStateChanged, User } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 
 /**
- * Migration Hook: Previously useSupabaseUser, now provides Firebase user and profile data.
+ * Compatibility Hook: Previously useSupabaseUser, now provides Firebase user and profile data.
  * This maintains compatibility with components during the transition.
  */
 export function useSupabaseUser() {
@@ -24,12 +23,11 @@ export function useSupabaseUser() {
         const profileRef = doc(firestore, 'userProfiles', currentUser.uid);
         const unsubscribeProfile = onSnapshot(profileRef, (docSnap) => {
           if (docSnap.exists()) {
-            // Map snake_case fields back to camelCase or vice versa as needed for Firebase
             const data = docSnap.data();
+            // Provide camelCase and snake_case for UI compatibility
             setProfile({
               ...data,
               id: currentUser.uid,
-              // Compatibility mapping if fields were renamed in DB
               coin_balance: data.coinBalance ?? 0,
               diamond_balance: data.diamondBalance ?? 0,
               is_admin: data.isAdmin,
@@ -37,7 +35,12 @@ export function useSupabaseUser() {
               is_coinseller: data.isCoinseller,
               is_support: data.isSupport,
               is_agent: data.isAgent,
-              is_party_admin: data.isPartyAdmin
+              is_party_admin: data.isPartyAdmin,
+              check_in_streak: data.checkInStreak ?? 0,
+              last_check_in_date: data.lastCheckInDate ?? "",
+              agency_id: data.agencyId,
+              member_of_agency_id: data.memberOfAgencyId,
+              agency_join_status: data.agencyJoinStatus
             });
           } else {
             setProfile(null);
@@ -55,7 +58,6 @@ export function useSupabaseUser() {
     return () => unsubscribeAuth();
   }, [auth, firestore]);
 
-  // Return structure matching what components expect
   return { 
     user: user ? { ...user, id: user.uid } : null, 
     profile, 

@@ -1,17 +1,18 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, ArrowUpRight, ArrowDownLeft, Coins, Gem } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, orderBy, limit, onSnapshot } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
 export default function CoinHistoryPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user } = useSupabaseUser()
   const [transactions, setTransactions] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -19,20 +20,19 @@ export default function CoinHistoryPage() {
   useEffect(() => {
     if (!user) return;
 
-    const fetchHistory = async () => {
-      const { data, error } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(100);
-      
-      if (!error) setTransactions(data || []);
-      setIsLoading(false);
-    };
+    const q = query(
+      collection(firestore, `userProfiles/${user.id}/transactions`),
+      orderBy('transactionDate', 'desc'),
+      limit(100)
+    );
 
-    fetchHistory();
-  }, [user])
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setIsLoading(false);
+    });
+
+    return () => unsubscribe();
+  }, [user, firestore])
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-hidden font-body">
@@ -77,7 +77,7 @@ export default function CoinHistoryPage() {
                       {tx.description || (isAddition ? "Credit" : "Deduction")}
                     </h3>
                     <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter mt-0.5">
-                      {tx.created_at ? format(new Date(tx.created_at), "MMM d, HH:mm") : "Recently"}
+                      {tx.transactionDate ? format(new Date(tx.transactionDate), "MMM d, HH:mm") : "Recently"}
                     </p>
                   </div>
                   <div className="text-right">

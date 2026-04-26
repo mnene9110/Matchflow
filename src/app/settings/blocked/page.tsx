@@ -1,17 +1,18 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, Ban, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, onSnapshot, deleteDoc, doc } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 export default function BlockedListPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -21,36 +22,23 @@ export default function BlockedListPage() {
   useEffect(() => {
     if (!user) return
 
-    const fetchBlocked = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('blocked_users')
-          .select('*')
-          .eq('user_id', user.id);
-        
-        if (error) throw error;
-        setBlockedUsers(data || []);
-      } catch (err) {
-        console.error("Failed to fetch blocked users:", err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    const q = query(collection(firestore, `userProfiles/${user.id}/blockedUsers`));
+    
+    const unsubscribe = onSnapshot(q, (snap) => {
+      setBlockedUsers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      setIsLoading(false);
+    }, (err) => {
+      console.error("Fetch blocked error:", err);
+      setIsLoading(false);
+    });
 
-    fetchBlocked();
-  }, [user])
+    return () => unsubscribe();
+  }, [user, firestore])
 
   const handleUnblock = async (blockId: string, username: string) => {
     if (!user) return
     try {
-      const { error } = await supabase
-        .from('blocked_users')
-        .delete()
-        .eq('id', blockId);
-
-      if (error) throw error;
-
-      setBlockedUsers(prev => prev.filter(u => u.id !== blockId));
+      await deleteDoc(doc(firestore, `userProfiles/${user.id}/blockedUsers`, blockId));
       toast({
         title: "User Unblocked",
         description: `${username} has been unblocked.`,

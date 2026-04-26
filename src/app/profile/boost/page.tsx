@@ -1,12 +1,12 @@
-
 "use client"
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Rocket, Coins, Loader2, Zap, ArrowRight, Timer } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useFirebase } from "@/firebase/provider"
+import { doc, runTransaction, serverTimestamp, collection } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 
@@ -14,6 +14,7 @@ const BOOST_COST = 500 // Coins for 1 hour
 
 export default function ProfileBoostPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -22,7 +23,7 @@ export default function ProfileBoostPage() {
   const handleBoost = async () => {
     if (!currentUser || !profile || isBoosting) return
 
-    if ((profile.coin_balance || 0) < BOOST_COST) {
+    if ((profile.coinBalance || 0) < BOOST_COST) {
       toast({
         variant: "destructive",
         title: "Insufficient Coins",
@@ -34,27 +35,29 @@ export default function ProfileBoostPage() {
 
     setIsBoosting(true)
     try {
-      // 1. Calculate boost expiry
       const boostedUntil = new Date(Date.now() + (60 * 60 * 1000)).toISOString();
 
-      // 2. Update Profile
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .update({
-          boosted_until: boostedUntil,
-          coin_balance: profile.coin_balance - BOOST_COST,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', currentUser.id);
+      await runTransaction(firestore, async (transaction) => {
+        const profileRef = doc(firestore, "userProfiles", currentUser.id);
+        const profDoc = await transaction.get(profileRef);
+        if (!profDoc.exists()) throw new Error("Profile not found");
 
-      if (profileError) throw profileError;
+        const currentBal = profDoc.data().coinBalance || 0;
+        if (currentBal < BOOST_COST) throw new Error("INSUFFICIENT_FUNDS");
 
-      // 3. Log Transaction
-      await supabase.from('transactions').insert({
-        user_id: currentUser.id,
-        type: "profile_boost",
-        amount: -BOOST_COST,
-        description: "Purchased Profile Boost (1 Hour)"
+        transaction.update(profileRef, {
+          boostedUntil: boostedUntil,
+          coinBalance: currentBal - BOOST_COST,
+          updatedAt: serverTimestamp()
+        });
+
+        const logRef = doc(collection(firestore, `userProfiles/${currentUser.id}/transactions`));
+        transaction.set(logRef, {
+          type: "profile_boost",
+          amount: -BOOST_COST,
+          description: "Purchased Profile Boost (1 Hour)",
+          transactionDate: new Date().toISOString()
+        });
       });
 
       toast({ 

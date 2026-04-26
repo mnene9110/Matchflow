@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -7,12 +6,14 @@ import { ChevronLeft, Trash2, Loader2, AlertTriangle, ShieldAlert } from "lucide
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useFirebase } from "@/firebase/provider"
+import { doc, deleteDoc } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export default function DeleteAccountPage() {
   const router = useRouter()
+  const { auth, firestore } = useFirebase()
   const { user, profile, isLoading } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -20,22 +21,17 @@ export default function DeleteAccountPage() {
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    if (!user || confirmationText !== "DELETE" || profile?.is_admin) return
+    if (!user || confirmationText !== "DELETE" || profile?.isAdmin) return
 
     setIsDeleting(true)
     try {
-      // 1. Delete profile data (will cascades if DB is set up right)
-      const { error: profileError } = await supabase
-        .from('profiles')
-        .delete()
-        .eq('id', user.id);
+      // 1. Delete profile data
+      await deleteDoc(doc(firestore, "userProfiles", user.id));
 
-      if (profileError) throw profileError;
+      // 2. Sign out
+      await auth.signOut();
 
-      // 2. Sign out of Auth
-      await supabase.auth.signOut();
-
-      // Clear any local cache/storage
+      // Clear local cache
       localStorage.clear();
       sessionStorage.clear();
 
@@ -44,7 +40,6 @@ export default function DeleteAccountPage() {
         description: "Your profile has been removed.",
       })
       
-      // Immediate redirect to force session clear
       window.location.replace("/welcome");
     } catch (error: any) {
       setIsDeleting(false)
@@ -58,7 +53,7 @@ export default function DeleteAccountPage() {
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
 
-  if (profile?.is_admin) {
+  if (profile?.isAdmin) {
     return (
       <div className="flex flex-col items-center justify-center h-svh p-8 text-center space-y-6 bg-white">
         <div className="w-24 h-24 bg-red-50 rounded-[3rem] flex items-center justify-center border-4 border-red-100">

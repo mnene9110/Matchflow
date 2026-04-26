@@ -5,42 +5,39 @@ import { useRouter } from "next/navigation"
 import { ChevronLeft, BellOff, Phone, Video, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Switch } from "@/components/ui/switch"
+import { useFirebase } from "@/firebase/provider"
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export default function CallSettingsPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user, profile, isLoading } = useSupabaseUser()
   const { toast } = useToast()
 
   const [isUpdating, setIsUpdating] = useState(false)
 
   const settings = profile?.settings || {
-    dnd_voice: false,
-    dnd_video: false
+    dndVoice: false,
+    dndVideo: false
   }
 
-  const toggleDND = async (type: 'dnd_voice' | 'dnd_video') => {
+  const toggleDND = async (type: 'dndVoice' | 'dndVideo') => {
     if (!user || isUpdating) return
     
     setIsUpdating(true)
     const newSettings = { ...settings, [type]: !settings[type] }
     
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ 
-          settings: newSettings,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', user.id)
+      await updateDoc(doc(firestore, "userProfiles", user.id), {
+        settings: newSettings,
+        updatedAt: serverTimestamp()
+      });
 
-      if (error) throw error
-      
       toast({
         title: "Settings Updated",
-        description: `Do Not Disturb for ${type.includes('voice') ? 'voice' : 'video'} is now ${newSettings[type] ? 'ON' : 'OFF'}.`
+        description: `Do Not Disturb for ${type.includes('Voice') ? 'voice' : 'video'} is now ${newSettings[type] ? 'ON' : 'OFF'}.`
       })
     } catch (error) {
       toast({ variant: "destructive", title: "Error", description: "Failed to update settings." })
@@ -88,7 +85,7 @@ export default function CallSettingsPage() {
                   <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Reject voice calls</p>
                 </div>
               </div>
-              <Switch checked={!!settings.dnd_voice} onCheckedChange={() => toggleDND('dnd_voice')} disabled={isUpdating} />
+              <Switch checked={!!settings.dndVoice} onCheckedChange={() => toggleDND('dndVoice')} disabled={isUpdating} />
             </div>
 
             <div className="p-6 bg-gray-50 border border-gray-100 rounded-[2rem] flex items-center justify-between shadow-sm">
@@ -101,7 +98,7 @@ export default function CallSettingsPage() {
                   <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Reject video calls</p>
                 </div>
               </div>
-              <Switch checked={!!settings.dnd_video} onCheckedChange={() => toggleDND('dnd_video')} disabled={isUpdating} />
+              <Switch checked={!!settings.dndVideo} onCheckedChange={() => toggleDND('dndVideo')} disabled={isUpdating} />
             </div>
           </div>
         )}

@@ -3,8 +3,8 @@
 import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, Ban, Info } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { useFirebase } from "@/firebase/provider"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import {
   AlertDialog,
@@ -20,20 +20,21 @@ import {
 
 export default function SettingsPage() {
   const router = useRouter()
+  const { auth } = useFirebase()
   const { user, profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const handleSignOut = async () => {
     try {
-      await supabase.auth.signOut()
+      await auth.signOut();
       window.location.replace("/welcome")
     } catch (error) {
       toast({ variant: "destructive", title: "Sign out failed" })
     }
   }
 
-  const isGuest = user?.is_anonymous || user?.email?.includes('@matchflow.app')
-  const isAdmin = profile?.is_admin === true
+  const isGuest = user?.isAnonymous || user?.email?.includes('@matchflow.app')
+  const isAdmin = profile?.isAdmin === true
 
   const settingsItems = [
     { 

@@ -6,9 +6,10 @@ import { ChevronLeft, Loader2, Building2, Clock, CheckCircle2, LogOut, Wallet, A
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { useFirebase } from "@/firebase/provider"
+import { doc, getDoc, updateDoc, addDoc, collection, runTransaction, serverTimestamp } from "firebase/firestore"
 import { useToast } from "@/hooks/use-toast"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
 import {
   Dialog,
@@ -20,6 +21,7 @@ import {
 
 export default function JoinAgencyPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
   
@@ -39,27 +41,28 @@ export default function JoinAgencyPage() {
     setIsSubmitting(true)
     try {
       const aid = agencyId.trim().toUpperCase();
-      
-      const { data: agency } = await supabase.from('agencies').select('id').eq('id', aid).single();
+      const agencyRef = doc(firestore, 'agencies', aid);
+      const agencySnap = await getDoc(agencyRef);
 
-      if (!agency) {
+      if (!agencySnap.exists()) {
         toast({ variant: "destructive", title: "Invalid ID", description: "Agency not found." })
         setIsSubmitting(false)
         return
       }
 
-      await supabase.from('agency_requests').insert({
-        agency_id: aid,
-        user_id: currentUser.id,
+      await addDoc(collection(firestore, "agency_requests"), {
+        agencyId: aid,
+        userId: currentUser.id,
         username: profile?.username,
-        photo: profile?.profile_photo_urls?.[0],
-        numeric_id: profile?.numeric_id
+        photo: profile?.profilePhotoUrls?.[0] || "",
+        numericId: profile?.numericId,
+        createdAt: serverTimestamp()
       });
 
-      await supabase.from('profiles').update({
-        agency_join_status: "pending",
-        member_of_agency_id: aid
-      }).eq('id', currentUser.id);
+      await updateDoc(doc(firestore, "userProfiles", currentUser.id), {
+        agencyJoinStatus: "pending",
+        memberOfAgencyId: aid
+      });
 
       toast({ title: "Application Sent" })
     } catch (error) {
@@ -71,38 +74,46 @@ export default function JoinAgencyPage() {
 
   const handleWithdrawRequest = async () => {
     const amountKes = Number(withdrawAmount);
-    if (!amountKes || amountKes <= 0 || !currentUser || !profile?.member_of_agency_id) return
+    if (!amountKes || amountKes <= 0 || !currentUser || !profile?.memberOfAgencyId) return
     
     const diamondsNeeded = Math.round((amountKes / 80) * 1000);
 
-    if ((profile.diamond_balance || 0) < diamondsNeeded) {
+    if ((profile.diamondBalance || 0) < diamondsNeeded) {
       toast({ variant: "destructive", title: "Insufficient Diamonds" });
       return;
     }
 
     setIsSubmitting(true)
     try {
-      // Deduct diamonds
-      await supabase.from('profiles').update({
-        diamond_balance: profile.diamond_balance - diamondsNeeded
-      }).eq('id', currentUser.id);
+      await runTransaction(firestore, async (transaction) => {
+        const profileRef = doc(firestore, "userProfiles", currentUser.id);
+        const profDoc = await transaction.get(profileRef);
+        if (!profDoc.exists()) throw new Error("Profile not found");
 
-      // Create log
-      await supabase.from('transactions').insert({
-        user_id: currentUser.id,
-        type: "agency_withdrawal",
-        amount: -diamondsNeeded,
-        description: `Withdrawal request for ${amountKes} KES`
-      });
+        const currentDiamonds = profDoc.data().diamondBalance || 0;
+        if (currentDiamonds < diamondsNeeded) throw new Error("INSUFFICIENT_DIAMONDS");
 
-      // Create request for agent
-      await supabase.from('agency_withdrawals').insert({
-        agency_id: profile.member_of_agency_id,
-        user_id: currentUser.id,
-        username: profile.username,
-        photo: profile.profile_photo_urls?.[0],
-        amount: amountKes,
-        diamonds_deducted: diamondsNeeded
+        transaction.update(profileRef, { diamondBalance: currentDiamonds - diamondsNeeded });
+
+        const transRef = doc(collection(firestore, `userProfiles/${currentUser.id}/transactions`));
+        transaction.set(transRef, {
+          type: "agency_withdrawal",
+          amount: -diamondsNeeded,
+          description: `Withdrawal request for ${amountKes} KES`,
+          transactionDate: new Date().toISOString()
+        });
+
+        const requestRef = doc(collection(firestore, "agency_withdrawals"));
+        transaction.set(requestRef, {
+          agencyId: profile.memberOfAgencyId,
+          userId: currentUser.id,
+          username: profile.username,
+          photo: profile.profilePhotoUrls?.[0] || "",
+          amount: amountKes,
+          diamondsDeducted: diamondsNeeded,
+          status: "pending",
+          createdAt: serverTimestamp()
+        });
       });
 
       toast({ title: "Request Sent" })
@@ -114,7 +125,7 @@ export default function JoinAgencyPage() {
     }
   }
 
-  if (profile?.agency_join_status === 'approved') {
+  if (profile?.agencyJoinStatus === 'approved') {
     return (
       <div className="flex flex-col h-svh bg-white text-gray-900">
         <header className="px-4 py-6 flex items-center border-b border-gray-50 shrink-0">
@@ -124,7 +135,7 @@ export default function JoinAgencyPage() {
         <main className="flex-1 p-8 space-y-10">
           <div className="flex flex-col items-center text-center space-y-6">
             <div className="w-24 h-24 bg-green-50 rounded-[2.5rem] flex items-center justify-center border-4 border-green-100"><CheckCircle2 className="w-12 h-12 text-green-500" /></div>
-            <div><h2 className="text-3xl font-black font-headline text-gray-900">Official Member</h2><p className="text-sm text-gray-500">Diamonds: {(profile.diamond_balance || 0).toLocaleString()}</p></div>
+            <div><h2 className="text-3xl font-black font-headline text-gray-900">Official Member</h2><p className="text-sm text-gray-500">Diamonds: {(profile.diamondBalance || 0).toLocaleString()}</p></div>
           </div>
 
           <div className="grid grid-cols-1 gap-4">
