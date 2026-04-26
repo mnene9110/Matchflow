@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from 'react';
@@ -8,11 +9,11 @@ import { OfflineDetector } from "@/components/OfflineDetector"
 import { Navbar } from "@/components/Navbar"
 import { InstallPWA } from "@/components/InstallPWA"
 import { NotificationRequest } from "@/components/NotificationRequest"
+import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 import { supabase } from '@/lib/supabase';
 
 function NavigationGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const router = useRouter();
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
@@ -38,7 +39,6 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 
     checkAuth();
 
-    // Correct Supabase v2 pattern for auth listener
     const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         window.location.replace('/welcome');
@@ -97,6 +97,7 @@ export default function RootLayout({
               <Navbar />
               <InstallPWA />
               <NotificationRequest />
+              <GlobalCallOverlay />
             </div>
           </OfflineDetector>
         </NavigationGuard>

@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -22,7 +23,9 @@ import {
   X,
   Target,
   Gift as GiftIcon,
-  ArrowRight
+  ArrowRight,
+  Phone,
+  Video
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
@@ -120,6 +123,41 @@ export default function ProfileDetailPage() {
     }
   }, [currentUser?.id, id, !!userProfile, !!currentUserProfile]);
 
+  const handleInitiateCall = async (type: 'video' | 'audio') => {
+    if (!currentUser || !userProfile) return;
+    
+    const cost = type === 'video' ? 160 : 80;
+    if ((currentUserProfile?.coin_balance || 0) < cost) {
+      toast({ 
+        variant: "destructive", 
+        title: "Insufficient Coins", 
+        description: `You need at least ${cost} coins to call.`,
+        action: <Button variant="outline" size="sm" onClick={() => router.push('/recharge')}>Recharge</Button>
+      });
+      return;
+    }
+
+    const chatId = [currentUser.id, id].sort().join("_");
+
+    try {
+      const { error: callError } = await supabase.from('calls').insert({
+        id: chatId,
+        caller_id: currentUser.id,
+        receiver_id: id,
+        caller_name: currentUserProfile?.username || "Someone",
+        call_type: type,
+        status: 'ringing',
+        cost_per_min: cost,
+        timestamp: Date.now()
+      });
+
+      if (callError) throw callError;
+      await supabase.from('profiles').update({ incoming_call_id: chatId }).eq('id', id);
+    } catch (error) {
+      toast({ variant: "destructive", title: "Call Failed" });
+    }
+  }
+
   const groupedGifts = useMemo(() => {
     const map = new Map<string, { giftId: string; count: number }>()
     giftTransactions.forEach((tx: any) => {
@@ -139,21 +177,10 @@ export default function ProfileDetailPage() {
     })
   }, [api])
 
-  useEffect(() => {
-    const handlePopState = () => {
-      if (fullscreenImage) setFullscreenImage(null);
-    };
-    if (fullscreenImage) {
-      window.history.pushState({ gallery: true }, "");
-      window.addEventListener("popstate", handlePopState);
-    }
-    return () => {
-      window.removeEventListener("popstate", handlePopState);
-    };
-  }, [fullscreenImage]);
-
   const openFullscreen = (url: string) => setFullscreenImage(url);
-  const closeFullscreen = () => fullscreenImage && window.history.back();
+  const closeFullscreen = () => {
+      setFullscreenImage(null);
+  };
 
   const age = useMemo(() => {
     if (!userProfile?.date_of_birth) return null;
@@ -227,22 +254,6 @@ export default function ProfileDetailPage() {
     </div>
   )
 
-  if (userProfile?.is_support) {
-    return (
-      <div className="flex flex-col items-center justify-center h-svh p-8 text-center space-y-6 bg-white">
-        <div className="w-24 h-24 bg-primary/10 rounded-[2.5rem] flex items-center justify-center border border-primary/20"><Lock className="w-12 h-12 text-primary" /></div>
-        <div className="space-y-2">
-          <h2 className="text-2xl font-black font-headline text-gray-900 tracking-tight">Access Restricted</h2>
-          <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">Profile details for Customer Support agents are private.</p>
-        </div>
-        <div className="flex flex-col w-full gap-3 max-w-[240px]">
-          <Button onClick={() => router.push(`/chat/${id}`)} className="h-14 rounded-full bg-primary font-black uppercase text-xs tracking-widest gap-3"><Headset className="w-4 h-4" />Chat with Support</Button>
-          <Button variant="ghost" onClick={() => router.back()} className="h-14 rounded-full text-gray-400 font-bold uppercase text-[10px] tracking-widest">Go Back</Button>
-        </div>
-      </div>
-    )
-  }
-
   const userPhotos = (userProfile?.profile_photo_urls || []).filter(Boolean)
   if (userPhotos.length === 0) userPhotos.push(`https://picsum.photos/seed/${userProfile?.id}/600/800`)
   
@@ -310,18 +321,15 @@ export default function ProfileDetailPage() {
             </div>
           </div>
 
-          {(userProfile?.is_admin || userProfile?.is_support || isVerified) && (
-            <div className="flex gap-2 flex-wrap">
-              {userProfile?.is_admin && <div className="px-3 py-1 bg-primary/10 rounded-full inline-flex items-center gap-1.5 border border-primary/20"><Zap className="w-3 h-3 text-primary fill-current" /><span className="text-[9px] font-black text-primary uppercase tracking-widest">Admin</span></div>}
-              {userProfile?.is_support && <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20"><Headset className="w-3 h-3 text-blue-500" /><span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Support</span></div>}
-              {isVerified && <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20"><ShieldCheck className="w-3 h-3 text-blue-500" /><span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Verified</span></div>}
-            </div>
-          )}
+          <div className="flex gap-3">
+             <Button onClick={() => handleInitiateCall('audio')} className="flex-1 h-14 rounded-2xl bg-zinc-900 text-white font-black text-[10px] uppercase tracking-widest gap-2"><Phone className="w-3.5 h-3.5" />Voice Call</Button>
+             <Button onClick={() => handleInitiateCall('video')} className="flex-1 h-14 rounded-2xl bg-[#3BC1A8] text-white font-black text-[10px] uppercase tracking-widest gap-2"><Video className="w-3.5 h-3.5" />Video Call</Button>
+          </div>
 
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Gift Wall</h3>
-              <button onClick={() => router.push(`/profile/${id}/gifts`)} className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-1 active:opacity-50">Full Wall <ArrowRight className="w-3 h-3" /></button>
+              <button onClick={() => router.push(`/profile/${id}/gifts`)} className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-1 active:opacity-50">Full Wall <ArrowRight className="w-3.5 h-3.5" /></button>
             </div>
             <div className="bg-gray-50/50 p-5 rounded-[2rem] border border-gray-100 min-h-[80px] flex items-center">
               {isGiftsLoading ? (
