@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -14,7 +13,6 @@ import {
   Copy,
   CheckCircle,
   Compass,
-  Zap,
   Tag,
   X,
   Target,
@@ -88,7 +86,6 @@ export default function ProfileDetailPage() {
       }
       setIsProfileLoading(false);
 
-      // Fetch Gifts received
       const q = query(
         collection(firestore, `userProfiles/${id}/transactions`),
         where("type", "==", "gift_received"),
@@ -115,26 +112,6 @@ export default function ProfileDetailPage() {
     });
     return () => unsub();
   }, [currentUser, firestore]);
-
-  // Track Visitor
-  useEffect(() => {
-    if (currentUser && id && id !== currentUser.uid && userProfile && myProfile) {
-      const logVisitor = async () => {
-        try {
-          const visitorRef = doc(firestore, "userProfiles", id as string, "visitors", currentUser.uid);
-          await setDoc(visitorRef, {
-            visitorId: currentUser.uid,
-            username: myProfile.username || "Someone",
-            photo: (myProfile.profilePhotoUrls && myProfile.profilePhotoUrls[0]) || "",
-            timestamp: serverTimestamp()
-          });
-        } catch (e) {
-          console.warn("Visitor tracking unavailable");
-        }
-      };
-      logVisitor();
-    }
-  }, [currentUser?.uid, id, !!userProfile, !!myProfile, firestore]);
 
   const groupedGifts = useMemo(() => {
     const map = new Map<string, { giftId: string; count: number }>()
@@ -314,7 +291,11 @@ export default function ProfileDetailPage() {
                     return (
                       <div key={g.giftId} className="flex flex-col items-center shrink-0">
                         <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-1 border border-white overflow-hidden">
-                          <span className="text-xl">{giftInfo?.emoji || '🎁'}</span>
+                          {giftInfo?.icon ? (
+                            <Image src={giftInfo.icon} alt={giftInfo.name} width={28} height={28} className="object-contain" />
+                          ) : (
+                            <span className="text-xl">🎁</span>
+                          )}
                         </div>
                         <span className="text-[9px] font-black text-primary italic">x{g.count}</span>
                       </div>

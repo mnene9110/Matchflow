@@ -24,9 +24,6 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     setMounted(true);
-  }, []);
-
-  useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
       setIsInitialized(true);
@@ -45,7 +42,6 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     }
   }, [user, isInitialized, mounted, pathname, router]);
 
-  // Prevent Hydration Error by matching server render until mounted
   if (!mounted || !isInitialized) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#3BC1A8] z-[9999]">

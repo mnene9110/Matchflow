@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo, Suspense } from "react"
 import { useParams, useRouter } from "next/navigation"
+import Image from "next/image"
 import { 
   ChevronLeft, 
   Send, 
@@ -11,7 +12,7 @@ import {
   Phone, 
   Video,
   X,
-  CheckCircle2
+  Plus
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -28,14 +29,14 @@ import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 export const GIFTS = [
-  { id: 'butterfly', name: 'Butterfly', emoji: '🦋', price: 100 },
-  { id: 'roses', name: 'Roses', emoji: '🌹', price: 300 },
-  { id: 'wine', name: 'Wine', emoji: '🍷', price: 500 },
-  { id: 'heart', name: 'Heart', emoji: '💝', price: 800 },
-  { id: 'ring', name: 'Ring', emoji: '💍', price: 2000 },
-  { id: 'car', name: 'Supercar', emoji: '🏎️', price: 5000 },
-  { id: 'yacht', name: 'Yacht', emoji: '🚢', price: 10000 },
-  { id: 'castle', name: 'Castle', emoji: '🏰', price: 50000 },
+  { id: 'butterfly', name: 'Butterfly', icon: '/butterfly.png', price: 100 },
+  { id: 'roses', name: 'Roses', icon: '/roses.png', price: 300 },
+  { id: 'wine', name: 'Wine', icon: '/wine.png', price: 500 },
+  { id: 'heart', name: 'Heart', icon: '/heart_gift.png', price: 800 },
+  { id: 'ring', name: 'Ring', icon: '/ring.png', price: 2000 },
+  { id: 'car', name: 'Supercar', icon: '/car.png', price: 5000 },
+  { id: 'yacht', name: 'Yacht', icon: '/yacht.png', price: 10000 },
+  { id: 'castle', name: 'Castle', icon: '/castle.png', price: 50000 },
 ]
 
 function ChatDetailContent() {
@@ -52,7 +53,6 @@ function ChatDetailContent() {
   const [isGiftSheetOpen, setIsGiftSheetOpen] = useState(false)
   const [selectedGift, setSelectedGift] = useState<typeof GIFTS[0] | null>(null)
   const [isGifting, setIsGifting] = useState(false)
-  const [isGiftSent, setIsGiftSent] = useState(false)
 
   const chatId = useMemo(() => {
     if (!currentUser || !otherUserId) return ""
@@ -80,7 +80,7 @@ function ChatDetailContent() {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  const handleSendMessage = async (textOverride?: string) => {
+  const handleSendMessage = async (textOverride?: string, metadata?: any) => {
     const textToUse = textOverride || inputText;
     if (!textToUse.trim() || !currentUser || !chatId || isSending) return
     
@@ -96,7 +96,8 @@ function ChatDetailContent() {
       await addDoc(collection(firestore, "chats", chatId, "messages"), {
         senderId: currentUser.uid,
         text: textToUse,
-        timestamp: serverTimestamp()
+        timestamp: serverTimestamp(),
+        ...(metadata || {})
       });
 
       if (!textOverride) setInputText("");
@@ -131,19 +132,16 @@ function ChatDetailContent() {
         const senderData = senderSnap.data();
         if (senderData.coinBalance < selectedGift.price) throw new Error("INSUFFICIENT_FUNDS");
 
-        // 1. Deduct coins from sender
         transaction.update(senderRef, { 
           coinBalance: increment(-selectedGift.price),
           updatedAt: serverTimestamp()
         });
 
-        // 2. Add diamonds to receiver
         transaction.update(receiverRef, { 
           diamondBalance: increment(selectedGift.price),
           updatedAt: serverTimestamp()
         });
 
-        // 3. Log sender transaction
         const senderTxRef = doc(collection(firestore, `userProfiles/${currentUser.uid}/transactions`));
         transaction.set(senderTxRef, {
           type: "gift_sent",
@@ -153,7 +151,6 @@ function ChatDetailContent() {
           transactionDate: new Date().toISOString()
         });
 
-        // 4. Log receiver transaction
         const receiverTxRef = doc(collection(firestore, `userProfiles/${otherUserId}/transactions`));
         transaction.set(receiverTxRef, {
           type: "gift_received",
@@ -164,18 +161,14 @@ function ChatDetailContent() {
         });
       });
 
-      await handleSendMessage(`🎁 Sent a ${selectedGift.name}! ${selectedGift.emoji}`);
-      setIsGiftSent(true);
+      await handleSendMessage(`🎁 Sent a ${selectedGift.name}!`, { type: 'gift', giftId: selectedGift.id });
+      setIsGiftSheetOpen(false);
+      setSelectedGift(null);
     } catch (e: any) {
       toast({ variant: "destructive", title: "Gifting Failed" });
     } finally {
       setIsGifting(false);
     }
-  }
-
-  const handleSendMore = () => {
-    setIsGiftSent(false);
-    setSelectedGift(null);
   }
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
@@ -252,14 +245,34 @@ function ChatDetailContent() {
       </header>
 
       <ScrollArea className="flex-1 px-4 py-4 bg-white">
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-6">
           {messages?.map((msg, idx) => {
             const isMe = msg.senderId === currentUser?.uid;
+            const isGift = msg.type === 'gift';
+            
             return (
-              <div key={msg.id || idx} className={cn("flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300", isMe ? "justify-end" : "justify-start")}>
-                <div className={cn("max-w-[80%] px-4 py-3 text-[13px] font-medium leading-relaxed shadow-sm", isMe ? "bg-[#3BC1A8] text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none")}>
-                  <p className="whitespace-pre-wrap">{msg.text}</p>
+              <div key={msg.id || idx} className={cn("flex flex-col w-full animate-in fade-in slide-in-from-bottom-2 duration-300", isMe ? "items-end" : "items-start")}>
+                <div className={cn("max-w-[80%] px-4 py-3 text-[13px] font-medium leading-relaxed shadow-sm flex flex-col gap-2", isMe ? "bg-[#3BC1A8] text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none")}>
+                  {isGift ? (
+                    <div className="flex items-center gap-3">
+                      <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center overflow-hidden shrink-0">
+                        <Image src={GIFTS.find(g => g.id === msg.giftId)?.icon || '/heart_gift.png'} alt="Gift" width={32} height={32} className="object-contain" />
+                      </div>
+                      <p className="whitespace-pre-wrap font-bold">{msg.text}</p>
+                    </div>
+                  ) : (
+                    <p className="whitespace-pre-wrap">{msg.text}</p>
+                  )}
                 </div>
+                {isMe && isGift && (
+                  <button 
+                    onClick={() => setIsGiftSheetOpen(true)}
+                    className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-full text-[9px] font-black text-[#3BC1A8] uppercase tracking-widest active:scale-95 transition-all shadow-sm"
+                  >
+                    <Plus className="w-3 h-3" />
+                    Send one more
+                  </button>
+                )}
               </div>
             )
           })}
@@ -270,77 +283,61 @@ function ChatDetailContent() {
       <footer className="px-5 py-5 pb-[calc(env(safe-area-inset-bottom)+1rem)] bg-white border-t border-gray-50 flex items-center gap-3">
         <Sheet open={isGiftSheetOpen} onOpenChange={(open) => {
           setIsGiftSheetOpen(open);
-          if (!open) {
-            setIsGiftSent(false);
-            setSelectedGift(null);
-          }
+          if (!open) setSelectedGift(null);
         }}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-amber-50 text-amber-500 shrink-0"><Gift className="w-6 h-6" /></Button>
           </SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-[2.5rem] p-6 pb-12 max-h-[85svh]">
-            {isGiftSent ? (
-              <div className="flex flex-col items-center justify-center py-12 space-y-6 animate-in zoom-in duration-300">
-                <div className="w-20 h-20 bg-green-500 rounded-full flex items-center justify-center shadow-xl shadow-green-500/20">
-                  <CheckCircle2 className="w-10 h-10 text-white" />
-                </div>
-                <div className="text-center space-y-1">
-                  <h3 className="text-2xl font-black font-headline uppercase tracking-tighter">Gift Sent!</h3>
-                  <p className="text-xs font-bold text-gray-400 uppercase tracking-widest">Your gift has been delivered</p>
-                </div>
-                <Button onClick={handleSendMore} className="w-full h-16 rounded-full bg-[#3BC1A8] text-white font-black text-lg shadow-xl active:scale-95 transition-all">
-                  Send one more
-                </Button>
-              </div>
-            ) : (
-              <>
-                <SheetHeader className="mb-6">
-                  <SheetTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Select a Gift</SheetTitle>
-                </SheetHeader>
-                <div className="grid grid-cols-4 gap-4 overflow-y-auto max-h-[40svh] px-1 no-scrollbar">
-                  {GIFTS.map((gift) => (
-                    <button 
-                      key={gift.id} 
-                      onClick={() => setSelectedGift(gift)} 
-                      className={cn(
-                        "flex flex-col items-center gap-2 p-3 rounded-2xl transition-all border-2",
-                        selectedGift?.id === gift.id ? "bg-[#3BC1A8]/10 border-[#3BC1A8]" : "bg-gray-50 border-transparent"
-                      )}
-                    >
-                      <span className="text-3xl drop-shadow-sm">{gift.emoji}</span>
-                      <span className="text-[9px] font-black uppercase text-gray-500 truncate w-full text-center">{gift.name}</span>
-                      <div className="flex items-center gap-0.5">
-                        <span className="text-[10px] font-black text-[#3BC1A8] italic">S</span>
-                        <span className="text-[9px] font-black text-[#3BC1A8]">{gift.price}</span>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-                
-                {selectedGift && (
-                  <div className="mt-8 flex flex-col gap-4 animate-in slide-in-from-bottom-4">
-                     <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                        <div className="flex items-center gap-3">
-                           <span className="text-3xl">{selectedGift.emoji}</span>
-                           <div className="flex flex-col">
-                              <span className="text-xs font-black uppercase tracking-widest">{selectedGift.name}</span>
-                              <span className="text-[10px] font-bold text-gray-400">Recipient receives diamonds</span>
-                           </div>
-                        </div>
-                        <div className="text-right">
-                           <span className="text-sm font-black text-[#3BC1A8]">{selectedGift.price} Coins</span>
-                        </div>
-                     </div>
-                     <Button 
-                       onClick={handleSendGift} 
-                       disabled={isGifting} 
-                       className="w-full h-16 rounded-full bg-[#3BC1A8] text-white font-black text-lg shadow-xl"
-                     >
-                       {isGifting ? <Loader2 className="w-6 h-6 animate-spin" /> : `Send ${selectedGift.name}`}
-                     </Button>
+            <SheetHeader className="mb-6">
+              <SheetTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Select a Gift</SheetTitle>
+            </SheetHeader>
+            <div className="grid grid-cols-4 gap-4 overflow-y-auto max-h-[40svh] px-1 no-scrollbar">
+              {GIFTS.map((gift) => (
+                <button 
+                  key={gift.id} 
+                  onClick={() => setSelectedGift(gift)} 
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-3 rounded-2xl transition-all border-2",
+                    selectedGift?.id === gift.id ? "bg-[#3BC1A8]/10 border-[#3BC1A8]" : "bg-gray-50 border-transparent"
+                  )}
+                >
+                  <div className="w-10 h-10 relative">
+                    <Image src={gift.icon} alt={gift.name} fill className="object-contain" />
                   </div>
-                )}
-              </>
+                  <span className="text-[9px] font-black uppercase text-gray-500 truncate w-full text-center">{gift.name}</span>
+                  <div className="flex items-center gap-0.5">
+                    <span className="text-[10px] font-black text-[#3BC1A8] italic">S</span>
+                    <span className="text-[9px] font-black text-[#3BC1A8]">{gift.price}</span>
+                  </div>
+                </button>
+              ))}
+            </div>
+            
+            {selectedGift && (
+              <div className="mt-8 flex flex-col gap-4 animate-in slide-in-from-bottom-4">
+                  <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 relative">
+                          <Image src={selectedGift.icon} alt={selectedGift.name} fill className="object-contain" />
+                        </div>
+                        <div className="flex flex-col">
+                          <span className="text-xs font-black uppercase tracking-widest">{selectedGift.name}</span>
+                          <span className="text-[10px] font-bold text-gray-400">Recipient receives diamonds</span>
+                        </div>
+                    </div>
+                    <div className="text-right">
+                        <span className="text-sm font-black text-[#3BC1A8]">{selectedGift.price} Coins</span>
+                    </div>
+                  </div>
+                  <Button 
+                    onClick={handleSendGift} 
+                    disabled={isGifting} 
+                    className="w-full h-16 rounded-full bg-[#3BC1A8] text-white font-black text-lg shadow-xl"
+                  >
+                    {isGifting ? <Loader2 className="w-6 h-6 animate-spin" /> : `Send ${selectedGift.name}`}
+                  </Button>
+              </div>
             )}
           </SheetContent>
         </Sheet>
