@@ -86,18 +86,30 @@ export async function initializePesaPalTransaction(email: string, amount: number
 
     const merchantRef = `MF${Date.now().toString().slice(-10)}`;
     
-    // Track pending payment in Supabase
-    const { error: insertError } = await supabase
-      .from('pending_payments')
-      .insert({
-        id: merchantRef,
-        user_id: metadata.userId,
-        package_amount: metadata.packageAmount,
-        merchant_ref: merchantRef,
-        status: "pending"
-      });
+    // SECURE FIX: Use RPC to insert pending payment. 
+    // Direct server-side insert fails if RLS is on and auth context is not forwarded.
+    const { error: rpcError } = await supabase.rpc('initiate_pending_payment', {
+      p_id: merchantRef,
+      p_package_amount: metadata.packageAmount,
+      p_merchant_ref: merchantRef
+    });
 
-    if (insertError) throw insertError;
+    if (rpcError) {
+        console.error("Pending payment RPC error:", rpcError);
+        // Fallback for missing RPC: if RPC not found, try normal insert (user must ensure policy is right)
+        if (rpcError.message.includes('function') && rpcError.message.includes('does not exist')) {
+            const { error: insertError } = await supabase.from('pending_payments').insert({
+                id: merchantRef,
+                user_id: metadata.userId,
+                package_amount: metadata.packageAmount,
+                merchant_ref: merchantRef,
+                status: "pending"
+            });
+            if (insertError) throw insertError;
+        } else {
+            throw rpcError;
+        }
+    }
 
     const orderData = {
       id: merchantRef,
@@ -140,6 +152,7 @@ export async function initializePesaPalTransaction(email: string, amount: number
       return { error: result.message || 'Failed to submit order to PesaPal' };
     }
   } catch (error: any) {
+    console.error("Payment init error:", error);
     return { error: error.message || 'An unexpected error occurred.' };
   }
 }
@@ -182,23 +195,17 @@ export async function processServerPaymentConfirmation(orderTrackingId: string) 
       const coinsToGain = paymentData.package_amount;
 
       if (targetUserId) {
-        // Use an RPC or simple sequential updates (Supabase doesn't support complex client-side multi-table transactions as easily as Firestore's runTransaction, but RPC is preferred for atomic ops)
-        // For simplicity in this migration, we do sequential. RPC is better for production.
-        
-        // 1. Update Profile Balance
         const { data: currentProfile } = await supabase.from('profiles').select('coin_balance').eq('id', targetUserId).single();
         const newBalance = (currentProfile?.coin_balance || 0) + coinsToGain;
         
         await supabase.from('profiles').update({ coin_balance: newBalance }).eq('id', targetUserId);
 
-        // 2. Mark Payment as completed
         await supabase.from('pending_payments').update({ 
           status: 'completed', 
           order_tracking_id: orderTrackingId,
           completed_at: new Date().toISOString() 
         }).eq('id', merchantRef);
 
-        // 3. Log Transaction
         await supabase.from('transactions').insert({
           user_id: targetUserId,
           type: "recharge",
