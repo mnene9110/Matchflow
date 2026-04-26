@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -21,19 +22,33 @@ export default function VisitorsPage() {
   const [visitors, setVisitors] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isUnlocking, setIsUnlocking] = useState(false)
+  const [isTableMissing, setIsTableMissing] = useState(false)
 
   useEffect(() => {
     if (!user) return
 
     const fetchVisitors = async () => {
-      const { data, error } = await supabase
-        .from('visitors')
-        .select('*')
-        .eq('target_user_id', user.id)
-        .order('timestamp', { ascending: false });
-      
-      if (!error) setVisitors(data || []);
-      setIsLoading(false);
+      try {
+        const { data, error } = await supabase
+          .from('visitors')
+          .select('*')
+          .eq('target_user_id', user.id)
+          .order('timestamp', { ascending: false });
+        
+        if (error) {
+          if (error.code === 'PGRST116' || error.message.includes('not found')) {
+            setIsTableMissing(true);
+          } else {
+            throw error;
+          }
+        } else {
+          setVisitors(data || []);
+        }
+      } catch (err) {
+        console.error("Visitors fetch failed:", err);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchVisitors();
@@ -101,6 +116,11 @@ export default function VisitorsPage() {
       <main className="flex-1 overflow-y-auto px-6 pt-8 pb-20 relative">
         {isLoading || isUserLoading ? (
           <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+        ) : isTableMissing ? (
+          <div className="flex flex-col items-center justify-center py-24 text-center space-y-4 opacity-30">
+            <Eye className="w-12 h-12" />
+            <p className="text-[10px] font-black uppercase tracking-widest">Visitor log pending setup</p>
+          </div>
         ) : (
           <div className="space-y-4">
             {visitors.length > 0 ? (
@@ -125,7 +145,7 @@ export default function VisitorsPage() {
           </div>
         )}
 
-        {!isUnlocked && !isLoading && !isUserLoading && (
+        {!isUnlocked && !isLoading && !isUserLoading && !isTableMissing && (
           <div className="fixed inset-0 top-[88px] z-20 bg-white/40 backdrop-blur-md flex items-center justify-center p-8">
             <div className="bg-white rounded-[3rem] p-10 shadow-2xl border border-gray-100 text-center space-y-8 w-full max-w-sm">
               <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto border-4 border-white shadow-lg"><Lock className="w-8 h-8 text-primary" /></div>

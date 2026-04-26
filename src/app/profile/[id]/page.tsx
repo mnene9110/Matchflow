@@ -113,7 +113,8 @@ export default function ProfileDetailPage() {
             timestamp: new Date().toISOString()
           });
         } catch (e) {
-          console.error("Failed to log visitor:", e);
+          // Quietly fail if table doesn't exist yet
+          console.warn("Visitor tracking unavailable");
         }
       };
       logVisitor();
