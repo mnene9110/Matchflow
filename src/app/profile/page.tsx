@@ -16,7 +16,9 @@ import {
   Building2,
   Award,
   UserCog,
-  Eye
+  Eye,
+  Music,
+  LayoutDashboard
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
@@ -31,12 +33,6 @@ export default function ProfilePage() {
   const router = useRouter()
   const { user, profile, isLoading } = useSupabaseUser()
   const { toast } = useToast()
-  
-  const [visitorsCount, setVisitorsCount] = useState(0)
-
-  useEffect(() => {
-    // This part still uses Firebase/Local logic for visitors for now or can be migrated next
-  }, [user])
 
   const copyId = () => {
     if (profile?.numeric_id) {
@@ -47,7 +43,13 @@ export default function ProfilePage() {
 
   const userImage = (profile?.profile_photo_urls && profile?.profile_photo_urls[0]) || ""
   const isVerified = !!profile?.is_verified
-  const isFemale = profile?.gender?.toLowerCase() === 'female'
+  
+  // Role checks
+  const isAdmin = !!profile?.is_admin
+  const isCoinseller = !!profile?.is_coinseller
+  const isAgent = !!profile?.is_agent
+  const isSupport = !!profile?.is_support
+  const isHost = !!profile?.is_party_admin || isAdmin
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#3BC1A8]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
 
@@ -92,6 +94,30 @@ export default function ProfilePage() {
             <Button onClick={() => router.push('/profile/income')} className="w-full h-10 rounded-full bg-zinc-900 text-white font-black text-[9px] uppercase tracking-widest">Income</Button>
           </div>
         </div>
+
+        {/* Specialized Roles Section */}
+        {(isAdmin || isCoinseller || isAgent || isSupport || isHost) && (
+          <section className="space-y-4">
+            <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Official Tools</h2><div className="h-px flex-1 bg-gray-50 ml-4" /></div>
+            <div className="grid grid-cols-1 gap-2.5">
+              {isAdmin && (
+                <button onClick={() => router.push('/admin/roles')} className="w-full h-16 rounded-[1.5rem] bg-zinc-900 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center"><UserCog className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">System Roles</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
+              )}
+              {(isAdmin || isCoinseller) && (
+                <button onClick={() => router.push('/coinseller/award')} className="w-full h-16 rounded-[1.5rem] bg-amber-500 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Award className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Award Coins</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
+              )}
+              {(isHost) && (
+                <button onClick={() => router.push('/profile/host-center')} className="w-full h-16 rounded-[1.5rem] bg-[#3BC1A8] flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Music className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Host Console</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
+              )}
+              {(isAdmin || isAgent) && (
+                <button onClick={() => router.push('/profile/agent-center')} className="w-full h-16 rounded-[1.5rem] bg-purple-600 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Building2 className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Agent Anchor</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
+              )}
+              {(isAdmin || isSupport) && (
+                <button onClick={() => router.push('/support/reports')} className="w-full h-16 rounded-[1.5rem] bg-blue-600 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><ClipboardList className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Review Reports</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
+              )}
+            </div>
+          </section>
+        )}
 
         <section className="space-y-4">
           <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Account & Safety</h2><div className="h-px flex-1 bg-gray-50 ml-4" /></div>
