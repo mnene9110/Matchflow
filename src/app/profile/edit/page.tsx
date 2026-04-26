@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
@@ -115,6 +116,8 @@ export default function EditProfilePage() {
     try {
       const croppedImage = await getCroppedImg()
       if (croppedImage && activePhotoSlot !== null) {
+        // Construct path: profiles/USER_ID/photo_SLOT_TIMESTAMP.jpg
+        // This format matches the RLS policy requiring the UID in folder position [2]
         const path = `profiles/${currentUser.id}/photo_${activePhotoSlot}_${Date.now()}.jpg`;
         const url = await uploadToSupabase(croppedImage, path);
 
@@ -127,10 +130,16 @@ export default function EditProfilePage() {
           }
           return { ...prev, profile_photo_urls: newUrls }
         });
-        setImageToCrop(null); setActivePhotoSlot(null);
+        setImageToCrop(null); 
+        setActivePhotoSlot(null);
+        toast({ title: "Photo uploaded" });
       }
-    } catch (e) { 
-      toast({ variant: "destructive", title: "Upload Error", description: "Could not save photo to storage." }) 
+    } catch (e: any) { 
+      toast({ 
+        variant: "destructive", 
+        title: "Upload Error", 
+        description: e.message || "Could not save photo. Ensure RLS policies are set in Supabase." 
+      }) 
     } finally { 
       setIsCropping(false) 
     }

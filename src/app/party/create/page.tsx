@@ -28,7 +28,6 @@ export default function CreatePartyPage() {
   const [isCreating, setIsCreating] = useState(false)
   const [formData, setFormData] = useState({
     title: "",
-    tags: "",
     announcement: "",
     coverPhoto: "",
     maxSeats: "8"
@@ -97,13 +96,15 @@ export default function CreatePartyPage() {
       let finalCoverUrl = formData.coverPhoto;
       
       if (finalCoverUrl && finalCoverUrl.startsWith('data:')) {
+        // Path: parties/USER_ID/cover_TIMESTAMP.jpg
+        // This folder structure matches the RLS policy: index [2] is the auth.uid
         const path = `parties/${currentUser.id}/cover_${Date.now()}.jpg`;
         finalCoverUrl = await uploadToSupabase(finalCoverUrl, path);
       }
 
       const roomKey = `${formData.title.toLowerCase().replace(/[^a-z0-9]/g, '-')}_${Date.now()}`;
 
-      // In a real app, this should be an RPC for atomicity
+      // Deduct coins and create room
       const { error: deductionError } = await supabase
         .from('profiles')
         .update({ coin_balance: profile.coin_balance - ROOM_CREATION_COST })
@@ -118,7 +119,7 @@ export default function CreatePartyPage() {
           title: formData.title,
           announcement: formData.announcement,
           cover_photo: finalCoverUrl,
-          max_seats: Number(formData.max_seats),
+          max_seats: Number(formData.maxSeats),
           host_id: currentUser.id,
           host_name: profile.username || "User",
           host_photo: (profile.profile_photo_urls && profile.profile_photo_urls[0]) || "",
@@ -137,7 +138,8 @@ export default function CreatePartyPage() {
       toast({ title: "Party Live!", description: "Room created successfully." })
       router.push(`/party`)
     } catch (error: any) {
-      toast({ variant: "destructive", title: "Error", description: "Failed to create party." })
+      console.error("Party create error:", error);
+      toast({ variant: "destructive", title: "Error", description: error.message || "Failed to create party." })
     } finally {
       setIsCreating(false)
     }
@@ -193,7 +195,9 @@ export default function CreatePartyPage() {
 
       <Dialog open={!!imageToCrop} onOpenChange={(open) => !open && !isCropping && setImageToCrop(null)}>
         <DialogContent className="rounded-[2.5rem] bg-white border-none p-0 max-w-[95%] mx-auto shadow-2xl overflow-hidden">
-          <DialogHeader className="p-6"><DialogTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Crop Cover</DialogTitle></DialogHeader>
+          <DialogHeader className="p-6">
+            <DialogTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Crop Cover</DialogTitle>
+          </DialogHeader>
           <div className="relative w-full aspect-video bg-zinc-950">{imageToCrop && <Cropper image={imageToCrop} crop={crop} zoom={zoom} aspect={16/9} onCropChange={setCrop} onCropComplete={onCropComplete} onZoomChange={setZoom} />}</div>
           <div className="p-6 space-y-6">
             <input type="range" value={zoom} min={1} max={3} step={0.1} aria-labelledby="Zoom" onChange={(e) => setZoom(Number(e.target.value))} className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-primary" />

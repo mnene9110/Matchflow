@@ -23,23 +23,31 @@ function dataURLtoFile(dataurl: string, filename: string): File {
  * @param path The path in the bucket (e.g., 'profiles/user123/avatar.jpg').
  */
 export async function uploadToSupabase(base64: string, path: string): Promise<string> {
-  const file = dataURLtoFile(base64, 'upload.jpg');
-  
-  const { data, error } = await supabase.storage
-    .from('photos') // Make sure this bucket exists and is public
-    .upload(path, file, {
-      upsert: true,
-      contentType: file.type
-    });
+  try {
+    const file = dataURLtoFile(base64, 'upload.jpg');
+    
+    // Attempt the upload
+    const { data, error } = await supabase.storage
+      .from('photos')
+      .upload(path, file, {
+        upsert: true,
+        contentType: file.type
+      });
 
-  if (error) {
-    console.error('Supabase upload error:', error);
-    throw new Error('Failed to upload image to storage.');
+    if (error) {
+      console.error('Supabase Storage error details:', error);
+      throw error;
+    }
+
+    // Get the public URL
+    const { data: { publicUrl } } = supabase.storage
+      .from('photos')
+      .getPublicUrl(path);
+
+    return publicUrl;
+  } catch (err: any) {
+    console.error('Storage helper failed:', err);
+    // Rethrow with a cleaner message for the UI
+    throw new Error(err.message || 'Failed to upload image to storage.');
   }
-
-  const { data: { publicUrl } } = supabase.storage
-    .from('photos')
-    .getPublicUrl(path);
-
-  return publicUrl;
 }
