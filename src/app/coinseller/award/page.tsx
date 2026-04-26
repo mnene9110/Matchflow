@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -7,14 +6,13 @@ import { ChevronLeft, Search, Loader2, Coins, Award, UserCheck, ArrowRight } fro
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useUser, useDoc, useMemoFirebase, useFirebase } from "@/firebase"
-import { doc, query, collection, where, getDocs, increment, runTransaction } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
+import { useSupabaseUser } from "@/hooks/use-supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export default function AwardCoinsPage() {
   const router = useRouter()
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const [targetNumericId, setTargetNumericId] = useState("")
@@ -23,26 +21,27 @@ export default function AwardCoinsPage() {
   const [isAwarding, setIsAwarding] = useState(false)
   const [foundUser, setFoundUser] = useState<any>(null)
 
-  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: profile } = useDoc(meRef)
-
-  const isEligible = profile?.isCoinseller || profile?.isAdmin;
+  const isEligible = profile?.is_coinseller || profile?.is_admin;
 
   if (!isEligible && !isSearching) {
     return <div className="flex h-svh items-center justify-center bg-white text-zinc-400 font-black uppercase text-xs tracking-widest">Access Denied</div>
   }
 
   const handleSearch = async () => {
-    if (!targetNumericId.trim() || !firestore) return
+    if (!targetNumericId.trim()) return
     setIsSearching(true)
     setFoundUser(null)
     try {
-      const q = query(collection(firestore, "userProfiles"), where("numericId", "==", Number(targetNumericId)))
-      const snap = await getDocs(q)
-      if (snap.empty) {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('numeric_id', Number(targetNumericId))
+        .single();
+
+      if (error || !data) {
         toast({ variant: "destructive", title: "User not found" })
       } else {
-        setFoundUser({ ...snap.docs[0].data(), docId: snap.docs[0].id })
+        setFoundUser(data)
       }
     } catch (error) {
       toast({ variant: "destructive", title: "Search failed" })
@@ -53,39 +52,43 @@ export default function AwardCoinsPage() {
 
   const handleAward = async () => {
     const amount = Number(awardAmount)
-    if (!foundUser || !amount || amount <= 0 || isAwarding || !currentUser || !profile || !firestore) return
+    if (!foundUser || !amount || amount <= 0 || isAwarding || !profile) return
     setIsAwarding(true)
-    const now = new Date().toISOString()
+    
     try {
-      await runTransaction(firestore, async (transaction) => {
-        const targetRef = doc(firestore, "userProfiles", foundUser.docId);
-        if (profile.isCoinseller && !profile.isAdmin) {
-          const myProfileSnap = await transaction.get(meRef!);
-          const myBalance = myProfileSnap.data()?.coinBalance || 0;
-          if (myBalance < amount) throw new Error("INSUFFICIENT_COINS");
-          transaction.update(meRef!, { coinBalance: increment(-amount), updatedAt: now });
-          const myTxRef = doc(collection(meRef!, "transactions"));
-          transaction.set(myTxRef, {
-            id: myTxRef.id,
-            type: "deduction",
-            amount: -amount,
-            transactionDate: now,
-            description: `Awarded coins to ID: ${foundUser.numericId}`
-          });
+      // 1. Logic for Coinseller deduction
+      if (profile.is_coinseller && !profile.is_admin) {
+        if ((profile.coin_balance || 0) < amount) {
+          throw new Error("INSUFFICIENT_COINS");
         }
-        transaction.update(targetRef, { 
-          coinBalance: increment(amount),
-          updatedAt: now
+
+        // Deduct from seller
+        await supabase
+          .from('profiles')
+          .update({ coin_balance: profile.coin_balance - amount })
+          .eq('id', profile.id);
+        
+        await supabase.from('transactions').insert({
+          user_id: profile.id,
+          type: "award_deduction",
+          amount: -amount,
+          description: `Awarded coins to ID: ${foundUser.numeric_id}`
         });
-        const targetTxRef = doc(collection(targetRef, "transactions"));
-        transaction.set(targetTxRef, {
-          id: targetTxRef.id,
-          type: "award",
-          amount: amount,
-          transactionDate: now,
-          description: `Received coins from ${profile.isAdmin ? 'Admin' : 'Coinseller'}`
-        });
+      }
+
+      // 2. Award to target
+      await supabase
+        .from('profiles')
+        .update({ coin_balance: (foundUser.coin_balance || 0) + amount })
+        .eq('id', foundUser.id);
+
+      await supabase.from('transactions').insert({
+        user_id: foundUser.id,
+        type: "award_received",
+        amount: amount,
+        description: `Received coins from ${profile.is_admin ? 'Admin' : 'Official Seller'}`
       });
+
       toast({ title: "Award Successful", description: `${amount} coins granted.` })
       router.back()
     } catch (error: any) {
@@ -105,7 +108,7 @@ export default function AwardCoinsPage() {
       <main className="flex-1 px-6 pb-20 space-y-8 pt-6">
         <div className="bg-zinc-900 rounded-[2.5rem] p-6 text-white shadow-xl">
            <div className="flex items-center gap-3 mb-4"><Coins className="w-5 h-5 text-amber-500" /><span className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Balance</span></div>
-           <p className="text-3xl font-black font-headline">{profile?.isAdmin ? "UNLIMITED" : (profile?.coinBalance || 0).toLocaleString()}</p>
+           <p className="text-3xl font-black font-headline">{profile?.is_admin ? "UNLIMITED" : (profile?.coin_balance || 0).toLocaleString()}</p>
         </div>
         <section className="space-y-4">
           <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#3BC1A8] ml-1">Recipient Numeric ID</Label>
@@ -121,7 +124,7 @@ export default function AwardCoinsPage() {
           <section className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
             <div className="p-6 bg-gray-50 border border-gray-100 rounded-[2.5rem] shadow-sm flex items-center gap-4">
               <div className="w-16 h-16 rounded-2xl bg-[#3BC1A8]/10 flex items-center justify-center"><UserCheck className="w-8 h-8 text-[#3BC1A8]" /></div>
-              <div className="flex-1"><h3 className="font-black text-lg text-gray-900 leading-tight">{foundUser.username}</h3><p className="text-[10px] font-bold text-[#3BC1A8] uppercase tracking-widest">ID: {foundUser.numericId}</p></div>
+              <div className="flex-1"><h3 className="font-black text-lg text-gray-900 leading-tight">{foundUser.username}</h3><p className="text-[10px] font-bold text-[#3BC1A8] uppercase tracking-widest">ID: {foundUser.numeric_id}</p></div>
             </div>
             <div className="space-y-4">
               <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400 ml-1">Award Amount</Label>

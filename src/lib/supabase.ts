@@ -1,36 +1,41 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-// Hardcoded Supabase configuration as requested
 const supabaseUrl = 'https://rxugxvlezkfomsijhkqa.supabase.co';
 const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ4dWd4dmxlemtmb21zaWpoa3FhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzcxOTM5NTAsImV4cCI6MjA5Mjc2OTk1MH0.YqUgdHBGNMbo4Ir0uyROXj2j7QOBlFGQlNgB9Kni70g';
 
 /**
- * Standard Supabase client for Client-side usage.
- * Initialized with hardcoded keys provided in the app code.
+ * Standard Supabase client singleton.
+ * Using a module-level variable to prevent multiple initializations 
+ * which can cause the 'Lock broken by another request' error.
  */
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
-  auth: {
-    persistSession: true,
-    autoRefreshToken: true,
-    detectSessionInUrl: true
-  }
-});
+let supabaseInstance: SupabaseClient | null = null;
+
+export const supabase: SupabaseClient = (() => {
+  if (supabaseInstance) return supabaseInstance;
+  
+  supabaseInstance = createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: true,
+      autoRefreshToken: true,
+      detectSessionInUrl: true,
+      storageKey: 'mf-auth-token', // Custom key to avoid collisions
+    }
+  });
+  
+  return supabaseInstance;
+})();
 
 /**
  * Helper to fetch a profile
  */
 export async function getProfile(userId: string) {
-  if (!supabase) return null;
   const { data, error } = await supabase
     .from('profiles')
     .select('*')
     .eq('id', userId)
     .single();
   
-  if (error) {
-    console.error('Error fetching profile:', error);
-    return null;
-  }
+  if (error) return null;
   return data;
 }
 
@@ -38,9 +43,6 @@ export async function getProfile(userId: string) {
  * Helper to update profile using snake_case
  */
 export async function updateProfile(userId: string, updates: any) {
-  if (!supabase) return { data: null, error: new Error('Supabase not initialized') };
-  
-  // Ensure we use snake_case for common updates
   const { data, error } = await supabase
     .from('profiles')
     .update({ 
@@ -50,28 +52,4 @@ export async function updateProfile(userId: string, updates: any) {
     .eq('id', userId);
   
   return { data, error };
-}
-
-/**
- * Presence Helpers for Supabase Realtime
- */
-export async function trackUserPresence(userId: string, username: string) {
-  if (!supabase) return;
-  const channel = supabase.channel(`online-users`);
-  
-  channel
-    .on('presence', { event: 'sync' }, () => {
-      console.log('Online users sync');
-    })
-    .subscribe(async (status) => {
-      if (status === 'SUBSCRIBED') {
-        await channel.track({
-          user_id: userId,
-          username: username,
-          online_at: new Date().toISOString(),
-        });
-      }
-    });
-
-  return channel;
 }
