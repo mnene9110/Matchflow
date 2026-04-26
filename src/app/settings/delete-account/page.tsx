@@ -6,74 +6,53 @@ import { ChevronLeft, Trash2, Loader2, AlertTriangle, ShieldAlert } from "lucide
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth, useFirestore, useUser, deleteDocumentNonBlocking, useDoc, useMemoFirebase } from "@/firebase"
-import { doc, deleteDoc } from "firebase/firestore"
-import { deleteUser } from "firebase/auth"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { clearDiscoverCache } from "@/app/discover/page"
 
 export default function DeleteAccountPage() {
   const router = useRouter()
-  const auth = useAuth()
-  const firestore = useFirestore()
-  const { user } = useUser()
+  const { user, profile, isLoading } = useSupabaseUser()
   const { toast } = useToast()
-
-  const userRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, "userProfiles", user.uid);
-  }, [firestore, user])
-
-  const { data: userProfile, isLoading } = useDoc(userRef)
 
   const [confirmationText, setConfirmationText] = useState("")
   const [isDeleting, setIsDeleting] = useState(false)
 
   const handleDelete = async () => {
-    if (!user || confirmationText !== "DELETE" || userProfile?.isAdmin) return
+    if (!user || confirmationText !== "DELETE" || profile?.is_admin) return
 
     setIsDeleting(true)
     try {
-      // 1. Clear ECONOMICAL caches immediately
-      clearDiscoverCache();
+      // 1. Delete profile data
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .delete()
+        .eq('id', user.id);
 
-      // 2. Delete Firestore Profile Data
-      const firestoreDocRef = doc(firestore, "userProfiles", user.uid)
-      await deleteDoc(firestoreDocRef)
+      if (profileError) throw profileError;
 
-      // 3. Clear local storage
-      localStorage.removeItem('mf_guest_recovery')
-
-      // 4. Delete from Firebase Auth
-      await deleteUser(user)
+      // 2. Sign out
+      await supabase.auth.signOut();
 
       toast({
         title: "Account Deleted",
-        description: "Your data and coins have been permanently removed.",
+        description: "Your profile data has been removed.",
       })
       
       router.push("/welcome")
     } catch (error: any) {
       setIsDeleting(false)
-      if (error.code === 'auth/requires-recent-login') {
-        toast({
-          variant: "destructive",
-          title: "Session Expired",
-          description: "Please sign out and sign back in to delete your account for security reasons.",
-        })
-      } else {
-        toast({
-          variant: "destructive",
-          title: "Deletion Failed",
-          description: error.message || "Could not delete account. Please contact support.",
-        })
-      }
+      toast({
+        variant: "destructive",
+        title: "Deletion Failed",
+        description: error.message || "Could not delete account data. Please contact support.",
+      })
     }
   }
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
 
-  if (userProfile?.isAdmin) {
+  if (profile?.is_admin) {
     return (
       <div className="flex flex-col items-center justify-center h-svh p-8 text-center space-y-6 bg-white">
         <div className="w-24 h-24 bg-red-50 rounded-[3rem] flex items-center justify-center border-4 border-red-100">

@@ -1,31 +1,49 @@
 "use client"
 
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Loader2, Ban, UserCheck } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useCollection, useFirebase, useUser, useMemoFirebase, deleteDocumentNonBlocking } from "@/firebase"
-import { collection, doc } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 
 export default function BlockedListPage() {
   const router = useRouter()
-  const { user } = useUser()
-  const { firestore } = useFirebase()
+  const { user } = useSupabaseUser()
   const { toast } = useToast()
 
-  const blockedQuery = useMemoFirebase(() => {
-    if (!firestore || !user) return null
-    return collection(firestore, "userProfiles", user.uid, "blockedUsers")
-  }, [firestore, user])
+  const [blockedUsers, setBlockedUsers] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  const { data: blockedUsers, isLoading } = useCollection(blockedQuery)
+  useEffect(() => {
+    if (!user) return
 
-  const handleUnblock = async (blockedUserId: string, username: string) => {
+    const fetchBlocked = async () => {
+      const { data, error } = await supabase
+        .from('blocked_users')
+        .select('*')
+        .eq('user_id', user.id);
+      
+      if (!error) setBlockedUsers(data || []);
+      setIsLoading(false);
+    };
+
+    fetchBlocked();
+  }, [user])
+
+  const handleUnblock = async (blockId: string, username: string) => {
     if (!user) return
     try {
-      const blockRef = doc(firestore, "userProfiles", user.uid, "blockedUsers", blockedUserId)
-      deleteDocumentNonBlocking(blockRef)
+      const { error } = await supabase
+        .from('blocked_users')
+        .delete()
+        .eq('id', blockId);
+
+      if (error) throw error;
+
+      setBlockedUsers(prev => prev.filter(u => u.id !== blockId));
       toast({
         title: "User Unblocked",
         description: `${username} has been unblocked.`,
@@ -63,13 +81,13 @@ export default function BlockedListPage() {
                 className="bg-gray-50 border border-gray-100 p-4 rounded-[1.75rem] flex items-center gap-4 shadow-sm"
               >
                 <Avatar className="w-10 h-10 border border-white">
-                  <AvatarFallback className="bg-gray-100 text-gray-400">
+                  <AvatarFallback className="bg-gray-100 text-gray-400 font-black">
                     {item.username?.[0] || "?"}
                   </AvatarFallback>
                 </Avatar>
                 
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-sm font-black text-gray-900 truncate">
+                  <h3 className="text-sm font-black text-gray-900 truncate uppercase">
                     {item.username}
                   </h3>
                 </div>
@@ -78,7 +96,7 @@ export default function BlockedListPage() {
                   size="sm"
                   variant="ghost"
                   onClick={() => handleUnblock(item.id, item.username)}
-                  className="h-10 px-4 rounded-full bg-green-50 text-green-600 hover:bg-green-100 font-bold text-[10px] uppercase tracking-wider gap-2"
+                  className="h-10 px-4 rounded-full bg-green-50 text-green-600 hover:bg-green-100 font-black text-[9px] uppercase tracking-widest gap-2"
                 >
                   <UserCheck className="w-3.5 h-3.5" />
                   Unblock

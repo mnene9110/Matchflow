@@ -6,15 +6,13 @@ import { ChevronLeft, Mail, Lock, ShieldCheck, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { useAuth, useFirestore, useUser, linkAccountToEmail, updateDocumentNonBlocking } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export default function BindAccountPage() {
   const router = useRouter()
-  const auth = useAuth()
-  const firestore = useFirestore()
-  const { user } = useUser()
+  const { user } = useSupabaseUser()
   const { toast } = useToast()
 
   const [email, setEmail] = useState("")
@@ -23,39 +21,36 @@ export default function BindAccountPage() {
 
   const handleBind = async () => {
     if (!email || !password) {
-      toast({ variant: "destructive", title: "Missing fields", description: "Please fill in all fields." })
+      toast({ variant: "destructive", title: "Missing fields" })
       return
     }
 
     if (password.length < 6) {
-      toast({ variant: "destructive", title: "Weak password", description: "Password must be at least 6 characters." })
+      toast({ variant: "destructive", title: "Weak password", description: "Min. 6 characters." })
       return
     }
 
     setIsPending(true)
     try {
-      await linkAccountToEmail(auth, email, password)
-      
-      if (user) {
-        const userRef = doc(firestore, "userProfiles", user.uid)
-        updateDocumentNonBlocking(userRef, {
-          email,
-          authProviderId: "password",
-          updatedAt: new Date().toISOString()
-        })
-      }
+      // In Supabase, linking an anonymous account is done by updating user details
+      const { error } = await supabase.auth.updateUser({
+        email,
+        password
+      })
+
+      if (error) throw error
 
       toast({
         title: "Success!",
-        description: "Account secured. You can now login with this email.",
+        description: "Your account is now secured with email and password.",
       })
       router.push("/settings")
     } catch (error: any) {
       setIsPending(false)
       toast({
         variant: "destructive",
-        title: "Linking Failed",
-        description: error.message || "Could not bind account. The email might already be in use.",
+        title: "Update Failed",
+        description: error.message || "The email might already be in use.",
       })
     }
   }
@@ -63,14 +58,7 @@ export default function BindAccountPage() {
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900">
       <header className="px-4 py-6 flex items-center sticky top-0 bg-[#3BC1A8] z-10 shadow-lg text-white">
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          onClick={() => router.back()} 
-          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full hover:bg-white/30"
-        >
-          <ChevronLeft className="w-6 h-6" />
-        </Button>
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full"><ChevronLeft className="w-6 h-6" /></Button>
         <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Secure Account</h1>
       </header>
 
@@ -92,13 +80,7 @@ export default function BindAccountPage() {
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Email Address</Label>
             <div className="relative">
               <Mail className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
-              <Input 
-                type="email" 
-                placeholder="name@example.com" 
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="h-16 pl-14 rounded-2xl bg-gray-50 border-gray-100 text-gray-900 placeholder:text-gray-300 text-sm font-medium focus-visible:ring-primary/50" 
-              />
+              <Input type="email" placeholder="name@example.com" value={email} onChange={(e) => setEmail(e.target.value)} className="h-16 pl-14 rounded-2xl bg-gray-50 border-gray-100 text-gray-900 font-medium" />
             </div>
           </div>
 
@@ -106,23 +88,13 @@ export default function BindAccountPage() {
             <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-primary ml-1">Create Password</Label>
             <div className="relative">
               <Lock className="absolute left-5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-300" />
-              <Input 
-                type="password" 
-                placeholder="Min. 6 characters" 
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="h-16 pl-14 rounded-2xl bg-gray-50 border-gray-100 text-gray-900 placeholder:text-gray-300 text-sm font-medium focus-visible:ring-primary/50" 
-              />
+              <Input type="password" placeholder="Min. 6 characters" value={password} onChange={(e) => setPassword(e.target.value)} className="h-16 pl-14 rounded-2xl bg-gray-50 border-gray-100 text-gray-900 font-medium" />
             </div>
           </div>
         </div>
 
         <div className="pt-8">
-          <Button 
-            className="w-full h-16 rounded-full bg-primary text-white text-lg font-black shadow-2xl shadow-primary/20 active:scale-95 transition-all"
-            onClick={handleBind}
-            disabled={isPending}
-          >
+          <Button className="w-full h-16 rounded-full bg-primary text-white text-lg font-black shadow-2xl active:scale-95 transition-all" onClick={handleBind} disabled={isPending}>
             {isPending ? <Loader2 className="w-6 h-6 animate-spin" /> : "Secure My Account"}
           </Button>
           <p className="text-[10px] text-center text-gray-400 mt-6 font-black uppercase tracking-[0.1em]">

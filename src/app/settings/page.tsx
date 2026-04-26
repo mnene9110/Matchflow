@@ -1,13 +1,11 @@
 "use client"
 
-import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, MessageSquare, Ban, Info, BellOff } from "lucide-react"
+import { ChevronLeft, ChevronRight, ShieldCheck, CreditCard, Ban, Info } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { useAuth, useUser, useDoc, useFirestore, useMemoFirebase } from "@/firebase"
-import { signOut } from "firebase/auth"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
-import { doc } from "firebase/firestore"
-import { clearDiscoverCache } from "@/app/discover/page"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,38 +20,28 @@ import {
 
 export default function SettingsPage() {
   const router = useRouter()
-  const auth = useAuth()
-  const { user } = useUser()
-  const firestore = useFirestore()
+  const { user, profile } = useSupabaseUser()
   const { toast } = useToast()
-
-  const userRef = useMemoFirebase(() => {
-    if (!firestore || !user) return null;
-    return doc(firestore, "userProfiles", user.uid);
-  }, [firestore, user])
-
-  const { data: userProfile } = useDoc(userRef)
 
   const handleSignOut = async () => {
     try {
-      // 1. Clear cached data to prevent stale UI
-      clearDiscoverCache();
-      
-      // 2. Perform Firebase signOut
-      await signOut(auth)
-      
-      // 3. Force replace document location to strictly reset history and close any open connections
-      window.location.replace("/welcome");
+      await supabase.auth.signOut()
+      window.location.replace("/welcome")
     } catch (error) {
-      toast({ variant: "destructive", title: "Sign out failed", description: "Please try again." })
+      toast({ variant: "destructive", title: "Sign out failed" })
     }
   }
 
-  const isGuest = user?.email?.includes('@matchflow.app') || user?.isAnonymous
-  const isAdmin = userProfile?.isAdmin === true
+  const isGuest = user?.is_anonymous || user?.email?.includes('@matchflow.app')
+  const isAdmin = profile?.is_admin === true
 
   const settingsItems = [
-    { label: "Bind account", icon: ShieldCheck, badge: isGuest ? "Guest Mode" : "Verified", onClick: () => isGuest ? router.push("/settings/bind") : toast({ title: "Already verified", description: "Your account is linked." }) },
+    { 
+      label: "Secure account", 
+      icon: ShieldCheck, 
+      badge: isGuest ? "Guest Mode" : "Verified", 
+      onClick: () => isGuest ? router.push("/settings/bind") : toast({ title: "Already verified", description: "Your account is secured." }) 
+    },
     { label: "Charge settings", icon: CreditCard, onClick: () => router.push("/settings/charges") },
     { label: "Blocked List", icon: Ban, onClick: () => router.push("/settings/blocked") },
     { label: "About MatchFlow", icon: Info, onClick: () => router.push("/settings/about") },
@@ -62,17 +50,20 @@ export default function SettingsPage() {
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 overflow-y-auto">
       <header className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 flex items-center justify-between sticky top-0 bg-[#3BC1A8] z-50 shadow-lg text-white">
-        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-9 w-9 bg-white/20 backdrop-blur-md rounded-full shadow-sm hover:bg-white/30"><ChevronLeft className="w-5 h-5" /></Button>
+        <Button variant="ghost" size="icon" onClick={() => router.back()} className="text-white h-9 w-9 bg-white/20 backdrop-blur-md rounded-full shadow-sm"><ChevronLeft className="w-5 h-5" /></Button>
         <h1 className="text-lg font-black font-headline tracking-widest uppercase">Settings</h1>
         <div className="w-9" />
       </header>
 
       <main className="px-6 pt-6 pb-6 space-y-3">
         {settingsItems.map((item, idx) => (
-          <button key={idx} onClick={item.onClick || (() => {})} className="w-full flex items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-[1.5rem] transition-all hover:bg-gray-100 active:scale-[0.98] group shadow-sm">
+          <button key={idx} onClick={item.onClick} className="w-full flex items-center justify-between p-4 bg-gray-50 border border-gray-100 rounded-[1.5rem] transition-all hover:bg-gray-100 active:scale-[0.98] group shadow-sm">
             <div className="flex items-center gap-4">
               <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center border border-primary/5"><item.icon className="w-4 h-4 text-primary" /></div>
-              <div className="flex flex-col items-start"><span className="text-[12px] font-bold text-gray-900">{item.label}</span>{item.badge && <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full mt-0.5 ${isGuest ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>{item.badge}</span>}</div>
+              <div className="flex flex-col items-start">
+                <span className="text-[12px] font-bold text-gray-900">{item.label}</span>
+                {item.badge && <span className={`text-[7px] font-black uppercase px-1.5 py-0.5 rounded-full mt-0.5 ${isGuest ? 'bg-amber-500/10 text-amber-500 border border-amber-500/20' : 'bg-green-500/10 text-green-500 border border-green-500/20'}`}>{item.badge}</span>}
+              </div>
             </div>
             <ChevronRight className="w-3.5 h-3.5 text-gray-300 group-hover:text-primary transition-colors" />
           </button>
@@ -89,11 +80,11 @@ export default function SettingsPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle className="font-headline font-black text-xl text-gray-900 text-center">Sign Out?</AlertDialogTitle>
                 <AlertDialogDescription className="text-gray-400 font-medium text-xs leading-relaxed text-center">
-                  {isGuest ? "You are currently in Guest Mode. We recommend binding an email to never lose your coins." : "Are you sure you want to sign out?"}
+                  {isGuest ? "You are currently in Guest Mode. We recommend securing your account to never lose your coins." : "Are you sure you want to sign out?"}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter className="flex flex-col gap-2 mt-6">
-                <AlertDialogAction onClick={handleSignOut} className="rounded-full h-12 bg-red-500 hover:bg-red-600 text-white font-black text-sm w-full">Sign Out</AlertDialogAction>
+                <AlertDialogAction onClick={handleSignOut} className="rounded-full h-12 bg-red-500 hover:bg-red-600 text-white font-black text-sm w-full border-none">Sign Out</AlertDialogAction>
                 <AlertDialogCancel className="rounded-full h-12 border-none bg-gray-50 font-black text-sm text-gray-400 hover:bg-gray-100 w-full">Cancel</AlertDialogCancel>
               </AlertDialogFooter>
             </AlertDialogContent>
