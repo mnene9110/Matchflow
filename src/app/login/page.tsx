@@ -6,31 +6,28 @@ import { Mail, Lock, ChevronLeft, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, initiateEmailSignIn, initiateEmailSignUp } from "@/firebase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
+/**
+ * @fileOverview Login page using Supabase Auth.
+ */
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isPending, setIsPending] = useState(false)
   
   const router = useRouter()
-  const auth = useAuth()
-  const { user } = useUser()
   const { toast } = useToast()
 
   useEffect(() => {
-    if (user && !user.isAnonymous) {
-      const isNewUser = user.metadata.creationTime === user.metadata.lastSignInTime;
-      if (isNewUser) {
-        router.push("/onboarding/full")
-      } else {
-        router.push("/discover")
-      }
-    }
-  }, [user, router])
+    // Check if session exists on load
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.push("/discover")
+    })
+  }, [router])
 
-  const handleSignIn = () => {
+  const handleSignIn = async () => {
     if (!email || !password) {
       toast({
         variant: "destructive",
@@ -41,18 +38,24 @@ export default function LoginPage() {
     }
 
     setIsPending(true)
-    initiateEmailSignIn(auth, email, password)
-      .catch((error: any) => {
-        setIsPending(false)
-        toast({
-          variant: "destructive",
-          title: "Sign In Failed",
-          description: error.message || "Invalid email or password.",
-        })
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
+
+    if (error) {
+      setIsPending(false)
+      toast({
+        variant: "destructive",
+        title: "Sign In Failed",
+        description: error.message,
       })
+    } else {
+      router.push("/discover")
+    }
   }
 
-  const handleSignUp = () => {
+  const handleSignUp = async () => {
     if (!email || !password) {
       toast({
         variant: "destructive",
@@ -63,23 +66,31 @@ export default function LoginPage() {
     }
 
     setIsPending(true)
-    initiateEmailSignUp(auth, email, password)
-      .catch((error: any) => {
-        setIsPending(false)
-        if (error.code === 'auth/email-already-in-use') {
-          toast({
-            variant: "destructive",
-            title: "Account Exists",
-            description: "This email is already registered. Please sign in instead.",
-          })
-        } else {
-          toast({
-            variant: "destructive",
-            title: "Sign Up Failed",
-            description: error.message || "Could not create account.",
-          })
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          display_name: email.split('@')[0],
         }
+      }
+    })
+
+    if (error) {
+      setIsPending(false)
+      toast({
+        variant: "destructive",
+        title: "Sign Up Failed",
+        description: error.message,
       })
+    } else {
+      setIsPending(false)
+      toast({
+        title: "Check your email",
+        description: "We've sent a verification link if required.",
+      })
+      if (data.session) router.push("/onboarding/full")
+    }
   }
 
   return (
@@ -99,7 +110,7 @@ export default function LoginPage() {
         <div className="text-center space-y-2">
           <h1 className="text-5xl font-logo text-primary">MatchFlow</h1>
           <p className="text-gray-400 text-lg font-medium">
-            Sign in to find your perfect match
+            Sign in via Supabase Auth
           </p>
         </div>
 
@@ -158,20 +169,7 @@ export default function LoginPage() {
 
         <footer className="pt-4">
           <p className="text-[13px] text-gray-400 text-center leading-relaxed max-w-[280px]">
-            By signing in, you agree to our{" "}
-            <span 
-              className="underline cursor-pointer hover:text-primary transition-colors"
-              onClick={() => router.push('/settings/terms')}
-            >
-              Terms of Service
-            </span>{" "}
-            and{" "}
-            <span 
-              className="underline decoration-gray-200 cursor-pointer hover:text-primary transition-colors"
-              onClick={() => router.push('/settings/privacy')}
-            >
-              Privacy Policy
-            </span>.
+            Powered by Supabase Security
           </p>
         </footer>
       </main>

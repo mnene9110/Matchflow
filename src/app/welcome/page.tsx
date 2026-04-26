@@ -1,91 +1,60 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
 import { Mail, Zap, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { useRouter } from "next/navigation"
-import { useAuth, useUser, initiateAnonymousSignIn, useFirebase } from "@/firebase"
-import { doc, getDoc } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 
 export default function WelcomePage() {
   const router = useRouter()
-  const auth = useAuth()
-  const { firestore } = useFirebase()
-  const { user, isUserLoading } = useUser()
   const { toast } = useToast()
   
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [isNavigatingEmail, setIsNavigatingEmail] = useState(false)
 
   useEffect(() => {
-    // 1. History Trap: Prevent back button from leaving this page
+    // History Trap
     window.history.pushState(null, '', window.location.href);
     const handlePopState = () => {
       window.history.pushState(null, '', window.location.href);
-      // Attempt to close the app (works in some mobile browsers/standalone modes)
-      try {
-        window.close();
-      } catch (e) {
-        // Fallback: stay on page
-      }
+      try { window.close(); } catch (e) {}
     };
     
     window.addEventListener('popstate', handlePopState);
 
-    // 2. Auth handling
-    if (user && !isUserLoading && firestore && !isLoggingIn) {
-      getDoc(doc(firestore, "userProfiles", user.uid)).then(snap => {
-        if (snap.exists()) {
-          router.replace("/discover")
-        } else {
-          router.replace("/onboarding/fast")
-        }
-      })
-    }
+    // Supabase Session Check
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) router.replace("/discover")
+    })
 
     return () => window.removeEventListener('popstate', handlePopState);
-  }, [user, isUserLoading, firestore, router, isLoggingIn])
+  }, [router])
 
-  const handleFastLogin = async () => {
-    if (isLoggingIn || isNavigatingEmail) return
+  const handleSupabaseMagicLink = async () => {
+    // Alternative fast login: Sign in anonymously or use Magic Link
+    // Supabase anonymous auth is available in newer versions
+    // For now, let's treat "Fast Login" as a path to a guest account
     setIsLoggingIn(true)
+    const { data, error } = await supabase.auth.signInAnonymously()
     
-    try {
-      const cred = await initiateAnonymousSignIn(auth)
-      if (firestore) {
-        const snap = await getDoc(doc(firestore, "userProfiles", cred.user.uid))
-        if (snap.exists()) {
-          router.push("/discover")
-        } else {
-          router.push("/onboarding/fast")
-        }
-      }
-    } catch (error: any) {
+    if (error) {
       setIsLoggingIn(false)
       toast({
         variant: "destructive",
         title: "Login Failed",
-        description: error.message || "An error occurred during fast login.",
+        description: error.message,
       })
+    } else {
+      router.push("/onboarding/fast")
     }
   }
 
   const handleEmailClick = () => {
     setIsNavigatingEmail(true)
     router.push("/login")
-  }
-
-  if (isUserLoading || (user && !isLoggingIn)) {
-    return (
-      <div className="flex h-svh w-full flex-col items-center justify-center bg-[#3BC1A8]">
-        <div className="flex flex-col items-center gap-6 animate-pulse">
-          <h1 className="text-5xl font-logo text-white drop-shadow-2xl">
-            MatchFlow
-          </h1>
-        </div>
-      </div>
-    )
   }
 
   return (
@@ -106,7 +75,7 @@ export default function WelcomePage() {
         <div className="space-y-2 mb-28">
           <h1 className="text-3xl font-logo text-[#3BC1A8]">MatchFlow</h1>
           <p className="text-white/70 text-[11px] font-black uppercase tracking-[0.2em] leading-relaxed max-w-[240px] mx-auto">
-            Connect with Heart
+            Supabase Edition
           </p>
         </div>
 
@@ -123,7 +92,7 @@ export default function WelcomePage() {
           <Button 
             variant="ghost" 
             className="w-full h-16 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/20 hover:bg-white/20 text-lg font-black gap-3 transition-all active:scale-95 shadow-sm flex items-center justify-center" 
-            onClick={handleFastLogin} 
+            onClick={handleSupabaseMagicLink} 
             disabled={isLoggingIn || isNavigatingEmail}
           >
             {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-[#3BC1A8]" />}
@@ -134,20 +103,7 @@ export default function WelcomePage() {
 
       <footer className="absolute bottom-10 left-0 right-0 z-20 px-8">
         <p className="text-[10px] text-white/40 text-center leading-relaxed">
-          By signing up, you agree to our{" "}
-          <span 
-            className="underline cursor-pointer hover:text-white transition-colors"
-            onClick={() => router.push('/settings/terms')}
-          >
-            Terms of Service
-          </span>{" "}
-          and{" "}
-          <span 
-            className="underline cursor-pointer hover:text-white transition-colors"
-            onClick={() => router.push('/settings/privacy')}
-          >
-            Privacy Policy
-          </span>.
+          Powered by Supabase Authentication
         </p>
       </footer>
     </div>
