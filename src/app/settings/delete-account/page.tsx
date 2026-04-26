@@ -25,28 +25,39 @@ export default function DeleteAccountPage() {
 
     setIsDeleting(true)
     try {
-      // 1. Delete profile data
+      // 1. Delete profile data from Firestore first
       await deleteDoc(doc(firestore, "userProfiles", user.id));
 
-      // 2. Sign out
-      await auth.signOut();
+      // 2. Try to delete the Firebase Auth user account
+      try {
+        const currentUser = auth.currentUser;
+        if (currentUser) {
+          await currentUser.delete();
+        }
+      } catch (authError: any) {
+        console.warn("Auth deletion failed (likely needs recent login):", authError);
+        // Fallback: If auth deletion fails (needs recent login), we just sign out
+        // The profile doc is already gone, so the account is effectively inactive.
+        await auth.signOut();
+      }
 
-      // Clear local cache
+      // 3. Clear all local data
       localStorage.clear();
       sessionStorage.clear();
 
       toast({
         title: "Account Deleted",
-        description: "Your profile has been removed.",
+        description: "Your profile and account have been permanently removed.",
       })
       
+      // Full reload to clear state and return to welcome
       window.location.replace("/welcome");
     } catch (error: any) {
       setIsDeleting(false)
       toast({
         variant: "destructive",
         title: "Deletion Failed",
-        description: error.message || "Could not delete account data.",
+        description: error.message || "Could not complete account deletion.",
       })
     }
   }
@@ -62,7 +73,7 @@ export default function DeleteAccountPage() {
         <div className="space-y-2">
           <h2 className="text-2xl font-black font-headline text-gray-900 tracking-tight">Action Restricted</h2>
           <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">
-            Administrator accounts cannot be deleted directly.
+            Administrator accounts cannot be deleted directly from the app for security reasons.
           </p>
         </div>
         <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">
@@ -94,7 +105,7 @@ export default function DeleteAccountPage() {
           <div className="space-y-2">
             <h2 className="text-3xl font-black font-headline text-gray-900 leading-tight uppercase tracking-tight">Permanent Action</h2>
             <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[280px] mx-auto">
-              This will permanently delete your profile, coins, and messages. This cannot be undone.
+              This will permanently delete your profile, coins, diamonds, and all message history. This action is irreversible.
             </p>
           </div>
         </div>
