@@ -2,18 +2,8 @@
 
 import { useState, useEffect, useRef } from "react"
 import { Phone, PhoneOff, Loader2 } from "lucide-react"
-import { useFirebase, useUser } from "@/firebase"
-import { 
-  collection, 
-  doc, 
-  onSnapshot, 
-  deleteDoc, 
-  updateDoc, 
-  serverTimestamp, 
-  increment, 
-  runTransaction,
-  setDoc
-} from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
+import { useSupabaseUser } from "@/hooks/use-supabase"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { cn } from "@/lib/utils"
 import { getAgoraToken } from "@/app/actions/agora"
@@ -21,8 +11,7 @@ import { getAgoraToken } from "@/app/actions/agora"
 let AgoraRTC: any = null;
 
 export function GlobalCallOverlay() {
-  const { user: currentUser } = useUser()
-  const { firestore } = useFirebase()
+  const { user: currentUser } = useSupabaseUser()
   
   const [callData, setCallData] = useState<any>(null)
   const [callStatus, setCallStatus] = useState<'idle' | 'ringing' | 'incoming' | 'ongoing'>('idle')
@@ -70,53 +59,64 @@ export function GlobalCallOverlay() {
   }, []);
 
   useEffect(() => {
-    if (!firestore || !currentUser) return;
+    if (!currentUser) return;
 
-    const userRef = doc(firestore, "userProfiles", currentUser.uid);
-    const unsubscribeUser = onSnapshot(userRef, (snap) => {
-      const data = snap.data();
-      const chatId = data?.incomingCallId;
-      
-      if (!chatId) {
-        if (!joiningRef.current && statusRef.current !== 'idle') {
-          handleCleanup();
-        }
-        return;
-      }
-
-      if (chatId !== activeChatIdRef.current) {
-        activeChatIdRef.current = chatId;
-        const callDocRef = doc(firestore, "calls", chatId);
+    const channel = supabase
+      .channel('call_listener')
+      .on('postgres_changes', { 
+        event: '*', 
+        schema: 'public', 
+        table: 'profiles', 
+        filter: `id=eq.${currentUser.id}` 
+      }, (payload) => {
+        const chatId = payload.new.incoming_call_id;
         
-        onSnapshot(callDocRef, (detailsSnap) => {
-          const callData = detailsSnap.data();
-          if (!callData) {
-            if (!joiningRef.current && statusRef.current !== 'idle') {
-              handleCleanup();
-            }
-            return;
-          }
-
-          const now = Date.now();
-          const callAge = now - (callData.timestamp || 0);
-          if (callData.status === 'ringing' && callAge > 60000) {
-            updateDoc(userRef, { incomingCallId: null });
+        if (!chatId) {
+          if (!joiningRef.current && statusRef.current !== 'idle') {
             handleCleanup();
-            return;
           }
+          return;
+        }
 
-          setCallData(callData);
-          updateCallState(callData);
-        });
-      }
-    });
+        if (chatId !== activeChatIdRef.current) {
+          activeChatIdRef.current = chatId;
+          
+          // Listen to call details
+          supabase
+            .from('calls')
+            .select('*')
+            .eq('id', chatId)
+            .single()
+            .then(({ data }) => {
+              if (data) {
+                setCallData(data);
+                updateCallState(data);
+              }
+            });
 
-    return () => unsubscribeUser();
-  }, [firestore, currentUser]);
+          // Subscription for status changes
+          supabase.channel(`call_details:${chatId}`)
+            .on('postgres_changes', { event: '*', schema: 'public', table: 'calls', filter: `id=eq.${chatId}` }, (p) => {
+              if (p.new) {
+                setCallData(p.new);
+                updateCallState(p.new);
+              } else {
+                handleCleanup();
+              }
+            })
+            .subscribe();
+        }
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [currentUser]);
 
   const updateCallState = (data: any) => {
     if (!data || !currentUser) return;
-    const isCaller = data.callerId === currentUser.uid;
+    const isCaller = data.caller_id === currentUser.id;
 
     if (data.status === 'ringing') {
       if (ringtoneRef.current && ringtoneRef.current.paused) {
@@ -125,16 +125,16 @@ export function GlobalCallOverlay() {
       
       if (statusRef.current === 'idle') {
         setCallStatus(isCaller ? 'ringing' : 'incoming');
-        engageHardware(data.callType);
+        engageHardware(data.call_type);
         
-        getAgoraToken(activeChatIdRef.current!, currentUser.uid)
+        getAgoraToken(activeChatIdRef.current!, currentUser.id)
           .then(setAgoraTokenData)
           .catch(err => console.error("Token pre-fetch failed", err));
       }
 
       if (isCaller && !ringingTimerRef.current) {
         ringingTimerRef.current = setTimeout(() => {
-          handleTimeout();
+          handleEndCall();
         }, 40000);
       }
     } else if (data.status === 'accepted') {
@@ -151,8 +151,8 @@ export function GlobalCallOverlay() {
       if (statusRef.current !== 'ongoing' && !joiningRef.current) {
         setCallStatus('ongoing');
         setIsConnecting(true);
-        initiateAgoraConnection(activeChatIdRef.current!, data.callType);
-        updateDoc(doc(firestore, "userProfiles", currentUser.uid), { inCall: true });
+        initiateAgoraConnection(activeChatIdRef.current!, data.call_type);
+        supabase.from('profiles').update({ in_call: true }).eq('id', currentUser.id);
       }
     }
   };
@@ -181,34 +181,6 @@ export function GlobalCallOverlay() {
     }
   };
 
-  const deductCoins = async (amount: number) => {
-    if (!firestore || !currentUser || !activeChatIdRef.current) return;
-    
-    try {
-      await runTransaction(firestore, async (transaction) => {
-        const userRef = doc(firestore, "userProfiles", currentUser.uid);
-        const userSnap = await transaction.get(userRef);
-        const currentBalance = userSnap.data()?.coinBalance || 0;
-        
-        if (currentBalance < amount) throw new Error("INSUFFICIENT_COINS");
-        
-        transaction.update(userRef, { coinBalance: increment(-amount) });
-        
-        const logRef = doc(collection(userRef, "transactions"));
-        transaction.set(logRef, {
-          id: logRef.id,
-          type: "deduction",
-          amount: -amount,
-          transactionDate: new Date().toISOString(),
-          description: `Call charge (${callData?.callType})`
-        });
-      });
-    } catch (error) {
-      console.error("Billing failed:", error);
-      handleEndCall();
-    }
-  };
-
   const initiateAgoraConnection = async (channelName: string, type: 'video' | 'audio') => {
     if (!AgoraRTC || !currentUser || joiningRef.current) return;
     
@@ -216,7 +188,7 @@ export function GlobalCallOverlay() {
     try {
       let tokenData = agoraTokenData;
       if (!tokenData) {
-        tokenData = await getAgoraToken(channelName, currentUser.uid);
+        tokenData = await getAgoraToken(channelName, currentUser.id);
       }
       
       const client = AgoraRTC.createClient({ mode: "rtc", codec: "vp8" });
@@ -234,7 +206,7 @@ export function GlobalCallOverlay() {
 
       client.on("user-left", () => handleEndCall());
 
-      await client.join(tokenData!.appId, channelName, tokenData!.token, currentUser.uid);
+      await client.join(tokenData!.appId, channelName, tokenData!.token, currentUser.id);
       
       await engageHardware(type);
 
@@ -256,13 +228,6 @@ export function GlobalCallOverlay() {
     }
   };
 
-  const handleTimeout = () => {
-    if (activeChatIdRef.current) {
-      logCallInChat(activeChatIdRef.current, 0, "[Timeout]");
-      handleEndCall();
-    }
-  };
-
   const handleCleanup = async () => {
     if (ringingTimerRef.current) {
       clearTimeout(ringingTimerRef.current);
@@ -274,34 +239,20 @@ export function GlobalCallOverlay() {
     }
 
     if (localTracksRef.current.audioTrack) {
-      try {
-        localTracksRef.current.audioTrack.stop();
-        localTracksRef.current.audioTrack.close();
-      } catch (e) {}
+      try { localTracksRef.current.audioTrack.stop(); localTracksRef.current.audioTrack.close(); } catch (e) {}
     }
     if (localTracksRef.current.videoTrack) {
-      try {
-        localTracksRef.current.videoTrack.stop();
-        localTracksRef.current.videoTrack.close();
-      } catch (e) {}
+      try { localTracksRef.current.videoTrack.stop(); localTracksRef.current.videoTrack.close(); } catch (e) {}
     }
     localTracksRef.current = {};
 
     if (agoraClientRef.current) {
-      try {
-        await agoraClientRef.current.leave();
-      } catch (e) {}
+      try { await agoraClientRef.current.leave(); } catch (e) {}
       agoraClientRef.current = null;
     }
     
-    if (wasCallAcceptedRef.current && activeChatIdRef.current && !logRecordedRef.current) {
-      const mins = Math.floor(callDurationRef.current / 60);
-      const secs = callDurationRef.current % 60;
-      logCallInChat(activeChatIdRef.current, callDurationRef.current, `[${mins}:${secs.toString().padStart(2, '0')}]`);
-    }
-
-    if (currentUser && firestore) {
-      updateDoc(doc(firestore, "userProfiles", currentUser.uid), { inCall: false, incomingCallId: null });
+    if (currentUser) {
+      await supabase.from('profiles').update({ in_call: false, incoming_call_id: null }).eq('id', currentUser.id);
     }
 
     setCallStatus('idle');
@@ -313,60 +264,28 @@ export function GlobalCallOverlay() {
     wasCallAcceptedRef.current = false;
     setIsConnecting(false);
     joiningRef.current = false;
-    logRecordedRef.current = false;
   };
 
   const handleAcceptCall = async () => {
-    if (!firestore || !activeChatIdRef.current || !callData) return;
-    if (ringtoneRef.current) {
-      ringtoneRef.current.pause();
-      ringtoneRef.current.currentTime = 0;
-    }
-    await updateDoc(doc(firestore, "calls", activeChatIdRef.current), { status: 'accepted' });
+    if (!activeChatIdRef.current) return;
+    await supabase.from('calls').update({ status: 'accepted' }).eq('id', activeChatIdRef.current);
   }
 
   const handleEndCall = async () => {
-    if (!firestore || !activeChatIdRef.current || !currentUser) {
-      handleCleanup(); 
+    if (!activeChatIdRef.current) {
+      handleCleanup();
       return;
     }
 
     const cid = activeChatIdRef.current;
-    const currentCallStatus = statusRef.current;
+    const receiverId = callData?.receiver_id;
+    const callerId = callData?.caller_id;
 
-    if (!wasCallAcceptedRef.current) {
-      if (currentCallStatus === 'incoming') {
-        logCallInChat(cid, 0, "[Rejected]");
-      } else if (currentCallStatus === 'ringing') {
-        logCallInChat(cid, 0, "[Cancelled]");
-      }
-    }
-
-    const receiverId = callData?.receiverId;
-    const callerId = callData?.callerId;
-
-    await deleteDoc(doc(firestore, "calls", cid)).catch(() => {});
-    if (receiverId) await updateDoc(doc(firestore, "userProfiles", receiverId), { incomingCallId: null }).catch(() => {});
-    if (callerId) await updateDoc(doc(firestore, "userProfiles", callerId), { incomingCallId: null }).catch(() => {});
+    await supabase.from('calls').delete().eq('id', cid);
+    if (receiverId) await supabase.from('profiles').update({ incoming_call_id: null }).eq('id', receiverId);
+    if (callerId) await supabase.from('profiles').update({ incoming_call_id: null }).eq('id', callerId);
     handleCleanup();
   }
-
-  const logCallInChat = async (chatId: string, duration: number, label: string) => {
-    if (!firestore || !currentUser || logRecordedRef.current) return;
-    
-    logRecordedRef.current = true;
-    const otherId = callData?.receiverId === currentUser.uid ? callData?.callerId : callData?.receiverId;
-    if (!otherId) return;
-    
-    const chatRef = doc(firestore, "chats", chatId);
-    const msgRef = doc(collection(chatRef, "messages"));
-    
-    await setDoc(msgRef, { messageText: label, senderId: currentUser.uid, sentAt: serverTimestamp(), isCallLog: true });
-    await updateDoc(chatRef, {
-      lastMessage: label,
-      timestamp: serverTimestamp()
-    });
-  };
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -375,26 +294,17 @@ export function GlobalCallOverlay() {
         setCallDuration(prev => {
           const next = prev + 1;
           callDurationRef.current = next;
-          
-          const isCaller = callData?.callerId === currentUser?.uid;
-          if (isCaller && !callData?.isFree) {
-            const cost = callData?.costPerMin || 0;
-            if (next === 11 || (next > 11 && next % 60 === 0)) {
-              deductCoins(cost);
-            }
-          }
-          
           return next;
         });
       }, 1000);
     }
     return () => clearInterval(interval);
-  }, [callStatus, callData, currentUser]);
+  }, [callStatus]);
 
   if (callStatus === 'idle') return null;
 
-  const isCaller = callData?.callerId === currentUser?.uid;
-  const otherUserImage = `https://picsum.photos/seed/${isCaller ? callData?.receiverId : callData?.callerId}/400/600`
+  const isCaller = callData?.caller_id === currentUser?.id;
+  const otherUserImage = `https://picsum.photos/seed/${isCaller ? callData?.receiver_id : callData?.caller_id}/400/600`
 
   return (
     <div className="fixed inset-0 z-[1000] bg-zinc-950 flex flex-col overflow-hidden text-white font-body pointer-events-auto">
@@ -434,26 +344,9 @@ export function GlobalCallOverlay() {
             
             <div className="text-center space-y-2">
               <h2 className="text-4xl font-black font-headline tracking-tight text-white drop-shadow-lg">
-                {isConnecting ? 'Securing Link' : isCaller ? 'Ringing...' : (callData?.callerName || 'Incoming...')}
+                {isConnecting ? 'Securing Link' : isCaller ? 'Ringing...' : (callData?.caller_name || 'Incoming...')}
               </h2>
-              {isConnecting && (
-                <div className="flex items-center justify-center gap-2 mt-4">
-                  <Loader2 className="w-5 h-5 text-primary animate-spin" />
-                  <span className="text-[10px] font-black uppercase tracking-widest text-white/60">Finalizing Connection</span>
-                </div>
-              )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {callStatus === 'ongoing' && !isConnecting && (
-        <div className="absolute top-12 left-6 z-50">
-          <div className="px-4 py-2 bg-black/40 backdrop-blur-md rounded-full border border-white/10 flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-green-50 animate-pulse" />
-            <span className="text-[10px] font-black tracking-widest uppercase tabular-nums">
-              {Math.floor(callDuration / 60)}:{(callDuration % 60).toString().padStart(2, '0')}
-            </span>
           </div>
         </div>
       )}

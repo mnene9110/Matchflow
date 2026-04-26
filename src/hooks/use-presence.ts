@@ -1,42 +1,60 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useFirebase } from '@/firebase';
-import { ref, onValue } from 'firebase/database';
+import { supabase } from '@/lib/supabase';
 
 /**
  * Hook to get real-time presence information for a specific user.
- * Rapid updates are fetched from Realtime Database to save Firestore costs.
+ * Now using Supabase Realtime Postgres Changes.
  */
 export function usePresence(userId: string | null | undefined) {
-  const { database } = useFirebase();
-  const [presence, setPresence] = useState<{ isOnline: boolean; lastActiveAt: number | null }>({
+  const [presence, setPresence] = useState<{ isOnline: boolean; lastActiveAt: string | null }>({
     isOnline: false,
     lastActiveAt: null
   });
 
   useEffect(() => {
-    if (!database || !userId) {
+    if (!userId || !supabase) {
       setPresence({ isOnline: false, lastActiveAt: null });
       return;
     }
 
-    const presenceRef = ref(database, `/status/${userId}`);
-    
-    const unsubscribe = onValue(presenceRef, (snapshot) => {
-      const val = snapshot.val();
-      if (val) {
+    const fetchStatus = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('is_online, last_active_at')
+        .eq('id', userId)
+        .single();
+      
+      if (data) {
         setPresence({
-          isOnline: !!val.isOnline,
-          lastActiveAt: val.lastActiveAt || null
+          isOnline: !!data.is_online,
+          lastActiveAt: data.last_active_at
         });
-      } else {
-        setPresence({ isOnline: false, lastActiveAt: null });
       }
-    });
+    };
 
-    return () => unsubscribe();
-  }, [database, userId]);
+    fetchStatus();
 
-  return presence;
+    const channel = supabase
+      .channel(`user_presence:${userId}`)
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'profiles',
+        filter: `id=eq.${userId}`
+      }, (payload) => {
+        setPresence({
+          isOnline: !!payload.new.is_online,
+          lastActiveAt: payload.new.last_active_at
+        });
+      })
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [userId]);
+
+  return { isOnline: presence.isOnline, lastActiveAt: presence.lastActiveAt };
 }
