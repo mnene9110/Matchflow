@@ -21,8 +21,14 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
   const { auth } = useFirebase();
   const [isInitialized, setIsInitialized] = useState(false);
   const [user, setUser] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
 
-  // 1. Unified Auth Listener - Only runs once on mount
+  // 1. Initial Mount Check
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // 2. Unified Auth Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (u) => {
       setUser(u);
@@ -31,9 +37,9 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     return () => unsubscribe();
   }, [auth]);
 
-  // 2. Route Protection Logic
+  // 3. Route Protection Logic
   useEffect(() => {
-    if (!isInitialized) return;
+    if (!isInitialized || !mounted) return;
 
     const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
     const isPublicRoute = publicRoutes.includes(pathname);
@@ -42,10 +48,12 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
     if (!user && !isPublicRoute) {
       router.replace('/welcome');
     }
-  }, [user, isInitialized, pathname, router]);
+  }, [user, isInitialized, mounted, pathname, router]);
 
-  // 3. Splash screen ONLY on first boot
-  if (!isInitialized) {
+  // 4. Stable rendering to prevent hydration mismatch
+  // We render the splash if we aren't initialized OR if the client hasn't mounted yet
+  // This ensures the Server and the First Client Render are identical
+  if (!mounted || !isInitialized) {
     return (
       <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#3BC1A8] z-[9999]">
         <div className="flex flex-col items-center gap-6 animate-pulse">
