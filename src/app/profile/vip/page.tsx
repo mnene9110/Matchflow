@@ -4,8 +4,9 @@ import { useState, useMemo, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { ChevronLeft, Star, Check, Loader2, Trophy, Sparkles, Zap, Crown, Eye, ShieldCheck, Ghost, Search, MapPin, Clock, Music, Heart, MessageSquare, Target } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { useFirebase } from "@/firebase/provider"
+import { doc, updateDoc, serverTimestamp } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
 import { Progress } from "@/components/ui/progress"
 import { cn } from "@/lib/utils"
 
@@ -40,24 +41,26 @@ export function getVipLevelFromExp(exp: number) {
 
 export default function VIPCenterPage() {
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user: currentUser, profile, isLoading } = useSupabaseUser()
 
   const [selectedLevel, setSelectedLevel] = useState(1)
 
-  const currentExp = Number(profile?.vip_exp || 0)
-  const currentLevel = Number(profile?.vip_level || 0)
+  const currentExp = Number(profile?.vipExp || 0)
+  const currentLevel = Number(profile?.vipLevel || 0)
 
   useEffect(() => {
     if (profile && currentUser) {
       const calculatedLevel = getVipLevelFromExp(currentExp)
       if (calculatedLevel !== currentLevel) {
-        supabase.from('profiles').update({
-          vip_level: calculatedLevel,
-          updated_at: new Date().toISOString()
-        }).eq('id', currentUser.id)
+        const profileRef = doc(firestore, "userProfiles", currentUser.uid);
+        updateDoc(profileRef, {
+          vipLevel: calculatedLevel,
+          updatedAt: serverTimestamp()
+        });
       }
     }
-  }, [currentExp, currentLevel, !!profile, !!currentUser])
+  }, [currentExp, currentLevel, !!profile, !!currentUser, firestore]);
 
   useEffect(() => {
     if (currentLevel > 0) setSelectedLevel(currentLevel)

@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, MessageCircle, Users, Loader2, Copy } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { collection, query, where, getDocs } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { useToast } from "@/hooks/use-toast"
 import { COUNTRY_CURRENCIES, STANDARD_PACKAGES } from "../page"
@@ -13,6 +14,7 @@ import { COUNTRY_CURRENCIES, STANDARD_PACKAGES } from "../page"
 function CoinsellersContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { firestore } = useFirebase()
   const { profile } = useSupabaseUser()
   const { toast } = useToast()
 
@@ -25,17 +27,19 @@ function CoinsellersContent() {
   useEffect(() => {
     const fetchSellers = async () => {
       setIsLoading(true);
-      const { data } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('is_coinseller', true);
-      
-      setCoinsellers(data || []);
-      setIsLoading(false);
+      try {
+        const q = query(collection(firestore, "userProfiles"), where("isCoinseller", "==", true));
+        const snap = await getDocs(q);
+        setCoinsellers(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (e) {
+        console.error("Fetch sellers error:", e);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchSellers();
-  }, []);
+  }, [firestore]);
 
   const handleChatWithSeller = (sellerId: string) => {
     const pkg = STANDARD_PACKAGES.find(p => p.amount === selectedAmount);
@@ -87,16 +91,16 @@ function CoinsellersContent() {
               >
                 <div className="flex items-center gap-4">
                   <Avatar className="w-12 h-12 border border-white shadow-sm">
-                    <AvatarImage src={seller.profile_photo_urls?.[0]} className="object-cover" />
+                    <AvatarImage src={seller.profilePhotoUrls?.[0]} className="object-cover" />
                     <AvatarFallback className="bg-primary text-white text-xs font-black">{seller.username?.[0]}</AvatarFallback>
                   </Avatar>
                   <div className="flex flex-col">
                     <span className="text-sm font-black text-gray-900 leading-tight">{seller.username}</span>
                     <button 
-                      onClick={() => copyId(seller.numeric_id?.toString() || "")}
+                      onClick={() => copyId(seller.numericId?.toString() || "")}
                       className="flex items-center gap-1 mt-0.5 text-[9px] font-bold text-green-500 uppercase tracking-widest active:scale-95 transition-transform"
                     >
-                      ID: {seller.numeric_id || "---"}
+                      ID: {seller.numericId || "---"}
                       <Copy className="w-2.5 h-2.5 opacity-50" />
                     </button>
                   </div>

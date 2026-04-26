@@ -4,13 +4,15 @@ import { useEffect, useRef, use, Suspense } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2 } from "lucide-react"
 import { useSupabaseUser } from "@/hooks/use-supabase"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { doc, updateDoc, increment, addDoc, collection, serverTimestamp } from "firebase/firestore"
 import { verifyPaystackTransaction } from "@/app/actions/paystack"
 import { useToast } from "@/hooks/use-toast"
 
 function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> }) {
   const params = use(searchParams)
   const router = useRouter()
+  const { firestore } = useFirebase()
   const { user: currentUser, profile } = useSupabaseUser()
   const { toast } = useToast()
   const processedRef = useRef(false)
@@ -27,21 +29,17 @@ function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> 
           const metadata = result.data.metadata;
           const coinsToGain = metadata?.packageAmount || Math.round(result.data.amount / 100);
           
-          const { error: profileError } = await supabase
-            .from('profiles')
-            .update({
-              coin_balance: profile.coin_balance + coinsToGain,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', currentUser.id);
+          const profileRef = doc(firestore, "userProfiles", currentUser.uid);
+          await updateDoc(profileRef, {
+            coinBalance: increment(coinsToGain),
+            updatedAt: serverTimestamp()
+          });
 
-          if (profileError) throw profileError;
-
-          await supabase.from('transactions').insert({
-            user_id: currentUser.id,
+          await addDoc(collection(firestore, `userProfiles/${currentUser.uid}/transactions`), {
             type: "recharge",
             amount: coinsToGain,
-            description: `Paystack Recharge`
+            description: `Paystack Recharge`,
+            transactionDate: new Date().toISOString()
           });
 
           toast({ title: "Recharge Success!", description: "Coins updated." });
@@ -50,11 +48,12 @@ function PaystackCallbackContent({ searchParams }: { searchParams: Promise<any> 
           router.replace("/recharge?status=error");
         }
       } catch (error) {
+        console.error("Paystack callback error:", error);
         router.replace("/recharge?status=error");
       }
     };
     handleVerification();
-  }, [reference, currentUser, profile, router, toast]);
+  }, [reference, currentUser, profile, firestore, router, toast]);
 
   return (
     <div className="min-h-svh bg-slate-50 flex flex-col items-center justify-center p-8 text-center">

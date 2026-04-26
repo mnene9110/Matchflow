@@ -8,12 +8,14 @@ import {
   Gift as GiftIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { doc, getDoc, collection, query, where, getDocs, orderBy, limit } from "firebase/firestore"
 import { GIFTS } from "@/app/chat/[id]/page"
 
 export default function UserGiftsPage() {
   const { id } = useParams()
   const router = useRouter()
+  const { firestore } = useFirebase()
   
   const [userProfile, setUserProfile] = useState<any>(null)
   const [giftTransactions, setGiftTransactions] = useState<any[]>([])
@@ -24,36 +26,39 @@ export default function UserGiftsPage() {
     
     const fetchData = async () => {
       setIsLoading(true);
-      
-      // Fetch Profile
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('username')
-        .eq('id', id)
-        .single();
-      
-      setUserProfile(profile);
+      try {
+        // Fetch Profile
+        const docRef = doc(firestore, "userProfiles", id as string);
+        const snap = await getDoc(docRef);
+        if (snap.exists()) {
+          setUserProfile(snap.data());
+        }
 
-      // Fetch Gifts
-      const { data: gifts } = await supabase
-        .from('transactions')
-        .select('*')
-        .eq('user_id', id)
-        .eq('type', 'gift_received');
-      
-      setGiftTransactions(gifts || []);
-      setIsLoading(false);
+        // Fetch Gifts
+        const q = query(
+          collection(firestore, `userProfiles/${id}/transactions`),
+          where("type", "==", "gift_received"),
+          orderBy("transactionDate", "desc"),
+          limit(100)
+        );
+        const qSnap = await getDocs(q);
+        setGiftTransactions(qSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+      } catch (error) {
+        console.error("Gift Wall fetch error:", error);
+      } finally {
+        setIsLoading(false);
+      }
     };
 
     fetchData();
-  }, [id]);
+  }, [id, firestore]);
 
   const groupedGifts = useMemo(() => {
     if (!giftTransactions) return []
     const map = new Map<string, { giftId: string; count: number }>()
     
     giftTransactions.forEach((tx: any) => {
-      const gId = tx.gift_id || tx.giftId;
+      const gId = tx.giftId;
       if (!gId) return
       const existing = map.get(gId) || { giftId: gId, count: 0 }
       map.set(gId, { giftId: gId, count: existing.count + 1 })
@@ -87,11 +92,7 @@ export default function UserGiftsPage() {
               <div key={gift.giftId} className="flex flex-col items-center space-y-2 animate-in zoom-in duration-300">
                 <div className="relative aspect-square w-full bg-gray-50 border border-gray-100 rounded-[2rem] flex items-center justify-center shadow-sm overflow-hidden group">
                   <div className="absolute inset-0 bg-gradient-to-br from-white to-transparent opacity-50" />
-                  {gift.info?.image ? (
-                    <img src={gift.info.image} alt={gift.info.name} className="w-12 h-12 object-contain drop-shadow-sm group-hover:scale-110 transition-transform" />
-                  ) : (
-                    <span className="text-4xl group-hover:scale-110 transition-transform">{gift.info?.emoji || '🎁'}</span>
-                  )}
+                  <span className="text-4xl group-hover:scale-110 transition-transform">{gift.info?.emoji || '🎁'}</span>
                   <div className="absolute bottom-2 right-3">
                     <span className="text-lg font-black text-primary italic drop-shadow-sm">x{gift.count}</span>
                   </div>
