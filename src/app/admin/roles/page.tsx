@@ -61,12 +61,13 @@ export default function ManageRolesPage() {
   const handleUpdateRole = async () => {
     if (!foundUser || !selectedRole || isUpdating) return
 
+    // CRITICAL: Only females can be Agency Heads
     if (selectedRole === "agent") {
-      if (foundUser.gender?.toLowerCase() !== "female" || foundUser.location !== "Kenya") {
+      if (foundUser.gender?.toLowerCase() !== "female") {
         toast({ 
           variant: "destructive", 
           title: "Appointment Failed", 
-          description: "Only female users in Kenya can be Agency heads." 
+          description: "Only female users can be appointed as Agency Heads." 
         })
         return
       }
@@ -74,7 +75,6 @@ export default function ManageRolesPage() {
 
     setIsUpdating(true)
     try {
-      const isAdmin = false; // Admin remains restricted to manual setup
       const isSupport = selectedRole === "support"
       const isCoinseller = selectedRole === "coinseller"
       const isAgent = selectedRole === "agent"
@@ -124,11 +124,6 @@ export default function ManageRolesPage() {
               <div className="flex-1 min-w-0">
                 <h3 className="font-black text-lg text-gray-900 truncate leading-tight">{foundUser.username}</h3>
                 <p className="text-[10px] font-bold text-green-500 uppercase tracking-widest">ID: {foundUser.numericId} • {foundUser.gender} • {foundUser.location}</p>
-                <div className="flex gap-2 mt-2 flex-wrap">
-                   {foundUser.isSupport && <span className="text-[8px] font-black bg-blue-500/10 text-blue-500 border border-blue-500/20 px-2 py-0.5 rounded-full uppercase">Support</span>}
-                   {foundUser.isCoinseller && <span className="text-[8px] font-black bg-amber-500/10 text-amber-500 border border-amber-500/20 px-2 py-0.5 rounded-full uppercase">Coinseller</span>}
-                   {foundUser.isAgent && <span className="text-[8px] font-black bg-purple-500/10 text-purple-500 border border-purple-500/20 px-2 py-0.5 rounded-full uppercase">Agency Head</span>}
-                </div>
               </div>
             </div>
 
