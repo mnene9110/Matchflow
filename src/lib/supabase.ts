@@ -48,3 +48,27 @@ export async function updateProfile(userId: string, updates: any) {
   
   return { data, error };
 }
+
+/**
+ * Presence Helpers for Supabase Realtime
+ */
+export async function trackUserPresence(userId: string, username: string) {
+  if (!supabase) return;
+  const channel = supabase.channel(`online-users`);
+  
+  channel
+    .on('presence', { event: 'sync' }, () => {
+      console.log('Online users sync');
+    })
+    .subscribe(async (status) => {
+      if (status === 'SUBSCRIBED') {
+        await channel.track({
+          user_id: userId,
+          username: username,
+          online_at: new Date().toISOString(),
+        });
+      }
+    });
+
+  return channel;
+}

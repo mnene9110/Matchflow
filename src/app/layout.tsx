@@ -4,10 +4,8 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
-import { FirebaseClientProvider } from "@/firebase"
 import { OfflineDetector } from "@/components/OfflineDetector"
 import { Navbar } from "@/components/Navbar"
-import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 import { InstallPWA } from "@/components/InstallPWA"
 import { NotificationRequest } from "@/components/NotificationRequest"
 import { supabase } from '@/lib/supabase';
@@ -18,7 +16,6 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
-    // If Supabase isn't initialized yet (due to missing keys), let the provider show the error
     if (!supabase) return;
 
     const checkAuth = async () => {
@@ -56,12 +53,6 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   useEffect(() => {
-    window.onbeforeunload = null;
-    const preventConfirm = (e: BeforeUnloadEvent) => {
-      delete e['returnValue'];
-    };
-    window.addEventListener('beforeunload', preventConfirm);
-
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
         navigator.serviceWorker.register('/sw.js', { scope: '/' })
@@ -73,8 +64,6 @@ export default function RootLayout({
           });
       });
     }
-    
-    return () => window.removeEventListener('beforeunload', preventConfirm);
   }, []);
 
   return (
@@ -91,19 +80,16 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
       </head>
       <body className="font-body antialiased selection:bg-none">
-        <FirebaseClientProvider>
-          <NavigationGuard>
-            <OfflineDetector>
-              <div className="app-container">
-                {children}
-                <Navbar />
-                <GlobalCallOverlay />
-                <InstallPWA />
-                <NotificationRequest />
-              </div>
-            </OfflineDetector>
-          </NavigationGuard>
-        </FirebaseClientProvider>
+        <NavigationGuard>
+          <OfflineDetector>
+            <div className="app-container">
+              {children}
+              <Navbar />
+              <InstallPWA />
+              <NotificationRequest />
+            </div>
+          </OfflineDetector>
+        </NavigationGuard>
         <Toaster />
       </body>
     </html>

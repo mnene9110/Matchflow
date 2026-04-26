@@ -5,8 +5,8 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { ChevronLeft, Check, History, Loader2, Users, Globe } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { useFirebase, useDoc, useUser, useMemoFirebase } from "@/firebase"
-import { doc } from "firebase/firestore"
+import { useSupabaseUser } from "@/hooks/use-supabase"
+import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
 import { initializePesaPalTransaction } from "@/app/actions/pesapal"
@@ -45,16 +45,12 @@ export const COUNTRY_CURRENCIES: Record<string, { code: string; symbol: string; 
 function RechargeContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user } = useUser()
-  const { firestore } = useFirebase()
+  const { user, profile } = useSupabaseUser()
   const { toast } = useToast()
   
   const [selectedPackage, setSelectedPackage] = useState<any | null>(null)
   const [isProcessing, setIsProcessing] = useState(false)
   const [selectedRegion, setSelectedRegion] = useState<string>("Kenya")
-
-  const meRef = useMemoFirebase(() => user ? doc(firestore, "userProfiles", user.uid) : null, [firestore, user])
-  const { data: profile } = useDoc(meRef)
 
   useEffect(() => {
     if (profile?.location && COUNTRY_CURRENCIES[profile.location]) {
@@ -71,32 +67,17 @@ function RechargeContent() {
   useEffect(() => {
     const resetLoading = () => setIsProcessing(false);
     window.addEventListener("focus", resetLoading);
-    document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") resetLoading();
-    });
-    return () => {
-      window.removeEventListener("focus", resetLoading);
-      document.removeEventListener("visibilitychange", resetLoading);
-    };
-  }, []);
-
-  useEffect(() => {
-    const status = searchParams?.get('status')
-    if (status === 'success') {
-      toast({ title: "Payment Successful", description: "Your balance has been updated." });
-    } else if (status === 'error') {
-      toast({ variant: "destructive", title: "Payment Failed", description: "Transaction was not completed." });
-    }
-    if (status) setIsProcessing(false);
-  }, [searchParams, toast])
+    if (searchParams?.get('status')) setIsProcessing(false);
+    return () => window.removeEventListener("focus", resetLoading);
+  }, [searchParams]);
 
   const handlePay = async () => {
     if (!selectedPackage || !user || isProcessing) return;
     setIsProcessing(true);
     try {
-      const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
+      const email = user.email || `guest_${user.id.slice(0, 8)}@matchflow.app`
       const result = await initializePesaPalTransaction(email, selectedPackage.priceKes, {
-        userId: user.uid,
+        userId: user.id,
         packageAmount: selectedPackage.amount
       })
       if (result.error) {
@@ -131,7 +112,7 @@ function RechargeContent() {
           <div className="flex items-center gap-4 bg-white p-5 rounded-[2rem] border border-gray-100 shadow-[0_15px_45px_rgba(0,0,0,0.06)]">
             <div className="bg-primary/10 w-12 h-12 rounded-2xl flex items-center justify-center"><span className="text-primary font-black text-xl italic">S</span></div>
             <div className="flex flex-col">
-              <span className="text-3xl font-black font-headline tracking-tighter text-gray-900">{(profile?.coinBalance || 0).toLocaleString()}</span>
+              <span className="text-3xl font-black font-headline tracking-tighter text-gray-900">{(profile?.coin_balance || 0).toLocaleString()}</span>
               <span className="text-[8px] font-bold text-gray-400 uppercase tracking-widest">Available Coins</span>
             </div>
           </div>
@@ -175,22 +156,6 @@ function RechargeContent() {
             })}
           </div>
         </section>
-
-        {isKenyan && (
-          <section className="mt-8 space-y-4 pb-10">
-            <div className="flex items-center gap-2 px-2">
-              <Users className="w-3.5 h-3.5 text-primary/40" />
-              <h3 className="text-[9px] font-black text-gray-400 uppercase tracking-[0.2em]">P2P Coinsellers</h3>
-            </div>
-            <button 
-              onClick={() => router.push(`/recharge/coinsellers?amount=${selectedPackage?.amount || ''}`)} 
-              className="w-full h-14 rounded-[1.5rem] bg-gray-50 border border-gray-100 flex items-center justify-center gap-3 text-gray-900 active:scale-95 transition-all shadow-sm"
-            >
-              <Users className="w-4 h-4 text-primary opacity-60" />
-              <span className="text-[10px] font-black uppercase tracking-widest">Contact Official Sellers</span>
-            </button>
-          </section>
-        )}
       </main>
 
       <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 bg-white border-t border-gray-50 z-50">

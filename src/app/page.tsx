@@ -2,47 +2,50 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { useUser, useFirebase } from "@/firebase"
-import { doc, getDoc } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
 
 /**
  * @fileOverview This is the code responsible for the Splash Screen.
- * It displays the MatchFlow logo and name using the brand color (#3BC1A8)
- * and the Pacifico font while checking auth state and profile existence.
+ * Now fully migrated to use Supabase for profile checking.
  */
 export default function Home() {
-  const { user, isUserLoading } = useUser()
-  const { firestore } = useFirebase()
   const router = useRouter()
 
   useEffect(() => {
-    if (!isUserLoading && firestore) {
-      const checkProfileAndRedirect = async () => {
-        if (user) {
-          try {
-            const profileSnap = await getDoc(doc(firestore, "userProfiles", user.uid))
-            if (profileSnap.exists()) {
-              router.replace("/discover")
-            } else {
-              // Auth exists but profile doesn't - send to onboarding
-              router.replace("/onboarding/fast")
-            }
-          } catch (e) {
-            console.error("Splash redirect check failed:", e)
-            router.replace("/welcome")
+    if (!supabase) return;
+
+    const checkProfileAndRedirect = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+
+      if (session?.user) {
+        try {
+          const { data: profile, error } = await supabase
+            .from("profiles")
+            .select("id")
+            .eq("id", session.user.id)
+            .single();
+
+          if (profile && !error) {
+            router.replace("/discover")
+          } else {
+            // Auth exists but profile doesn't - send to onboarding
+            router.replace("/onboarding/fast")
           }
-        } else {
+        } catch (e) {
+          console.error("Splash redirect check failed:", e)
           router.replace("/welcome")
         }
+      } else {
+        router.replace("/welcome")
       }
-
-      const timer = setTimeout(() => {
-        checkProfileAndRedirect()
-      }, 1500)
-      
-      return () => clearTimeout(timer)
     }
-  }, [user, isUserLoading, firestore, router])
+
+    const timer = setTimeout(() => {
+      checkProfileAndRedirect()
+    }, 1500)
+    
+    return () => clearTimeout(timer)
+  }, [router])
 
   return (
     <div className="flex h-svh w-full flex-col items-center justify-center bg-[#3BC1A8] z-[9999] overflow-hidden">
