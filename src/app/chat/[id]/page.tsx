@@ -258,7 +258,7 @@ function ChatDetailContent() {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
 
-  const otherUserName = otherUser?.username || "User";
+  const otherUserName = otherUser?.isSupport ? "Customer Support" : (otherUser?.username || "User");
   const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || "";
 
   return (

@@ -22,7 +22,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 import { useFirebase } from "@/firebase/provider"
-import { doc, collection, onSnapshot, query, where } from "firebase/firestore"
+import { doc, collection, onSnapshot, query, where, getDocs, limit } from "firebase/firestore"
 import { useDoc } from "@/firebase/firestore/use-doc"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { useAuth } from "@/firebase/auth/use-auth"
@@ -36,6 +36,7 @@ export default function ProfilePage() {
   const { toast } = useToast()
 
   const [newVisitorsCount, setNewVisitorsCount] = useState(0)
+  const [isFindingSupport, setIsFindingSupport] = useState(false)
 
   const profileRef = useMemoFirebase(() => {
     if (!user) return null;
@@ -66,6 +67,24 @@ export default function ProfilePage() {
     }
   }
 
+  const handleCustomerSupport = async () => {
+    if (isFindingSupport) return
+    setIsFindingSupport(true)
+    try {
+      const q = query(collection(firestore, "userProfiles"), where("isSupport", "==", true), limit(1));
+      const snap = await getDocs(q);
+      if (snap.empty) {
+        toast({ variant: "destructive", title: "Support Unavailable", description: "Our team is currently offline." });
+      } else {
+        router.push(`/chat/${snap.docs[0].id}`);
+      }
+    } catch (e) {
+      toast({ variant: "destructive", title: "Error", description: "Failed to connect to support." });
+    } finally {
+      setIsFindingSupport(false)
+    }
+  }
+
   const userImage = (profile?.profilePhotoUrls && profile?.profilePhotoUrls[0]) || ""
   const isVerified = !!profile?.isVerified
   
@@ -73,6 +92,7 @@ export default function ProfilePage() {
   const isCoinseller = !!profile?.isCoinseller
   const isAgent = !!profile?.isAgent
   const isSupport = !!profile?.isSupport
+  const isFemale = profile?.gender?.toLowerCase() === "female"
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#3BC1A8]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
 
@@ -123,7 +143,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {(isAdmin || isCoinseller || isAgent || isSupport) && (
+        {(isAdmin || isCoinseller || isAgent || isSupport || isFemale) && (
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Official Tools</h2></div>
             <div className="grid grid-cols-1 gap-2.5">
@@ -132,6 +152,9 @@ export default function ProfilePage() {
               )}
               {(isAdmin || isCoinseller) && (
                 <button onClick={() => router.push('/coinseller/award')} className="w-full h-16 rounded-[1.5rem] bg-amber-500 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Award className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Award Coins</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
+              )}
+              {isFemale && (
+                <button onClick={() => router.push('/profile/agency')} className="w-full h-16 rounded-[1.5rem] bg-[#3BC1A8] flex items-center px-5 gap-4 shadow-lg"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Building2 className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Agency Center</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
               )}
               {(isAdmin || isAgent) && (
                 <button onClick={() => router.push('/profile/agent-center')} className="w-full h-16 rounded-[1.5rem] bg-purple-600 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Building2 className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Agent Anchor</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
@@ -147,7 +170,13 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Account & Safety</h2></div>
           <div className="space-y-2.5">
             {!isVerified && (<button onClick={() => router.push('/profile/verify')} className="w-full h-16 rounded-[1.5rem] bg-gradient-to-r from-blue-600 to-blue-500 flex items-center px-5 gap-4 shadow-lg"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><ShieldCheck className="w-5 h-5 text-white" /></div><div className="flex-1 text-left"><span className="text-white font-black text-[13px] block">Verify profile</span></div><ChevronRight className="w-4 h-4 text-white/40" /></button>)}
-            <button onClick={() => router.push('/chat/customer_support')} className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center"><Headset className="w-5 h-5 text-green-600" /></div><div className="flex-1 text-left"><span className="text-gray-900 font-black text-[13px] block">Customer support</span></div><ChevronRight className="w-4 h-4 text-gray-200" /></button>
+            <button onClick={handleCustomerSupport} disabled={isFindingSupport} className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4">
+              <div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center">
+                {isFindingSupport ? <Loader2 className="w-5 h-5 animate-spin text-green-600" /> : <Headset className="w-5 h-5 text-green-600" />}
+              </div>
+              <div className="flex-1 text-left"><span className="text-gray-900 font-black text-[13px] block">Customer support</span></div>
+              <ChevronRight className="w-4 h-4 text-gray-200" />
+            </button>
             <button onClick={() => router.push('/settings')} className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-gray-50 flex items-center justify-center border border-gray-100"><SettingsIcon className="w-5 h-5 text-gray-400" /></div><div className="flex-1 text-left"><span className="text-gray-900 font-black text-[13px] block">Settings</span></div><ChevronRight className="w-4 h-4 text-gray-200" /></button>
           </div>
         </section>

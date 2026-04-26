@@ -21,7 +21,7 @@ function ChatSessionItem({ session, currentUserId }: { session: any, currentUser
   const otherUserRef = useMemoFirebase(() => doc(firestore, 'userProfiles', otherUserId || 'none'), [otherUserId, firestore]);
   const { data: otherUser } = useDoc(otherUserRef);
 
-  const name = otherUser?.username || "User"
+  const name = otherUser?.isSupport ? "Customer Support" : (otherUser?.username || "User")
   const image = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || ""
   const unreadCount = session.unreadCountMap?.[currentUserId] || 0
 

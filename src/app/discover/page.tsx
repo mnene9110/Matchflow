@@ -40,7 +40,7 @@ export default function DiscoverPage() {
     }
 
     try {
-      // Base query: order by presence
+      // Base query
       let q = query(
         collection(firestore, "userProfiles"),
         orderBy("isOnline", "desc"),
@@ -68,10 +68,15 @@ export default function DiscoverPage() {
       if (snapshot.empty) {
         setHasMore(false);
       } else {
-        // Filter out current user client-side to avoid complex inequality indexes
+        // Filter out current user and official accounts (Support/Admins)
         const fetchedUsers = snapshot.docs
           .map(doc => ({ id: doc.id, ...doc.data() }))
-          .filter(u => u.id !== user.uid);
+          .filter(u => {
+            const isMe = u.id === user.uid;
+            const isSupport = u.isSupport === true;
+            const isAdmin = u.isAdmin === true;
+            return !isMe && !isSupport && !isAdmin;
+          });
 
         setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
         
