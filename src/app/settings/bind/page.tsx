@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -12,7 +13,7 @@ import { useToast } from "@/hooks/use-toast"
 
 export default function BindAccountPage() {
   const router = useRouter()
-  const { user } = useSupabaseUser()
+  const { user, profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const [email, setEmail] = useState("")
@@ -32,13 +33,22 @@ export default function BindAccountPage() {
 
     setIsPending(true)
     try {
-      // In Supabase, linking an anonymous account is done by updating user details
-      const { error } = await supabase.auth.updateUser({
-        email,
-        password
+      // In Supabase, linking an account that was created with a placeholder email
+      // involves updating the user's email and password.
+      // This "converts" the guest account into a permanent email/pass account.
+      const { data, error } = await supabase.auth.updateUser({
+        email: email,
+        password: password
       })
 
       if (error) throw error
+
+      // After updating, we update the local recovery key if it was a persistent guest
+      const STORAGE_KEY = 'mf_persistent_guest';
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ email, password }));
+      }
 
       toast({
         title: "Success!",
@@ -70,7 +80,7 @@ export default function BindAccountPage() {
           <div className="space-y-2">
             <h2 className="text-3xl font-black font-headline text-gray-900 leading-tight">Link your Email</h2>
             <p className="text-sm text-gray-500 font-medium leading-relaxed">
-              Set an email and password so you can access your profile from any device and never lose your coins.
+              Set a permanent email and password so you can access your profile from any device and never lose your coins.
             </p>
           </div>
         </div>

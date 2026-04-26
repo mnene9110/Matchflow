@@ -65,6 +65,8 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const [session, setSession] = useState<any>(null);
+
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -77,7 +79,47 @@ export default function RootLayout({
           });
       });
     }
+
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
   }, []);
+
+  // Presence Tracking Logic
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    const updatePresence = async (isOnline: boolean) => {
+      await supabase
+        .from('profiles')
+        .update({ 
+          is_online: isOnline,
+          last_active_at: new Date().toISOString()
+        })
+        .eq('id', session.user.id);
+    };
+
+    // Set online on mount
+    updatePresence(true);
+
+    const handleVisibilityChange = () => {
+      updatePresence(document.visibilityState === 'visible');
+    };
+
+    window.addEventListener('visibilitychange', handleVisibilityChange);
+    
+    // Set offline on unmount
+    return () => {
+      updatePresence(false);
+      window.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [session?.user?.id]);
 
   return (
     <html lang="en" suppressHydrationWarning>

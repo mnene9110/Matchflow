@@ -57,18 +57,20 @@ export default function DiscoverPage() {
         .from('profiles')
         .select('*')
         .eq('gender', targetGender)
-        .neq('id', user.id);
+        .neq('id', user.id)
+        .order('is_online', { ascending: false }) // Prioritize online users
+        .order('last_active_at', { ascending: false }); // Then most recently active
 
       if (activeTab === 'nearby') {
         query = query.eq('location', profile.location || 'Kenya');
       }
 
-      // Pagination
-      if (!isInitial && users.length > 0) {
-        query = query.gt('id', users[users.length - 1].id);
-      }
+      // Pagination - Using offset or multi-column ordering for accurate continuation
+      // For simplicity with Supabase and complex ordering, we use standard limit/offset or range
+      const start = isInitial ? 0 : users.length;
+      const end = start + PAGE_SIZE - 1;
 
-      const { data, error } = await query.limit(PAGE_SIZE);
+      const { data, error } = await query.range(start, end);
 
       if (error) throw error;
 
