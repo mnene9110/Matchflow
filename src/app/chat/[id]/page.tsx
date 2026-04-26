@@ -173,24 +173,29 @@ function ChatDetailContent() {
     setIsSending(true);
     setTyping(false); // Stop typing immediately on send
     try {
-      const { error } = await supabase.from('messages').insert({
-        chat_id: chatId,
-        sender_id: currentUser.id,
-        message_text: textToUse
-      });
-
-      if (error) throw error;
-      
-      await supabase.from('chats').upsert({
+      // 1. Create/Update Chat first to ensure relationship
+      const { error: chatError } = await supabase.from('chats').upsert({
         id: chatId,
         participants: [currentUser.id, otherUserId],
         last_message: textToUse,
         last_message_at: new Date().toISOString()
       }, { onConflict: 'id' });
 
+      if (chatError) throw chatError;
+
+      // 2. Insert message
+      const { error: msgError } = await supabase.from('messages').insert({
+        chat_id: chatId,
+        sender_id: currentUser.id,
+        message_text: textToUse
+      });
+
+      if (msgError) throw msgError;
+
       if (!textOverride) setInputText("");
-    } catch (e) {
-      toast({ variant: "destructive", title: "Send Failed" });
+    } catch (e: any) {
+      console.error("Send error:", e);
+      toast({ variant: "destructive", title: "Send Failed", description: "Your message couldn't be delivered." });
     } finally {
       setIsSending(false);
     }
@@ -217,7 +222,6 @@ function ChatDetailContent() {
 
     setIsCalling(true);
     try {
-      // Clean up any stale signaling first to avoid PK violations
       await supabase.from('calls').delete().eq('id', chatId);
 
       const { error: callError } = await supabase.from('calls').upsert({
@@ -250,9 +254,12 @@ function ChatDetailContent() {
 
     setIsSending(true);
     try {
-      await supabase.from('profiles').update({ 
+      // Use atomic logic where possible or handle failure gracefully
+      const { error: deductionError } = await supabase.from('profiles').update({ 
         coin_balance: currentUserProfile.coin_balance - gift.price 
       }).eq('id', currentUser.id);
+
+      if (deductionError) throw deductionError;
 
       await supabase.from('profiles').update({ 
         diamond_balance: (otherUser.diamond_balance || 0) + gift.price 
@@ -266,8 +273,9 @@ function ChatDetailContent() {
       await handleSendMessage(`🎁 Sent a ${gift.name}!`);
       setIsGiftSheetOpen(false);
       toast({ title: "Gift Sent!" });
-    } catch (e) {
-      toast({ variant: "destructive", title: "Gift Failed" });
+    } catch (e: any) {
+      console.error("Gift error:", e);
+      toast({ variant: "destructive", title: "Gift Failed", description: "Could not complete transaction." });
     } finally {
       setIsSending(false);
     }

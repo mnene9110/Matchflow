@@ -1,17 +1,35 @@
 
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { User } from '@supabase/supabase-js';
 
 /**
  * Hook to manage Supabase Auth state and Profile data.
+ * Optimized to handle background/foreground transitions without infinite loading.
  */
 export function useSupabaseUser() {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<any | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const hasFetchedRef = useRef(false);
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
+      
+      if (!error && data) {
+        setProfile(data);
+      }
+    } catch (e) {
+      console.error("Profile fetch error:", e);
+    }
+  };
 
   useEffect(() => {
     if (!supabase) {
@@ -19,44 +37,48 @@ export function useSupabaseUser() {
       return;
     }
 
-    const fetchSession = async () => {
+    const initAuth = async () => {
+      // 1. Get initial session
       const { data: { session } } = await supabase.auth.getSession();
-      setUser(session?.user ?? null);
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
       
-      if (session?.user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        setProfile(data);
+      if (currentUser) {
+        await fetchProfile(currentUser.id);
       }
       
       setIsLoading(false);
+      hasFetchedRef.current = true;
     };
 
-    fetchSession();
+    initAuth();
 
-    // Correct Supabase v2 listener pattern: onAuthStateChange
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        const { data } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', session.user.id)
-          .single();
-        setProfile(data);
-      } else {
+    // 2. Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
+      const currentUser = session?.user ?? null;
+      setUser(currentUser);
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (currentUser) await fetchProfile(currentUser.id);
+      } else if (event === 'SIGNED_OUT') {
         setProfile(null);
       }
+      
       setIsLoading(false);
     });
 
-    return () => {
-      if (subscription) {
-        subscription.unsubscribe();
+    // 3. Handle visibility change (coming back to app)
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') {
+        // Refresh session if needed but don't show loading spinner
+        supabase.auth.getSession();
       }
+    };
+    window.addEventListener('visibilitychange', handleVisibility);
+
+    return () => {
+      if (subscription) subscription.unsubscribe();
+      window.removeEventListener('visibilitychange', handleVisibility);
     };
   }, []);
 

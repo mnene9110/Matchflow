@@ -1,7 +1,7 @@
 
 "use client"
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
@@ -15,6 +15,7 @@ import { supabase } from '@/lib/supabase';
 function NavigationGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [isReady, setIsReady] = useState(false);
+  const guardTriggeredRef = useRef(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -32,16 +33,18 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
           setIsReady(true);
         }
       } catch (e) {
-        console.error("Auth check failed:", e);
+        console.error("Auth guard check failed:", e);
         setIsReady(true);
       }
     };
 
     checkAuth();
 
-    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === 'SIGNED_OUT') {
         window.location.replace('/welcome');
+      } else if (event === 'SIGNED_IN' && session) {
+        setIsReady(true);
       }
     });
 
