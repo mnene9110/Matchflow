@@ -103,13 +103,20 @@ export default function ProfileDetailPage() {
   // Track Visitor
   useEffect(() => {
     if (currentUser && id && id !== currentUser.id && userProfile && currentUserProfile) {
-      supabase.from('visitors').upsert({
-        target_user_id: id,
-        visitor_id: currentUser.id,
-        username: currentUserProfile.username || "Someone",
-        photo: (currentUserProfile.profile_photo_urls && currentUserProfile.profile_photo_urls[0]) || "",
-        timestamp: new Date().toISOString()
-      }).catch(console.error);
+      const logVisitor = async () => {
+        try {
+          await supabase.from('visitors').upsert({
+            target_user_id: id,
+            visitor_id: currentUser.id,
+            username: currentUserProfile.username || "Someone",
+            photo: (currentUserProfile.profile_photo_urls && currentUserProfile.profile_photo_urls[0]) || "",
+            timestamp: new Date().toISOString()
+          });
+        } catch (e) {
+          console.error("Failed to log visitor:", e);
+        }
+      };
+      logVisitor();
     }
   }, [currentUser?.id, id, !!userProfile, !!currentUserProfile]);
 
@@ -184,7 +191,6 @@ export default function ProfileDetailPage() {
     if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport) return
     setIsSubmittingReport(true)
     try {
-      // Assuming a reports table exists
       await supabase.from('reports').insert({
         reporter_id: currentUser.id,
         reported_user_id: id,

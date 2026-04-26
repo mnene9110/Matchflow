@@ -1,62 +1,58 @@
-
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { useFirebase } from '@/firebase';
-import { ref, onValue, set } from 'firebase/database';
+import { supabase } from '@/lib/supabase';
 
 /**
  * Hook to manage real-time typing status in a specific chat.
- * Uses Realtime Database for high-frequency updates.
+ * Migrated from Firebase to Supabase Realtime Broadcast.
  */
 export function useTyping(chatId: string | null, userId: string | null, otherUserId: string | null) {
-  const { database } = useFirebase();
   const [isOtherUserTyping, setIsOtherUserTyping] = useState(false);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const channelRef = useRef<any>(null);
 
-  // 1. Listen for other user typing status
+  // 1. Listen for other user typing status via Broadcast
   useEffect(() => {
-    if (!database || !chatId || !otherUserId) {
-      setIsOtherUserTyping(false);
-      return;
-    }
+    if (!chatId || !userId || !supabase) return;
 
-    const typingRef = ref(database, `/typing/${chatId}/${otherUserId}`);
-    const unsubscribe = onValue(typingRef, (snapshot) => {
-      setIsOtherUserTyping(!!snapshot.val());
-    });
+    const channel = supabase.channel(`typing:${chatId}`);
 
-    return () => unsubscribe();
-  }, [database, chatId, otherUserId]);
+    channel
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        if (payload.userId === otherUserId) {
+          setIsOtherUserTyping(payload.isTyping);
+        }
+      })
+      .subscribe();
+
+    channelRef.current = channel;
+
+    return () => {
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [chatId, userId, otherUserId]);
 
   // 2. Broadcast current user typing status
   const setTyping = (isTyping: boolean) => {
-    if (!database || !chatId || !userId) return;
+    if (!channelRef.current || !userId) return;
 
-    const myTypingRef = ref(database, `/typing/${chatId}/${userId}`);
-    
-    // Only update if needed to save bandwidth
-    set(myTypingRef, isTyping);
+    channelRef.current.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { userId, isTyping },
+    });
 
     if (isTyping) {
       // Auto-clear typing status after 3 seconds of inactivity
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = setTimeout(() => {
-        set(myTypingRef, false);
+        setTyping(false);
       }, 3000);
     }
   };
-
-  // Clean up: ensure typing status is false when leaving
-  useEffect(() => {
-    return () => {
-      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-      if (database && chatId && userId) {
-        const myTypingRef = ref(database, `/typing/${chatId}/${userId}`);
-        set(myTypingRef, false);
-      }
-    };
-  }, [database, chatId, userId]);
 
   return { isOtherUserTyping, setTyping };
 }
