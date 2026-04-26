@@ -8,6 +8,7 @@ import { FirebaseClientProvider, useUser } from "@/firebase"
 import { OfflineDetector } from "@/components/OfflineDetector"
 import { Navbar } from "@/components/Navbar"
 import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
+import { InstallPWA } from "@/components/InstallPWA"
 
 function NavigationGuard({ children }: { children: React.ReactNode }) {
   const { user, isUserLoading } = useUser();
@@ -42,24 +43,17 @@ export default function RootLayout({
     };
     window.addEventListener('beforeunload', preventConfirm);
 
+    // Register Service Worker for PWA
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
-      const registerSW = () => {
-        navigator.serviceWorker.register('/sw.js')
-          .then((reg) => {
-            console.log('Service Worker registered');
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
+          .then((registration) => {
+            console.log('SW registered with scope:', registration.scope);
           })
           .catch((err) => {
-            if (err.name !== 'InvalidStateError') {
-              console.error('SW registration failed:', err);
-            }
+            console.error('SW registration failed:', err);
           });
-      };
-
-      if (document.readyState === 'complete') {
-        registerSW();
-      } else {
-        window.addEventListener('load', registerSW);
-      }
+      });
     }
     
     return () => window.removeEventListener('beforeunload', preventConfirm);
@@ -90,6 +84,7 @@ export default function RootLayout({
                 {children}
                 <Navbar />
                 <GlobalCallOverlay />
+                <InstallPWA />
               </div>
             </OfflineDetector>
           </NavigationGuard>
