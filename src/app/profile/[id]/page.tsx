@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useMemo } from "react"
@@ -72,6 +73,30 @@ export default function ProfileDetailPage() {
   
   const [api, setApi] = useState<CarouselApi>()
   const [current, setCurrent] = useState(0)
+
+  // Log Visit
+  useEffect(() => {
+    if (!id || !currentUser || id === currentUser.uid) return;
+    
+    const logVisit = async () => {
+      try {
+        const visitRef = doc(firestore, "userProfiles", id as string, "visitors", currentUser.uid);
+        await setDoc(visitRef, {
+          visitorId: currentUser.uid,
+          username: myProfile?.username || "Guest",
+          photo: myProfile?.profilePhotoUrls?.[0] || "",
+          timestamp: serverTimestamp(),
+          seen: false
+        }, { merge: true });
+      } catch (e) {
+        console.error("Visit log failed", e);
+      }
+    };
+
+    if (myProfile) {
+      logVisit();
+    }
+  }, [id, currentUser, myProfile, firestore]);
 
   // Fetch Target Profile
   useEffect(() => {
@@ -260,7 +285,7 @@ export default function ProfileDetailPage() {
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
       </div>
 
-      <div className="flex-1 bg-white relative z-20 px-6 pb-40 -mt-10">
+      <div className="flex-1 bg-white relative z-20 px-6 pb-44 -mt-10">
         <div className="space-y-8">
           <div className="space-y-2">
             <div className="flex items-center gap-2">

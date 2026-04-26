@@ -7,7 +7,7 @@ import { ChevronLeft, Loader2, Eye, ArrowRight, Lock, Coins } from "lucide-react
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useFirebase } from "@/firebase/provider"
-import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, increment, addDoc, serverTimestamp } from "firebase/firestore"
+import { collection, query, where, orderBy, onSnapshot, doc, updateDoc, increment, addDoc, serverTimestamp, getDocs, writeBatch } from "firebase/firestore"
 import { useSupabaseUser } from "@/hooks/use-supabase"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
@@ -40,6 +40,16 @@ export default function VisitorsPage() {
       }));
       setVisitors(vList);
       setIsLoading(false);
+
+      // Mark as seen
+      const unseenDocs = snapshot.docs.filter(d => !d.data().seen);
+      if (unseenDocs.length > 0) {
+        const batch = writeBatch(firestore);
+        unseenDocs.forEach(d => {
+          batch.update(d.ref, { seen: true });
+        });
+        batch.commit();
+      }
     }, (error) => {
       console.error("Visitors fetch failed:", error);
       setIsLoading(false);

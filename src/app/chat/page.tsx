@@ -1,37 +1,29 @@
+
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
-import { MessageSquare, CheckCircle, Loader2, RotateCcw, Plus } from "lucide-react"
+import { useMemo } from "react"
+import { MessageSquare, CheckCircle, Loader2 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 import { useFirebase } from "@/firebase/provider"
-import { collection, query, where, orderBy, limit, getDocs, startAfter, doc, getDoc, QueryDocumentSnapshot, DocumentData } from "firebase/firestore"
+import { collection, query, where, orderBy, doc, limit } from "firebase/firestore"
 import { useAuth } from "@/firebase/auth/use-auth"
-import { Button } from "@/components/ui/button"
+import { useDoc } from "@/firebase/firestore/use-doc"
+import { useCollection } from "@/firebase/firestore/use-collection"
+import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { cn } from "@/lib/utils"
-
-const PAGE_SIZE = 15;
 
 function ChatSessionItem({ session, currentUserId }: { session: any, currentUserId: string }) {
   const router = useRouter()
   const { firestore } = useFirebase()
   const otherUserId = session.participants.find((p: string) => p !== currentUserId)
-  const [otherUser, setOtherUser] = useState<any>(null)
-
-  useEffect(() => {
-    if (!otherUserId) return;
-    const fetchOther = async () => {
-      const docRef = doc(firestore, 'userProfiles', otherUserId);
-      const snap = await getDoc(docRef);
-      if (snap.exists()) {
-        setOtherUser(snap.data());
-      }
-    };
-    fetchOther();
-  }, [otherUserId, firestore]);
+  
+  const otherUserRef = useMemoFirebase(() => doc(firestore, 'userProfiles', otherUserId || 'none'), [otherUserId, firestore]);
+  const { data: otherUser } = useDoc(otherUserRef);
 
   const name = otherUser?.username || "User"
   const image = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || ""
+  const unreadCount = session.unreadCountMap?.[currentUserId] || 0
 
   return (
     <div 
@@ -43,6 +35,11 @@ function ChatSessionItem({ session, currentUserId }: { session: any, currentUser
           {image && <AvatarImage src={image} className="object-cover" />}
           <AvatarFallback className="bg-gray-100 text-gray-300">{name[0]}</AvatarFallback>
         </Avatar>
+        {unreadCount > 0 && (
+          <div className="absolute -top-1 -right-1 h-6 min-w-6 px-1.5 rounded-full bg-red-500 border-2 border-white flex items-center justify-center shadow-lg">
+            <span className="text-[10px] font-black text-white">{unreadCount > 99 ? '99+' : unreadCount}</span>
+          </div>
+        )}
       </div>
 
       <div className="flex-1 min-w-0">
@@ -52,7 +49,7 @@ function ChatSessionItem({ session, currentUserId }: { session: any, currentUser
             {otherUser?.isVerified && <CheckCircle className="w-4 h-4 text-blue-500 fill-current" />}
           </div>
         </div>
-        <p className="text-[13px] truncate font-bold text-gray-400">
+        <p className={cn("text-[13px] truncate", unreadCount > 0 ? "font-black text-gray-900" : "font-bold text-gray-400")}>
           {session.lastMessage || "Start a conversation"}
         </p>
       </div>
@@ -63,67 +60,24 @@ function ChatSessionItem({ session, currentUserId }: { session: any, currentUser
 export default function ChatListPage() {
   const { auth, firestore } = useFirebase()
   const { user } = useAuth(auth)
-  const router = useRouter()
 
-  const [sessions, setSessions] = useState<any[]>([])
-  const [isLoading, setIsLoading] = useState(true)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [lastDoc, setLastDoc] = useState<QueryDocumentSnapshot<DocumentData> | null>(null)
-  const [hasMore, setHasMore] = useState(true)
+  const chatsQuery = useMemoFirebase(() => {
+    if (!user) return null;
+    return query(
+      collection(firestore, "chats"),
+      where("participants", "array-contains", user.uid),
+      orderBy("lastMessageAt", "desc"),
+      limit(50)
+    );
+  }, [user, firestore]);
 
-  const fetchChats = useCallback(async (isLoadMore = false) => {
-    if (!user) return;
-
-    if (isLoadMore) setIsLoadingMore(true);
-    else {
-      setIsLoading(true);
-      setSessions([]);
-    }
-
-    try {
-      let q = query(
-        collection(firestore, "chats"),
-        where("participants", "array-contains", user.uid),
-        orderBy("lastMessageAt", "desc"),
-        limit(PAGE_SIZE)
-      );
-
-      if (isLoadMore && lastDoc) {
-        q = query(q, startAfter(lastDoc));
-      }
-
-      const snap = await getDocs(q);
-      
-      if (snap.empty) {
-        setHasMore(false);
-      } else {
-        const items = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setLastDoc(snap.docs[snap.docs.length - 1]);
-        if (items.length < PAGE_SIZE) setHasMore(false);
-        setSessions(prev => isLoadMore ? [...prev, ...items] : items);
-      }
-    } catch (error) {
-      console.error("Chat list error:", error);
-    } finally {
-      setIsLoading(false);
-      setIsLoadingMore(false);
-    }
-  }, [user, firestore, lastDoc]);
-
-  useEffect(() => {
-    if (user && sessions.length === 0) {
-      fetchChats();
-    }
-  }, [user, fetchChats]);
+  const { data: sessions, isLoading } = useCollection(chatsQuery);
 
   return (
     <div className="flex flex-col h-svh pb-20 bg-white">
       <header className="bg-[#3BC1A8] pt-[env(safe-area-inset-top)] pb-3 px-6 sticky top-0 z-20 shrink-0">
         <div className="flex items-center justify-between pt-6">
           <h1 className="text-3xl font-logo text-white drop-shadow-sm">Chats</h1>
-          <button onClick={() => fetchChats(false)} className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:rotate-180 transition-all">
-            <RotateCcw className={cn("w-4 h-4", isLoading && "animate-spin")} />
-          </button>
         </div>
       </header>
 
@@ -132,21 +86,9 @@ export default function ChatListPage() {
           <div className="flex flex-col items-center justify-center py-32 gap-4 opacity-10">
             <Loader2 className="w-10 h-10 animate-spin" />
           </div>
-        ) : sessions.length > 0 ? (
+        ) : sessions && sessions.length > 0 ? (
           <div className="pb-10">
             {sessions.map(s => <ChatSessionItem key={s.id} session={s} currentUserId={user!.uid} />)}
-            
-            {hasMore && (
-              <Button 
-                onClick={() => fetchChats(true)} 
-                disabled={isLoadingMore}
-                variant="outline"
-                className="w-full mt-4 rounded-full h-14 border-gray-100 font-black text-[10px] uppercase tracking-widest gap-2 bg-gray-50/50"
-              >
-                {isLoadingMore ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
-                Load More Chats
-              </Button>
-            )}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-32 text-gray-400 font-medium gap-4">

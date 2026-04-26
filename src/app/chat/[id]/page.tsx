@@ -81,6 +81,15 @@ function ChatDetailContent() {
 
   const { data: messages, isLoading: isLoadingMessages } = useCollection(messagesQuery);
 
+  // Clear unread on entry
+  useEffect(() => {
+    if (chatId && currentUser) {
+      updateDoc(doc(firestore, "chats", chatId), {
+        [`unreadCountMap.${currentUser.uid}`]: 0
+      });
+    }
+  }, [chatId, currentUser, firestore]);
+
   useEffect(() => {
     scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
@@ -115,7 +124,8 @@ function ChatDetailContent() {
       await setDoc(chatRef, {
         participants: [currentUser.uid, otherUserId],
         lastMessage: textToUse,
-        lastMessageAt: serverTimestamp()
+        lastMessageAt: serverTimestamp(),
+        [`unreadCountMap.${otherUserId}`]: increment(1)
       }, { merge: true });
 
       await addDoc(collection(firestore, "chats", chatId, "messages"), {

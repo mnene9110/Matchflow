@@ -1,5 +1,7 @@
+
 "use client"
 
+import { useState, useEffect } from "react"
 import { 
   ChevronRight, 
   Copy, 
@@ -20,7 +22,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 import { useFirebase } from "@/firebase/provider"
-import { doc } from "firebase/firestore"
+import { doc, collection, onSnapshot, query, where } from "firebase/firestore"
 import { useDoc } from "@/firebase/firestore/use-doc"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
 import { useAuth } from "@/firebase/auth/use-auth"
@@ -33,12 +35,29 @@ export default function ProfilePage() {
   const { user } = useAuth(auth)
   const { toast } = useToast()
 
+  const [newVisitorsCount, setNewVisitorsCount] = useState(0)
+
   const profileRef = useMemoFirebase(() => {
     if (!user) return null;
     return doc(firestore, "userProfiles", user.uid);
   }, [user]);
 
   const { data: profile, isLoading } = useDoc(profileRef);
+
+  useEffect(() => {
+    if (!user) return;
+    
+    const vQuery = query(
+      collection(firestore, "userProfiles", user.uid, "visitors"),
+      where("seen", "==", false)
+    );
+
+    const unsubscribe = onSnapshot(vQuery, (snap) => {
+      setNewVisitorsCount(snap.size);
+    });
+
+    return () => unsubscribe();
+  }, [user, firestore]);
 
   const copyId = () => {
     if (profile?.numericId) {
@@ -61,9 +80,14 @@ export default function ProfilePage() {
     <div className="flex flex-col h-svh w-full bg-white text-gray-900 overflow-y-auto scroll-smooth">
       <header className="flex flex-col items-center pt-8 pb-16 px-6 shrink-0 relative bg-[#3BC1A8]">
         <div className="absolute top-8 right-6 z-20">
-          <button onClick={() => router.push('/profile/visitors')} className="flex flex-col items-center gap-1">
-            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center relative shadow-lg">
+          <button onClick={() => router.push('/profile/visitors')} className="flex flex-col items-center gap-1 group">
+            <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center relative shadow-lg active:scale-95 transition-all">
               <Eye className="w-5 h-5 text-white" />
+              {newVisitorsCount > 0 && (
+                <span className="absolute -top-1 -right-1 h-5 min-w-5 px-1 rounded-full bg-red-500 border-2 border-[#3BC1A8] flex items-center justify-center text-[8px] font-black text-white shadow-sm">
+                  {newVisitorsCount > 9 ? '9+' : newVisitorsCount}
+                </span>
+              )}
             </div>
             <span className="text-[8px] font-black text-white/60 uppercase tracking-widest">Visitors</span>
           </button>
