@@ -1,27 +1,24 @@
-
 "use client"
 
 import { useState, useEffect } from "react"
-import { Mail, Lock, ChevronLeft, Loader2 } from "lucide-react"
+import { Mail, Lock, ChevronLeft, Loader2, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
 import { useToast } from "@/hooks/use-toast"
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
-/**
- * @fileOverview Login page using Supabase Auth.
- */
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isPending, setIsPending] = useState(false)
+  const [needsConfirmation, setNeedsConfirmation] = useState(false)
   
   const router = useRouter()
   const { toast } = useToast()
 
   useEffect(() => {
-    // Check if session exists on load
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) router.push("/discover")
     })
@@ -38,6 +35,8 @@ export default function LoginPage() {
     }
 
     setIsPending(true)
+    setNeedsConfirmation(false)
+    
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
@@ -45,6 +44,9 @@ export default function LoginPage() {
 
     if (error) {
       setIsPending(false)
+      if (error.message.toLowerCase().includes("confirm")) {
+        setNeedsConfirmation(true)
+      }
       toast({
         variant: "destructive",
         title: "Sign In Failed",
@@ -66,6 +68,8 @@ export default function LoginPage() {
     }
 
     setIsPending(true)
+    setNeedsConfirmation(false)
+    
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
@@ -76,20 +80,26 @@ export default function LoginPage() {
       }
     })
 
+    setIsPending(false)
+    
     if (error) {
-      setIsPending(false)
       toast({
         variant: "destructive",
         title: "Sign Up Failed",
         description: error.message,
       })
     } else {
-      setIsPending(false)
-      toast({
-        title: "Check your email",
-        description: "We've sent a verification link if required.",
-      })
-      if (data.session) router.push("/onboarding/full")
+      if (data.session) {
+        // Logged in immediately (Confirm Email is OFF in Supabase)
+        router.push("/onboarding/full")
+      } else {
+        // Email confirmation is ON in Supabase
+        setNeedsConfirmation(true)
+        toast({
+          title: "Check your email",
+          description: "We've sent a verification link to your inbox.",
+        })
+      }
     }
   }
 
@@ -113,6 +123,18 @@ export default function LoginPage() {
             Sign in via Supabase Auth
           </p>
         </div>
+
+        {needsConfirmation && (
+          <Alert className="bg-amber-50 border-amber-200 text-amber-900 rounded-2xl">
+            <Info className="h-4 w-4 text-amber-600" />
+            <AlertTitle className="font-black text-xs uppercase tracking-widest">Confirmation Required</AlertTitle>
+            <AlertDescription className="text-[11px] font-medium leading-relaxed">
+              Please check your email to verify your account. 
+              <br /><br />
+              <span className="font-bold italic text-amber-700">Tip: To skip this, disable "Confirm email" in your Supabase Auth settings.</span>
+            </AlertDescription>
+          </Alert>
+        )}
 
         <div className="w-full space-y-6">
           <div className="space-y-2">
