@@ -26,8 +26,6 @@ import {
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import Image from "next/image"
-import { useFirebase, useUser, useDoc, useMemoFirebase, useCollection } from "@/firebase"
-import { doc, collection, addDoc, serverTimestamp, setDoc, query, where, limit } from "firebase/firestore"
 import { cn } from "@/lib/utils"
 import {
   DropdownMenu,
@@ -53,19 +51,19 @@ import {
 } from "@/components/ui/carousel"
 import { GIFTS } from "@/app/chat/[id]/page"
 import { usePresence } from "@/hooks/use-presence"
+import { supabase } from "@/lib/supabase"
+import { useSupabaseUser } from "@/hooks/use-supabase"
 
 export default function ProfileDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-  const { firestore } = useFirebase()
-  const { user: currentUser } = useUser()
+  const { user: currentUser, profile: currentUserProfile } = useSupabaseUser()
   const { toast } = useToast()
   
-  const targetDocRef = useMemoFirebase(() => id ? doc(firestore, "userProfiles", id as string) : null, [firestore, id])
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc(targetDocRef)
-
-  const meRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [firestore, currentUser])
-  const { data: currentUserProfile } = useDoc(meRef)
+  const [userProfile, setUserProfile] = useState<any>(null)
+  const [isProfileLoading, setIsProfileLoading] = useState(true)
+  const [giftTransactions, setGiftTransactions] = useState<any[]>([])
+  const [isGiftsLoading, setIsGiftsLoading] = useState(true)
 
   const { isOnline, lastActiveAt } = usePresence(id as string);
   
@@ -77,25 +75,51 @@ export default function ProfileDetailPage() {
   const [api, setApi] = useState<CarouselApi>()
   const [current, setCurrent] = useState(0)
 
-  // Fetch gifts for the wall
-  const giftsQuery = useMemoFirebase(() => {
-    if (!firestore || !id) return null
-    return query(
-      collection(firestore, "userProfiles", id as string, "transactions"),
-      where("type", "==", "gift_received"),
-      limit(50)
-    )
-  }, [firestore, id])
-  
-  const { data: giftTransactions, isLoading: isGiftsLoading } = useCollection(giftsQuery)
+  // Fetch Profile & Gifts
+  useEffect(() => {
+    if (!id) return;
+    
+    const fetchData = async () => {
+      setIsProfileLoading(true);
+      const { data: profile } = await supabase.from('profiles').select('*').eq('id', id).single();
+      setUserProfile(profile);
+      setIsProfileLoading(false);
+
+      if (profile) {
+        const { data: gifts } = await supabase
+          .from('transactions')
+          .select('*')
+          .eq('user_id', id)
+          .eq('type', 'gift_received')
+          .limit(50);
+        setGiftTransactions(gifts || []);
+        setIsGiftsLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [id]);
+
+  // Track Visitor
+  useEffect(() => {
+    if (currentUser && id && id !== currentUser.id && userProfile && currentUserProfile) {
+      supabase.from('visitors').upsert({
+        target_user_id: id,
+        visitor_id: currentUser.id,
+        username: currentUserProfile.username || "Someone",
+        photo: (currentUserProfile.profile_photo_urls && currentUserProfile.profile_photo_urls[0]) || "",
+        timestamp: new Date().toISOString()
+      }).catch(console.error);
+    }
+  }, [currentUser?.id, id, !!userProfile, !!currentUserProfile]);
 
   const groupedGifts = useMemo(() => {
-    if (!giftTransactions) return []
     const map = new Map<string, { giftId: string; count: number }>()
     giftTransactions.forEach((tx: any) => {
-      if (!tx.giftId) return
-      const existing = map.get(tx.giftId) || { giftId: tx.giftId, count: 0 }
-      map.set(tx.giftId, { giftId: tx.giftId, count: existing.count + 1 })
+      const gId = tx.gift_id || tx.giftId;
+      if (!gId) return;
+      const existing = map.get(gId) || { giftId: gId, count: 0 }
+      map.set(gId, { giftId: gId, count: existing.count + 1 })
     })
     return Array.from(map.values())
   }, [giftTransactions])
@@ -109,22 +133,8 @@ export default function ProfileDetailPage() {
   }, [api])
 
   useEffect(() => {
-    if (currentUser && id && id !== currentUser.uid && firestore && userProfile && currentUserProfile) {
-      const visitorRef = doc(firestore, "userProfiles", id as string, "visitors", currentUser.uid);
-      setDoc(visitorRef, {
-        userId: currentUser.uid,
-        username: currentUserProfile.username || "Someone",
-        photo: (currentUserProfile.profilePhotoUrls && currentUserProfile.profilePhotoUrls[0]) || "",
-        timestamp: serverTimestamp()
-      }, { merge: true }).catch(console.error);
-    }
-  }, [currentUser?.uid, id, !!firestore, !!userProfile, !!currentUserProfile]);
-
-  useEffect(() => {
     const handlePopState = () => {
-      if (fullscreenImage) {
-        setFullscreenImage(null);
-      }
+      if (fullscreenImage) setFullscreenImage(null);
     };
     if (fullscreenImage) {
       window.history.pushState({ gallery: true }, "");
@@ -139,14 +149,14 @@ export default function ProfileDetailPage() {
   const closeFullscreen = () => fullscreenImage && window.history.back();
 
   const age = useMemo(() => {
-    if (!userProfile?.dateOfBirth) return null;
-    const birthDate = new Date(userProfile.dateOfBirth);
+    if (!userProfile?.date_of_birth) return null;
+    const birthDate = new Date(userProfile.date_of_birth);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
     return age;
-  }, [userProfile?.dateOfBirth]);
+  }, [userProfile?.date_of_birth]);
 
   const presenceText = useMemo(() => {
     if (isOnline) return "Online";
@@ -156,12 +166,12 @@ export default function ProfileDetailPage() {
   }, [isOnline, lastActiveAt]);
 
   const handleBlock = async () => {
-    if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin || !firestore) return
+    if (!currentUser || !id || userProfile?.is_support || userProfile?.is_admin) return
     try {
-      await setDoc(doc(firestore, "userProfiles", currentUser.uid, "blockedUsers", id as string), {
-        blockedUserId: id,
-        username: userProfile?.username || "Unknown",
-        blockedAt: serverTimestamp()
+      await supabase.from('blocked_users').insert({
+        user_id: currentUser.id,
+        blocked_user_id: id,
+        username: userProfile?.username || "Unknown"
       });
       toast({ title: "User Blocked", description: `${userProfile?.username} has been blocked.` })
       router.push('/discover')
@@ -171,14 +181,14 @@ export default function ProfileDetailPage() {
   }
 
   const handleReport = async () => {
-    if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport || !firestore) return
+    if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport) return
     setIsSubmittingReport(true)
     try {
-      await addDoc(collection(firestore, "reports"), {
-        reporterId: currentUser.uid,
-        reportedUserId: id,
+      // Assuming a reports table exists
+      await supabase.from('reports').insert({
+        reporter_id: currentUser.id,
+        reported_user_id: id,
         details: reportDetails,
-        timestamp: serverTimestamp(),
         status: "pending"
       })
       toast({ title: "Report Submitted", description: "Our team will review this profile." })
@@ -192,8 +202,8 @@ export default function ProfileDetailPage() {
   }
 
   const copyId = () => {
-    if (userProfile?.numericId) {
-      navigator.clipboard.writeText(userProfile.numericId.toString());
+    if (userProfile?.numeric_id) {
+      navigator.clipboard.writeText(userProfile.numeric_id.toString());
       toast({ title: "ID Copied" });
     }
   }
@@ -204,14 +214,14 @@ export default function ProfileDetailPage() {
     <div className="flex flex-col items-center justify-center h-svh p-6 text-center space-y-6 bg-white">
       <div className="w-24 h-24 bg-gray-50 rounded-[2.5rem] flex items-center justify-center border border-gray-100"><UserX className="w-12 h-12 text-gray-300" /></div>
       <div className="space-y-2">
-        <h2 className="text-3xl font-black font-headline text-gray-900 tracking-tight">User logged out</h2>
+        <h2 className="text-3xl font-black font-headline text-gray-900 tracking-tight">User not found</h2>
         <p className="text-sm text-gray-500 font-medium leading-relaxed max-w-[240px] mx-auto">This account no longer exists or has been deactivated.</p>
       </div>
       <Button onClick={() => router.back()} className="h-14 w-full max-w-[200px] rounded-full bg-primary font-black uppercase text-xs tracking-widest shadow-xl">Go Back</Button>
     </div>
   )
 
-  if (userProfile?.isSupport) {
+  if (userProfile?.is_support) {
     return (
       <div className="flex flex-col items-center justify-center h-svh p-8 text-center space-y-6 bg-white">
         <div className="w-24 h-24 bg-primary/10 rounded-[2.5rem] flex items-center justify-center border border-primary/20"><Lock className="w-12 h-12 text-primary" /></div>
@@ -227,13 +237,13 @@ export default function ProfileDetailPage() {
     )
   }
 
-  const userPhotos = (userProfile?.profilePhotoUrls || []).filter(Boolean)
+  const userPhotos = (userProfile?.profile_photo_urls || []).filter(Boolean)
   if (userPhotos.length === 0) userPhotos.push(`https://picsum.photos/seed/${userProfile?.id}/600/800`)
   
-  const isVerified = !!userProfile?.isVerified
-  const isProtected = userProfile?.isAdmin === true || userProfile?.isSupport === true;
+  const isVerified = !!userProfile?.is_verified
+  const isProtected = userProfile?.is_admin === true || userProfile?.is_support === true;
   const hasInterests = userProfile?.interests && userProfile.interests.length > 0;
-  const hasDetails = userProfile?.education || userProfile?.horoscope || userProfile?.relationshipGoal;
+  const hasDetails = userProfile?.education || userProfile?.horoscope || userProfile?.relationship_goal;
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-y-auto scroll-smooth">
@@ -243,14 +253,7 @@ export default function ProfileDetailPage() {
             {userPhotos.map((url, idx) => (
               <CarouselItem key={idx} className="h-full pl-0 basis-full">
                 <div className="relative w-full h-full cursor-pointer active:opacity-90" onClick={() => openFullscreen(url)}>
-                  <Image 
-                    src={url} 
-                    alt={`${userProfile?.username || "User"} Photo ${idx + 1}`} 
-                    fill 
-                    className="object-cover" 
-                    priority={idx === 0}
-                    sizes="(max-width: 768px) 100vw, 600px"
-                  />
+                  <Image src={url} alt={`${userProfile?.username || "User"} Photo ${idx + 1}`} fill className="object-cover" priority={idx === 0} sizes="(max-width: 768px) 100vw, 600px" />
                 </div>
               </CarouselItem>
             ))}
@@ -282,7 +285,6 @@ export default function ProfileDetailPage() {
           <div className={cn("w-2.5 h-2.5 rounded-full", isOnline ? "bg-green-500 animate-pulse" : "bg-gray-400")} />
           <span className={cn("text-[10px] font-black uppercase tracking-tight", isOnline ? "text-white" : "text-white/60")}>{presenceText}</span>
         </div>
-        
         <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-white via-white/80 to-transparent z-10" />
       </div>
 
@@ -291,23 +293,21 @@ export default function ProfileDetailPage() {
           <div className="space-y-2">
             <div className="flex items-center gap-2">
               <h1 className="text-3xl font-black font-headline text-gray-900 leading-none">{userProfile?.username}</h1>
-              {isVerified && (
-                <CheckCircle className="w-6 h-6 text-blue-500 fill-current" />
-              )}
+              {isVerified && <CheckCircle className="w-6 h-6 text-blue-500 fill-current" />}
             </div>
             <div className="flex flex-col gap-1.5">
               <p className="text-[13px] font-medium text-gray-500 capitalize leading-none font-body">{userProfile?.gender || "Not specified"} • {age ? `${age} years old` : 'Age hidden'}</p>
               <div className="flex items-center gap-4 mt-2">
-                <button onClick={copyId} className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full text-[9px] font-black text-green-600 uppercase tracking-widest active:scale-95 transition-all">ID: {userProfile?.numericId || '---'}<Copy className="w-3 h-3 opacity-50" /></button>
+                <button onClick={copyId} className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full text-[9px] font-black text-green-600 uppercase tracking-widest active:scale-95 transition-all">ID: {userProfile?.numeric_id || '---'}<Copy className="w-3 h-3 opacity-50" /></button>
                 <div className="flex items-center gap-1.5 text-[9px] font-black text-gray-400 uppercase tracking-widest"><Globe className="w-3 h-3" />{userProfile?.location || "Kenya"}</div>
               </div>
             </div>
           </div>
 
-          {(userProfile?.isAdmin || userProfile?.isSupport || isVerified) && (
+          {(userProfile?.is_admin || userProfile?.is_support || isVerified) && (
             <div className="flex gap-2 flex-wrap">
-              {userProfile?.isAdmin && <div className="px-3 py-1 bg-primary/10 rounded-full inline-flex items-center gap-1.5 border border-primary/20"><Zap className="w-3 h-3 text-primary fill-current" /><span className="text-[9px] font-black text-primary uppercase tracking-widest">Admin</span></div>}
-              {userProfile?.isSupport && <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20"><Headset className="w-3 h-3 text-blue-500" /><span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Support</span></div>}
+              {userProfile?.is_admin && <div className="px-3 py-1 bg-primary/10 rounded-full inline-flex items-center gap-1.5 border border-primary/20"><Zap className="w-3 h-3 text-primary fill-current" /><span className="text-[9px] font-black text-primary uppercase tracking-widest">Admin</span></div>}
+              {userProfile?.is_support && <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20"><Headset className="w-3 h-3 text-blue-500" /><span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Support</span></div>}
               {isVerified && <div className="px-3 py-1 bg-blue-500/10 rounded-full inline-flex items-center gap-1.5 border border-blue-500/20"><ShieldCheck className="w-3 h-3 text-blue-500" /><span className="text-[9px] font-black text-blue-500 uppercase tracking-widest">Verified</span></div>}
             </div>
           )}
@@ -315,12 +315,7 @@ export default function ProfileDetailPage() {
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Gift Wall</h3>
-              <button 
-                onClick={() => router.push(`/profile/${id}/gifts`)}
-                className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-1 active:opacity-50"
-              >
-                Full Wall <ArrowRight className="w-3 h-3" />
-              </button>
+              <button onClick={() => router.push(`/profile/${id}/gifts`)} className="text-[9px] font-black uppercase text-primary tracking-widest flex items-center gap-1 active:opacity-50">Full Wall <ArrowRight className="w-3 h-3" /></button>
             </div>
             <div className="bg-gray-50/50 p-5 rounded-[2rem] border border-gray-100 min-h-[80px] flex items-center">
               {isGiftsLoading ? (
@@ -332,27 +327,17 @@ export default function ProfileDetailPage() {
                     return (
                       <div key={g.giftId} className="flex flex-col items-center shrink-0">
                         <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-1 border border-white overflow-hidden">
-                          {giftInfo?.image ? (
-                            <img src={giftInfo.image} className="w-8 h-8 object-contain" alt={giftInfo.name} />
-                          ) : (
-                            <span className="text-xl">{giftInfo?.emoji || '🎁'}</span>
-                          )}
+                          {giftInfo?.image ? <img src={giftInfo.image} className="w-8 h-8 object-contain" alt={giftInfo.name} /> : <span className="text-xl">{giftInfo?.emoji || '🎁'}</span>}
                         </div>
                         <span className="text-[9px] font-black text-primary italic">x{g.count}</span>
                       </div>
                     )
                   })}
-                  {groupedGifts.length > 5 && (
-                    <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white border border-gray-100 text-[10px] font-black text-gray-300 uppercase tracking-tighter">
-                      +{groupedGifts.length - 5}
-                    </div>
-                  )}
+                  {groupedGifts.length > 5 && <div className="flex items-center justify-center w-12 h-12 rounded-2xl bg-white border border-gray-100 text-[10px] font-black text-gray-300 uppercase tracking-tighter">+{groupedGifts.length - 5}</div>}
                 </div>
               ) : (
                 <div className="flex-1 text-center py-4">
-                  <div className="w-10 h-10 bg-white/50 rounded-full flex items-center justify-center mx-auto mb-2">
-                    <GiftIcon className="w-4 h-4 text-gray-200" />
-                  </div>
+                  <div className="w-10 h-10 bg-white/50 rounded-full flex items-center justify-center mx-auto mb-2"><GiftIcon className="w-4 h-4 text-gray-200" /></div>
                   <p className="text-[10px] font-bold text-gray-300 uppercase tracking-widest">No gifts yet</p>
                 </div>
               )}
@@ -362,9 +347,7 @@ export default function ProfileDetailPage() {
           {userProfile?.bio && (
             <div className="space-y-4">
               <h3 className="text-[10px] font-black uppercase text-gray-400 tracking-[0.2em]">Biography</h3>
-              <div className="bg-gray-50/50 p-5 rounded-[1.5rem] border border-gray-100">
-                <p className="text-sm font-medium text-gray-600 leading-relaxed italic">"{userProfile.bio}"</p>
-              </div>
+              <div className="bg-gray-50/50 p-5 rounded-[1.5rem] border border-gray-100"><p className="text-sm font-medium text-gray-600 leading-relaxed italic">"{userProfile.bio}"</p></div>
             </div>
           )}
 
@@ -375,30 +358,19 @@ export default function ProfileDetailPage() {
                 {userProfile?.horoscope && (
                   <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
                     <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Compass className="w-6 h-6" /></div>
-                    <div className="flex-1">
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Zodiac Sign</p>
-                      <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.horoscope}</p>
-                    </div>
+                    <div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Zodiac Sign</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.horoscope}</p></div>
                   </div>
                 )}
-
                 {userProfile?.education && (
                   <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
                     <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><GraduationCap className="w-6 h-6" /></div>
-                    <div className="flex-1">
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Education</p>
-                      <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.education}</p>
-                    </div>
+                    <div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Education</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.education}</p></div>
                   </div>
                 )}
-
-                {userProfile?.relationshipGoal && (
+                {userProfile?.relationship_goal && (
                   <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
                     <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Target className="w-6 h-6" /></div>
-                    <div className="flex-1">
-                      <p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Looking For</p>
-                      <p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.relationshipGoal.replace('-', ' ')}</p>
-                    </div>
+                    <div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Looking For</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.relationship_goal.replace('-', ' ')}</p></div>
                   </div>
                 )}
               </div>
@@ -418,7 +390,6 @@ export default function ProfileDetailPage() {
               </div>
             </div>
           )}
-          
           <div className="h-40" />
         </div>
       </div>
@@ -431,15 +402,8 @@ export default function ProfileDetailPage() {
 
       {fullscreenImage && (
         <div className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center animate-in fade-in duration-300" onClick={closeFullscreen}>
-          <div className="relative w-full flex-1">
-            <Image src={fullscreenImage} alt="Fullscreen" fill className="object-contain cursor-pointer" priority unoptimized />
-          </div>
-          <div className="p-10 shrink-0">
-            <Button onClick={(e) => { e.stopPropagation(); closeFullscreen(); }} className="h-16 px-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all gap-3">
-              <X className="w-5 h-5" />
-              Close Viewer
-            </Button>
-          </div>
+          <div className="relative w-full flex-1"><Image src={fullscreenImage} alt="Fullscreen" fill className="object-contain cursor-pointer" priority unoptimized /></div>
+          <div className="p-10 shrink-0"><Button onClick={(e) => { e.stopPropagation(); closeFullscreen(); }} className="h-16 px-10 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 text-white font-black uppercase text-xs tracking-[0.2em] shadow-2xl active:scale-95 transition-all gap-3"><X className="w-5 h-5" />Close Viewer</Button></div>
         </div>
       )}
 
