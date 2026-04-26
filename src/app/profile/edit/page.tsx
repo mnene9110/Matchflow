@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect, useRef, useCallback } from "react"
@@ -16,6 +17,7 @@ import { cn } from "@/lib/utils"
 import Image from "next/image"
 import Cropper from "react-easy-crop"
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog"
+import { uploadToSupabase } from "@/lib/storage"
 
 const COUNTRIES = ["Burundi", "Comoros", "Djibouti", "Eritrea", "Ethiopia", "Kenya", "Madagascar", "Malawi", "Mauritius", "Mozambique", "Nigeria", "Rwanda", "Seychelles", "Somalia", "South Sudan", "Tanzania", "Uganda", "Zambia", "Zimbabwe"]
 
@@ -113,22 +115,31 @@ export default function EditProfilePage() {
   }
 
   const handleApplyCrop = async () => {
+    if (!currentUser) return;
     setIsCropping(true)
     try {
       const croppedImage = await getCroppedImg()
       if (croppedImage && activePhotoSlot !== null) {
+        // Upload to Supabase immediately to avoid storing large Base64 in state
+        const path = `profiles/${currentUser.uid}/photo_${activePhotoSlot}_${Date.now()}.jpg`;
+        const url = await uploadToSupabase(croppedImage, path);
+
         setFormData(prev => {
           const newUrls = [...prev.profilePhotoUrls]; 
           if (activePhotoSlot < newUrls.length) {
-            newUrls[activePhotoSlot] = croppedImage;
+            newUrls[activePhotoSlot] = url;
           } else {
-            newUrls.push(croppedImage);
+            newUrls.push(url);
           }
           return { ...prev, profilePhotoUrls: newUrls }
         });
         setImageToCrop(null); setActivePhotoSlot(null);
       }
-    } catch (e) { toast({ variant: "destructive", title: "Error" }) } finally { setIsCropping(false) }
+    } catch (e) { 
+      toast({ variant: "destructive", title: "Upload Error", description: "Could not save photo to storage." }) 
+    } finally { 
+      setIsCropping(false) 
+    }
   }
 
   const removePhoto = (index: number) => {
@@ -158,7 +169,10 @@ export default function EditProfilePage() {
       })
       toast({ title: "Profile Updated" })
       router.push("/profile")
-    } catch (error) { toast({ variant: "destructive", title: "Error" }); setIsSaving(false) }
+    } catch (error) { 
+      toast({ variant: "destructive", title: "Error", description: "Failed to save profile changes." }); 
+      setIsSaving(false) 
+    }
   }
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
@@ -287,7 +301,13 @@ export default function EditProfilePage() {
       <Dialog open={!!imageToCrop} onOpenChange={(open) => !open && !isCropping && setImageToCrop(null)}>
         <DialogContent className="rounded-[2.5rem] bg-white border-none p-0 max-w-[95%] mx-auto shadow-2xl overflow-hidden">
           <div className="relative w-full aspect-square bg-zinc-950">{imageToCrop && <Cropper image={imageToCrop} crop={crop} zoom={zoom} aspect={1} onCropChange={setCrop} onCropComplete={onCropComplete} onZoomChange={setZoom} />}</div>
-          <div className="p-6 space-y-6"><input type="range" value={zoom} min={1} max={3} step={0.1} onChange={(e) => setZoom(Number(e.target.value))} className="w-full" /><DialogFooter className="flex gap-3"><Button variant="ghost" onClick={() => setImageToCrop(null)} className="flex-1">Cancel</Button><Button onClick={handleApplyCrop} className="flex-1">Apply</Button></DialogFooter></div>
+          <div className="p-6 space-y-6">
+            <input type="range" value={zoom} min={1} max={3} step={0.1} aria-labelledby="Zoom" onChange={(e) => setZoom(Number(e.target.value))} className="w-full h-2 bg-gray-100 rounded-lg appearance-none cursor-pointer accent-primary" />
+            <DialogFooter className="flex gap-3">
+              <Button variant="ghost" onClick={() => setImageToCrop(null)} disabled={isCropping} className="flex-1 h-12 rounded-full font-black text-[10px] uppercase text-gray-400">Cancel</Button>
+              <Button onClick={handleApplyCrop} disabled={isCropping} className="flex-1 h-12 rounded-full bg-zinc-900 text-white font-black text-[10px] uppercase shadow-xl">Apply</Button>
+            </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,7 +1,8 @@
+
 "use client"
 
 import { useState, useRef, useCallback } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter } from "navigation"
 import { ChevronLeft, Loader2, Camera } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -15,6 +16,7 @@ import Image from "next/image"
 import Cropper from "react-easy-crop"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { uploadToSupabase } from "@/lib/storage"
 
 const ROOM_CREATION_COST = 4000
 
@@ -91,6 +93,14 @@ export default function CreatePartyPage() {
 
     setIsCreating(true)
     try {
+      let finalCoverUrl = formData.coverPhoto;
+      
+      // If we have a local Base64 cover, upload it to Supabase first
+      if (finalCoverUrl && finalCoverUrl.startsWith('data:')) {
+        const path = `parties/${currentUser.uid}/cover_${Date.now()}.jpg`;
+        finalCoverUrl = await uploadToSupabase(finalCoverUrl, path);
+      }
+
       await runTransaction(firestore, async (transaction) => {
         const profileSnap = await transaction.get(userProfileRef!);
         const currentBalance = profileSnap.data()?.coinBalance || 0;
@@ -107,7 +117,7 @@ export default function CreatePartyPage() {
           title: formData.title,
           tags: formData.tags,
           announcement: formData.announcement,
-          coverPhoto: formData.coverPhoto,
+          coverPhoto: finalCoverUrl,
           maxSeats: Number(formData.maxSeats),
           hostId: currentUser.uid,
           hostName: profile.username || "User",
