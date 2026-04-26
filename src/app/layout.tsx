@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect, useState } from 'react';
@@ -19,15 +18,9 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    const auth = supabase?.auth;
-    if (!auth) {
-      setIsReady(true);
-      return;
-    }
-
     const checkAuth = async () => {
       try {
-        const { data: { session } } = await auth.getSession();
+        const { data: { session } } = await supabase.auth.getSession();
         
         const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
         const isPublicRoute = publicRoutes.includes(pathname);
@@ -45,7 +38,8 @@ function NavigationGuard({ children }: { children: React.ReactNode }) {
 
     checkAuth();
 
-    const { data: listener } = auth.onAuthStateChange((event) => {
+    // Correct Supabase v2 pattern for auth listener
+    const { data: listener } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         window.location.replace('/welcome');
       }

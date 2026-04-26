@@ -1,8 +1,3 @@
-
-// Firebase SDKs have been removed. This file is gutted to prevent build errors.
-export const initializeFirebase = () => ({
-  firebaseApp: null,
-  auth: null,
-  firestore: null,
-  database: null
-});
+// Firebase SDKs have been completely removed.
+// This file is now empty to ensure no stray imports crash the app.
+export const initializeFirebase = () => ({});

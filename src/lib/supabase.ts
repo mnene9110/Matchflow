@@ -35,13 +35,18 @@ export async function getProfile(userId: string) {
 }
 
 /**
- * Helper to update profile
+ * Helper to update profile using snake_case
  */
 export async function updateProfile(userId: string, updates: any) {
   if (!supabase) return { data: null, error: new Error('Supabase not initialized') };
+  
+  // Ensure we use snake_case for common updates
   const { data, error } = await supabase
     .from('profiles')
-    .update({ ...updates, updated_at: new Date().toISOString() })
+    .update({ 
+      ...updates, 
+      updated_at: new Date().toISOString() 
+    })
     .eq('id', userId);
   
   return { data, error };

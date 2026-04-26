@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState } from "react"
@@ -27,32 +26,40 @@ export default function FastOnboardingPage() {
   const { toast } = useToast()
 
   const handleConfirm = async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user || !gender || !country || isSubmitting) return
+    if (!gender || !country || isSubmitting) return
     setIsSubmitting(true)
 
     try {
+      // 1. Force fetch fresh session to ensure RLS compliance
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session?.user) {
+        throw new Error("You must be signed in to create a profile.");
+      }
+
+      const user = session.user;
       const numericId = Math.floor(10000000 + Math.random() * 90000000);
       const welcomeCoins = 500;
 
-      // Ensure fields match the SQL schema exactly (snake_case)
-      const { error } = await supabase
+      // 2. Insert profile using the authenticated user's ID
+      // This matches the 'auth.uid() = id' RLS policy requirement
+      const { error: insertError } = await supabase
         .from('profiles')
         .insert({
-          id: session.user.id,
+          id: user.id, // CRITICAL: Must be the auth.uid()
           numeric_id: numericId,
-          username: `Guest_${session.user.id.slice(0, 5)}`,
+          username: `Guest_${user.id.slice(0, 5)}`,
           gender: gender,
           location: country,
-          profile_photo_urls: [`https://picsum.photos/seed/${session.user.id}/600/800`],
+          profile_photo_urls: [`https://picsum.photos/seed/${user.id}/600/800`],
           coin_balance: welcomeCoins,
           is_online: true,
           updated_at: new Date().toISOString()
         });
 
-      if (error) {
-        console.error("Supabase insert error details:", error.message, error.details, error.hint);
-        throw new Error(error.message || "Failed to create profile record.");
+      if (insertError) {
+        console.error("Supabase insert error details:", insertError);
+        throw new Error(insertError.message || "Failed to create profile record.");
       }
       
       router.push("/discover")

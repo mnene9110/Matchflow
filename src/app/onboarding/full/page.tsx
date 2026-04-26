@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useCallback, useMemo } from "react"
@@ -6,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/group"
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import { supabase } from "@/lib/supabase"
 import { cn } from "@/lib/utils"
@@ -37,8 +36,7 @@ export default function FullOnboardingPage() {
   }, [])
 
   const handleSave = useCallback(async () => {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session?.user || !name || !dob || !gender || !country || !lookingFor || isSubmitting) return
+    if (!name || !dob || !gender || !country || !lookingFor || isSubmitting) return
 
     const birthDate = new Date(dob)
     const today = new Date()
@@ -59,25 +57,31 @@ export default function FullOnboardingPage() {
 
     setIsSubmitting(true)
     try {
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.user) {
+        throw new Error("Auth session not found. Please log in again.");
+      }
+
+      const user = session.user;
       const numericId = Math.floor(10000000 + Math.random() * 90000000);
 
-      const { error } = await supabase
+      const { error: insertError } = await supabase
         .from('profiles')
         .insert({
-          id: session.user.id,
+          id: user.id, // CRITICAL: Must match auth.uid() for RLS
           numeric_id: numericId,
           username: name,
           gender: gender,
           location: country,
           relationship_goal: lookingFor,
           date_of_birth: dob,
-          profile_photo_urls: [`https://picsum.photos/seed/${session.user.id}/600/800`],
+          profile_photo_urls: [`https://picsum.photos/seed/${user.id}/600/800`],
           coin_balance: 500,
           is_online: true,
           updated_at: new Date().toISOString()
         });
 
-      if (error) throw error;
+      if (insertError) throw insertError;
       router.push("/discover")
     } catch (error: any) {
       console.error("Full onboarding failed:", error)
