@@ -9,6 +9,7 @@ import { OfflineDetector } from "@/components/OfflineDetector"
 import { Navbar } from "@/components/Navbar"
 import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 import { InstallPWA } from "@/components/InstallPWA"
+import { NotificationRequest } from "@/components/NotificationRequest"
 
 function NavigationGuard({ children }: { children: React.Node }) {
   const { user, isUserLoading } = useUser();
@@ -97,6 +98,7 @@ export default function RootLayout({
                 <Navbar />
                 <GlobalCallOverlay />
                 <InstallPWA />
+                <NotificationRequest />
               </div>
             </OfflineDetector>
           </NavigationGuard>

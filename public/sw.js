@@ -1,81 +1,82 @@
-const CACHE_NAME = 'matchflow-cache-v1';
+const CACHE_NAME = 'matchflow-v2';
 const ASSETS_TO_CACHE = [
   '/',
+  '/welcome',
   '/manifest.json',
   '/icon-192.png',
-  '/icon-512.png',
-  '/home.png',
-  '/chat.png',
-  '/me.png'
+  '/icon-512.png'
 ];
 
-// Install Event - Pre-cache core assets
 self.addEventListener('install', (event) => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Pre-caching core assets');
       return cache.addAll(ASSETS_TO_CACHE);
     })
   );
-  self.skipWaiting();
 });
 
-// Activate Event - Clean up old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
       return Promise.all(
-        cacheNames.map((cache) => {
-          if (cache !== CACHE_NAME) {
-            console.log('[SW] Clearing old cache:', cache);
-            return caches.delete(cache);
+        cacheNames.map((cacheName) => {
+          if (cacheName !== CACHE_NAME) {
+            return caches.delete(cacheName);
           }
         })
       );
     })
   );
-  self.clients.claim();
+  return self.clients.claim();
 });
 
-// Fetch Event - Handle offline strategies
+// Advanced Caching Strategy: Stale-While-Revalidate for assets, Network-First for pages
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
-  if (event.request.method !== 'GET') return;
-
   const url = new URL(event.request.url);
 
-  // Strategy for Navigation (App Pages)
-  if (event.request.mode === 'navigate') {
+  // Skip non-GET requests and browser extensions
+  if (event.request.method !== 'GET' || !event.request.url.startsWith('http')) {
+    return;
+  }
+
+  // Use Stale-While-Revalidate for images and fonts
+  if (event.request.destination === 'image' || event.request.destination === 'font') {
     event.respondWith(
-      fetch(event.request).catch(() => {
-        return caches.match('/');
+      caches.open(CACHE_NAME).then((cache) => {
+        return cache.match(event.request).then((cachedResponse) => {
+          const fetchedResponse = fetch(event.request).then((networkResponse) => {
+            cache.put(event.request, networkResponse.clone());
+            return networkResponse;
+          });
+          return cachedResponse || fetchedResponse;
+        });
       })
     );
     return;
   }
 
-  // Strategy for Images and Static Assets
+  // Use Network-First for app pages to ensure fresh data, with offline fallback
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request).then((networkResponse) => {
-        // Cache external images or local assets for next time
-        if (networkResponse && networkResponse.status === 200) {
-          const responseClone = networkResponse.clone();
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone);
-          });
-        }
-        return networkResponse;
-      }).catch(() => null);
-
-      return cachedResponse || fetchPromise;
-    })
+    fetch(event.request)
+      .then((response) => {
+        const responseClone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseClone);
+        });
+        return response;
+      })
+      .catch(() => {
+        return caches.match(event.request).then((cachedResponse) => {
+          return cachedResponse || caches.match('/welcome');
+        });
+      })
   );
 });
 
-// Push Notification Event
+// Handle Push Notifications
 self.addEventListener('push', (event) => {
-  let data = { title: 'New Message', body: 'You have a new update in MatchFlow.' };
+  let data = { title: 'MatchFlow', body: 'You have a new update!' };
   
   if (event.data) {
     try {
@@ -100,21 +101,23 @@ self.addEventListener('push', (event) => {
   );
 });
 
-// Notification Click Event
+// Handle Notification Click
 self.addEventListener('notificationclick', (event) => {
   event.notification.close();
+  const urlToOpen = event.notification.data.url;
 
   event.waitUntil(
-    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((clientList) => {
-      const targetUrl = event.notification.data.url;
-
-      for (const client of clientList) {
-        if (client.url.includes(targetUrl) && 'focus' in client) {
+    clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+      // If a window is already open, focus it
+      for (let i = 0; i < windowClients.length; i++) {
+        const client = windowClients[i];
+        if (client.url === urlToOpen && 'focus' in client) {
           return client.focus();
         }
       }
+      // Otherwise, open a new window
       if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
+        return clients.openWindow(urlToOpen);
       }
     })
   );
