@@ -1,11 +1,11 @@
 "use client"
 
-import { useState, use, Suspense } from "react"
+import { useState, useEffect, use, Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Users, Zap, Loader2, ShieldCheck, MessageCircle, ChevronLeft } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser, useCollection, useMemoFirebase, useDoc } from "@/firebase"
-import { collection, query, where, doc } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
+import { useSupabaseUser } from "@/hooks/use-supabase"
 import { initializePesaPalTransaction } from "@/app/actions/pesapal"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -15,8 +15,7 @@ import { COUNTRY_CURRENCIES } from "../page"
 function PaymentMethodContent() {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const { user } = useUser()
-  const { firestore } = useFirebase()
+  const { profile } = useSupabaseUser()
   const { toast } = useToast()
 
   const amount = Number(searchParams?.get('amount'))
@@ -24,31 +23,33 @@ function PaymentMethodContent() {
   const currencyCode = searchParams?.get('currency') || "KES"
 
   const [isProcessing, setIsProcessing] = useState<string | null>(null)
-
-  const meRef = useMemoFirebase(() => user ? doc(firestore, "userProfiles", user.uid) : null, [firestore, user])
-  const { data: profile } = useDoc(meRef)
+  const [coinsellers, setCoinsellers] = useState<any[]>([])
+  const [isSellersLoading, setIsSellersLoading] = useState(true)
 
   const currencyInfo = COUNTRY_CURRENCIES[profile?.location || "Kenya"] || COUNTRY_CURRENCIES["Kenya"];
   const isKenyan = profile?.location === "Kenya";
 
-  const coinsellersQuery = useMemoFirebase(() => {
-    if (!firestore) return null
-    return query(collection(firestore, "userProfiles"), where("isCoinseller", "==", true))
-  }, [firestore])
-
-  const { data: coinsellers, isLoading: isSellersLoading } = useCollection(coinsellersQuery)
+  useEffect(() => {
+    const fetchSellers = async () => {
+      const { data } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('is_coinseller', true);
+      setCoinsellers(data || []);
+      setIsSellersLoading(false);
+    };
+    fetchSellers();
+  }, []);
 
   const handlePesapal = async () => {
-    if (!user || !amount || !localPrice) return
+    if (!profile || !amount || !localPrice) return
     setIsProcessing('pesapal')
 
-    // Convert local price back to KES for PesaPal if needed, 
-    // but typically we send the package price in KES base.
     const priceKes = Math.round(localPrice / currencyInfo.rate);
-
-    const email = user.email || `guest_${user.uid.slice(0, 8)}@matchflow.app`
+    const email = profile.email || `guest_${profile.id.slice(0, 8)}@matchflow.app`
+    
     const result = await initializePesaPalTransaction(email, priceKes, {
-      userId: user.uid,
+      userId: profile.id,
       packageAmount: amount
     })
 
@@ -59,29 +60,26 @@ function PaymentMethodContent() {
     }
 
     if (result.redirect_url) {
-      // Redirect to PesaPal payment page
       window.location.href = result.redirect_url
     }
   }
 
-  const darkMaroon = "bg-[#5A1010]";
-
   return (
-    <div className="flex flex-col min-h-svh bg-transparent text-gray-900">
-      <header className="px-4 py-6 flex items-center sticky top-0 bg-transparent z-10">
+    <div className="flex flex-col min-h-svh bg-white text-gray-900">
+      <header className="px-4 py-6 flex items-center sticky top-0 bg-[#3BC1A8] z-10 text-white shadow-lg">
         <Button 
           variant="ghost" 
           size="icon" 
           onClick={() => router.back()} 
-          className="text-gray-900 h-10 w-10 bg-white/20 backdrop-blur-md rounded-full"
+          className="text-white h-10 w-10 bg-white/20 backdrop-blur-md rounded-full shadow-sm"
         >
           <ChevronLeft className="w-6 h-6" />
         </Button>
-        <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase text-white drop-shadow-md">Select Payment</h1>
+        <h1 className="text-lg font-black font-headline ml-4 tracking-widest uppercase">Select Payment</h1>
       </header>
 
-      <main className="flex-1 px-6 pt-4 pb-20 space-y-8">
-        <section className="bg-white/40 backdrop-blur-md border border-white/40 rounded-[2.5rem] p-6 shadow-sm">
+      <main className="flex-1 px-6 pt-6 pb-20 space-y-8">
+        <section className="bg-gray-50 border border-gray-100 rounded-[2.5rem] p-6 shadow-sm">
           <div className="flex justify-between items-center">
             <div>
               <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest mb-1">Package Selected</p>
@@ -97,12 +95,12 @@ function PaymentMethodContent() {
         </section>
 
         <section className="space-y-4">
-          <h3 className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em] ml-2">Digital Gateway</h3>
+          <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em] ml-2">Digital Gateway</h3>
           
           <button 
             onClick={handlePesapal}
             disabled={!!isProcessing}
-            className="w-full flex items-center justify-between p-5 bg-white/60 backdrop-blur-md border border-white rounded-[2rem] transition-all active:scale-[0.98] group shadow-sm hover:bg-white disabled:opacity-50"
+            className="w-full flex items-center justify-between p-5 bg-white border border-gray-100 rounded-[2rem] transition-all active:scale-[0.98] group shadow-sm hover:bg-gray-50 disabled:opacity-50"
           >
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center border border-blue-500/5">
@@ -120,22 +118,22 @@ function PaymentMethodContent() {
         {isKenyan && (
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2">
-              <h3 className="text-[10px] font-black text-white/60 uppercase tracking-[0.2em]">Official Coinsellers</h3>
+              <h3 className="text-[10px] font-black text-gray-400 uppercase tracking-[0.2em]">Official Coinsellers</h3>
               <Users className="w-3.5 h-3.5 text-gray-300" />
             </div>
 
             <div className="space-y-3">
               {isSellersLoading ? (
                 <div className="flex justify-center py-8"><Loader2 className="w-6 h-6 animate-spin text-gray-300" /></div>
-              ) : coinsellers && coinsellers.length > 0 ? (
+              ) : coinsellers.length > 0 ? (
                 coinsellers.map((seller: any) => (
                   <div 
                     key={seller.id}
-                    className="w-full flex items-center justify-between p-4 bg-white/40 backdrop-blur-md border border-white/30 rounded-[2rem] shadow-sm"
+                    className="w-full flex items-center justify-between p-4 bg-white border border-gray-100 rounded-[2rem] shadow-sm"
                   >
                     <div className="flex items-center gap-3">
                       <Avatar className="w-10 h-10 border border-white shadow-sm">
-                        <AvatarImage src={seller.profilePhotoUrls?.[0] || `https://picsum.photos/seed/${seller.id}/100/100`} className="object-cover" />
+                        <AvatarImage src={seller.profile_photo_urls?.[0]} className="object-cover" />
                         <AvatarFallback className="bg-primary text-white text-[10px] font-black">{seller.username?.[0]}</AvatarFallback>
                       </Avatar>
                       <div className="flex flex-col">
@@ -147,7 +145,7 @@ function PaymentMethodContent() {
                       size="sm"
                       variant="ghost"
                       onClick={() => router.push(`/chat/${seller.id}?msg=${encodeURIComponent(`I want to buy ${amount} coins for ${currencyInfo.symbol} ${localPrice}`)}`)}
-                      className="h-10 px-4 rounded-full bg-white/50 text-primary hover:bg-white font-black text-[9px] uppercase tracking-widest gap-2"
+                      className="h-10 px-4 rounded-full bg-primary/5 text-primary hover:bg-primary/10 font-black text-[9px] uppercase tracking-widest gap-2"
                     >
                       <MessageCircle className="w-3.5 h-3.5" />
                       Buy via Chat
@@ -155,7 +153,7 @@ function PaymentMethodContent() {
                   </div>
                 ))
               ) : (
-                <div className="p-8 text-center bg-white/20 rounded-[2rem] border border-white/30 border-dashed">
+                <div className="p-8 text-center bg-gray-50 rounded-[2rem] border border-gray-100 border-dashed">
                   <p className="text-[10px] font-black text-gray-400 uppercase tracking-widest">No sellers online</p>
                 </div>
               )}
@@ -163,17 +161,13 @@ function PaymentMethodContent() {
           </section>
         )}
       </main>
-
-      <footer className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md p-6 flex flex-col items-center gap-2">
-        <p className="text-[8px] font-black text-white/40 uppercase tracking-widest">Payments are encrypted and secure</p>
-      </footer>
     </div>
   )
 }
 
 export default function PaymentMethodPage() {
   return (
-    <Suspense fallback={<div className="flex h-svh items-center justify-center bg-transparent" />}>
+    <Suspense fallback={<div className="flex h-svh items-center justify-center bg-white" />}>
       <PaymentMethodContent />
     </Suspense>
   )

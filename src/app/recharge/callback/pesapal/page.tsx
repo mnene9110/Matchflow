@@ -1,18 +1,15 @@
-
 "use client"
 
 import { useEffect, useState, useRef, use, Suspense, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import { Loader2, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Coins } from "lucide-react"
-import { useFirebase, useUser } from "@/firebase"
-import { collection, query, where, onSnapshot } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
 import { processServerPaymentConfirmation } from "@/app/actions/pesapal"
 import { Button } from "@/components/ui/button"
 
 function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }) {
   const params = use(searchParams)
   const router = useRouter()
-  const { firestore } = useFirebase()
   
   const [status, setStatus] = useState<'verifying' | 'success' | 'error'>('verifying')
   const [coinsAwarded, setCoinsAwarded] = useState(0)
@@ -69,24 +66,30 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
     };
   }, [orderTrackingId, status]);
 
-  // Real-time Firestore Listener
+  // Real-time Supabase Listener for the payment status
   useEffect(() => {
-    if (!firestore || !orderTrackingId || processedRef.current) return;
+    if (!orderTrackingId || processedRef.current) return;
 
-    const q = query(collection(firestore, "pendingPayments"), where("orderTrackingId", "==", orderTrackingId));
-    const unsub = onSnapshot(q, (snap) => {
-      if (!snap.empty) {
-        const data = snap.docs[0].data();
-        if (data.status === 'completed' && !processedRef.current) {
+    const channel = supabase
+      .channel('payment_sync')
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'pending_payments',
+        filter: `order_tracking_id=eq.${orderTrackingId}`
+      }, (payload) => {
+        if (payload.new.status === 'completed' && !processedRef.current) {
           processedRef.current = true;
-          setCoinsAwarded(data.packageAmount);
+          setCoinsAwarded(payload.new.package_amount);
           setStatus('success');
         }
-      }
-    });
+      })
+      .subscribe();
 
-    return () => unsub();
-  }, [firestore, orderTrackingId]);
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [orderTrackingId]);
 
   // Automatic Redirect
   useEffect(() => {
@@ -141,7 +144,7 @@ function PesaPalCallbackContent({ searchParams }: { searchParams: Promise<any> }
           <div className="flex flex-col gap-4 items-center">
             <Button 
               onClick={handleManualReturn} 
-              className="h-16 w-full min-w-[200px] rounded-full bg-zinc-900 text-white font-black text-lg gap-3 shadow-xl active:scale-95 transition-all"
+              className="h-16 w-full min-w-[200px] rounded-full bg-zinc-900 text-white font-black text-lg shadow-xl active:scale-95 transition-all"
             >
               Continue
               <ArrowRight className="w-5 h-5" />

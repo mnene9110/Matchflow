@@ -1,7 +1,6 @@
-
 "use client"
 
-import { useMemo } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { 
   ChevronLeft, 
@@ -9,40 +8,57 @@ import {
   Gift as GiftIcon,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import { useFirebase, useUser, useDoc, useMemoFirebase, useCollection } from "@/firebase"
-import { doc, collection, query, where, limit } from "firebase/firestore"
+import { supabase } from "@/lib/supabase"
 import { GIFTS } from "@/app/chat/[id]/page"
 
 export default function UserGiftsPage() {
   const { id } = useParams()
   const router = useRouter()
-  const { firestore } = useFirebase()
   
-  const userProfileRef = useMemoFirebase(() => id ? doc(firestore, "userProfiles", id as string) : null, [firestore, id])
-  const { data: userProfile, isLoading: isProfileLoading } = useDoc(userProfileRef)
+  const [userProfile, setUserProfile] = useState<any>(null)
+  const [giftTransactions, setGiftTransactions] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-  // Fetch all gift transactions
-  const giftsQuery = useMemoFirebase(() => {
-    if (!firestore || !id) return null
-    return query(
-      collection(firestore, "userProfiles", id as string, "transactions"),
-      where("type", "==", "gift_received"),
-      limit(200)
-    )
-  }, [firestore, id])
-  
-  const { data: giftTransactions, isLoading: isGiftsLoading } = useCollection(giftsQuery)
+  useEffect(() => {
+    if (!id) return;
+    
+    const fetchData = async () => {
+      setIsLoading(true);
+      
+      // Fetch Profile
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('id', id)
+        .single();
+      
+      setUserProfile(profile);
+
+      // Fetch Gifts
+      const { data: gifts } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', id)
+        .eq('type', 'gift_received');
+      
+      setGiftTransactions(gifts || []);
+      setIsLoading(false);
+    };
+
+    fetchData();
+  }, [id]);
 
   const groupedGifts = useMemo(() => {
     if (!giftTransactions) return []
     const map = new Map<string, { giftId: string; count: number }>()
+    
     giftTransactions.forEach((tx: any) => {
-      if (!tx.giftId) return
-      const existing = map.get(tx.giftId) || { giftId: tx.giftId, count: 0 }
-      map.set(tx.giftId, { giftId: tx.giftId, count: existing.count + 1 })
+      const gId = tx.gift_id || tx.giftId;
+      if (!gId) return
+      const existing = map.get(gId) || { giftId: gId, count: 0 }
+      map.set(gId, { giftId: gId, count: existing.count + 1 })
     })
     
-    // Convert map to array and sort by count descending
     return Array.from(map.values())
       .map(g => ({
         ...g,
@@ -52,7 +68,7 @@ export default function UserGiftsPage() {
       .sort((a, b) => b.count - a.count)
   }, [giftTransactions])
 
-  if (isProfileLoading) return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+  if (isLoading) return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
 
   return (
     <div className="flex flex-col h-svh bg-white text-gray-900 font-body overflow-hidden">
@@ -65,12 +81,7 @@ export default function UserGiftsPage() {
       </header>
 
       <main className="flex-1 p-6 overflow-y-auto scroll-smooth">
-        {isGiftsLoading ? (
-          <div className="flex flex-col items-center justify-center py-32 gap-4">
-            <Loader2 className="w-10 h-10 animate-spin text-primary/20" />
-            <span className="text-[10px] font-black text-gray-300 uppercase tracking-widest">Opening vault...</span>
-          </div>
-        ) : groupedGifts.length > 0 ? (
+        {groupedGifts.length > 0 ? (
           <div className="grid grid-cols-3 gap-4 pb-20">
             {groupedGifts.map((gift) => (
               <div key={gift.giftId} className="flex flex-col items-center space-y-2 animate-in zoom-in duration-300">
