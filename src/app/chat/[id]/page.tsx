@@ -11,7 +11,7 @@ import {
   Gift, 
   Phone, 
   Video,
-  History
+  X
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase } from "@/firebase/provider"
-import { doc, collection, addDoc, serverTimestamp, query, orderBy, limit, setDoc } from "firebase/firestore"
+import { doc, collection, addDoc, serverTimestamp, query, orderBy, limit, setDoc, runTransaction, increment } from "firebase/firestore"
 import { useDoc } from "@/firebase/firestore/use-doc"
 import { useCollection } from "@/firebase/firestore/use-collection"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
@@ -28,9 +28,14 @@ import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
 
 export const GIFTS = [
-  { id: 'butterfly', name: 'Butterfly', image: '/butterfly.png', price: 300 },
-  { id: 'roses', name: 'Rose Bouquet', image: '/bouquet.png', price: 500 },
-  { id: 'ring', name: 'Diamond Ring', emoji: '💍', price: 1000 },
+  { id: 'butterfly', name: 'Butterfly', emoji: '🦋', price: 100 },
+  { id: 'roses', name: 'Roses', emoji: '🌹', price: 300 },
+  { id: 'wine', name: 'Wine', emoji: '🍷', price: 500 },
+  { id: 'heart', name: 'Heart', emoji: '💝', price: 800 },
+  { id: 'ring', name: 'Ring', emoji: '💍', price: 2000 },
+  { id: 'car', name: 'Supercar', emoji: '🏎️', price: 5000 },
+  { id: 'yacht', name: 'Yacht', emoji: '🚢', price: 10000 },
+  { id: 'castle', name: 'Castle', emoji: '🏰', price: 50000 },
 ]
 
 function ChatDetailContent() {
@@ -45,6 +50,8 @@ function ChatDetailContent() {
   const [inputText, setInputText] = useState("")
   const [isSending, setIsSending] = useState(false)
   const [isGiftSheetOpen, setIsGiftSheetOpen] = useState(false)
+  const [selectedGift, setSelectedGift] = useState<typeof GIFTS[0] | null>(null)
+  const [isGifting, setIsGifting] = useState(false)
 
   const chatId = useMemo(() => {
     if (!currentUser || !otherUserId) return ""
@@ -53,6 +60,9 @@ function ChatDetailContent() {
 
   const otherUserRef = useMemoFirebase(() => doc(firestore, "userProfiles", otherUserId), [otherUserId]);
   const { data: otherUser } = useDoc(otherUserRef);
+
+  const myProfileRef = useMemoFirebase(() => currentUser ? doc(firestore, "userProfiles", currentUser.uid) : null, [currentUser]);
+  const { data: myProfile } = useDoc(myProfileRef);
 
   const messagesQuery = useMemoFirebase(() => {
     if (!chatId) return null;
@@ -96,6 +106,112 @@ function ChatDetailContent() {
     }
   }
 
+  const handleSendGift = async () => {
+    if (!selectedGift || !currentUser || !otherUser || isGifting) return;
+    
+    if ((myProfile?.coinBalance || 0) < selectedGift.price) {
+      toast({ 
+        variant: "destructive", 
+        title: "Insufficient Coins", 
+        description: "Recharge to send this gift." 
+      });
+      return;
+    }
+
+    setIsGifting(true);
+    try {
+      await runTransaction(firestore, async (transaction) => {
+        const senderRef = doc(firestore, "userProfiles", currentUser.uid);
+        const receiverRef = doc(firestore, "userProfiles", otherUserId);
+        
+        const senderSnap = await transaction.get(senderRef);
+        if (!senderSnap.exists()) throw new Error("Sender profile missing");
+        
+        const senderData = senderSnap.data();
+        if (senderData.coinBalance < selectedGift.price) throw new Error("INSUFFICIENT_FUNDS");
+
+        // 1. Deduct coins from sender
+        transaction.update(senderRef, { 
+          coinBalance: increment(-selectedGift.price),
+          updatedAt: serverTimestamp()
+        });
+
+        // 2. Add diamonds to receiver
+        transaction.update(receiverRef, { 
+          diamondBalance: increment(selectedGift.price),
+          updatedAt: serverTimestamp()
+        });
+
+        // 3. Log sender transaction
+        const senderTxRef = doc(collection(firestore, `userProfiles/${currentUser.uid}/transactions`));
+        transaction.set(senderTxRef, {
+          type: "gift_sent",
+          amount: -selectedGift.price,
+          description: `Sent ${selectedGift.name} to ${otherUser.username}`,
+          giftId: selectedGift.id,
+          transactionDate: new Date().toISOString()
+        });
+
+        // 4. Log receiver transaction
+        const receiverTxRef = doc(collection(firestore, `userProfiles/${otherUserId}/transactions`));
+        transaction.set(receiverTxRef, {
+          type: "gift_received",
+          amount: selectedGift.price,
+          description: `Received ${selectedGift.name} from ${myProfile?.username || 'User'}`,
+          giftId: selectedGift.id,
+          transactionDate: new Date().toISOString()
+        });
+      });
+
+      await handleSendMessage(`🎁 Sent a ${selectedGift.name}! ${selectedGift.emoji}`);
+      setIsGiftSheetOpen(false);
+      setSelectedGift(null);
+      toast({ title: "Gift Sent!", description: `${selectedGift.name} delivered.` });
+    } catch (e: any) {
+      toast({ variant: "destructive", title: "Gifting Failed" });
+    } finally {
+      setIsGifting(false);
+    }
+  }
+
+  const handleInitiateCall = async (type: 'video' | 'audio') => {
+    if (!currentUser || !otherUser) return;
+    
+    const cost = type === 'video' ? 160 : 80;
+    if ((myProfile?.coinBalance || 0) < cost) {
+      toast({ 
+        variant: "destructive", 
+        title: "Insufficient Coins", 
+        description: `You need at least ${cost} coins to call.`,
+        action: <Button variant="outline" size="sm" onClick={() => router.push('/recharge')}>Recharge</Button>
+      });
+      return;
+    }
+
+    try {
+      const callId = [currentUser.uid, otherUserId].sort().join("_");
+      const callRef = doc(firestore, "calls", callId);
+      
+      await setDoc(callRef, {
+        id: callId,
+        callerId: currentUser.uid,
+        receiverId: otherUserId,
+        callerName: myProfile?.username || "Someone",
+        callType: type,
+        status: 'ringing',
+        costPerMin: cost,
+        timestamp: Date.now(),
+        participants: [currentUser.uid, otherUserId]
+      });
+
+      await updateDoc(doc(firestore, "userProfiles", otherUserId), {
+        incomingCallId: callId
+      });
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Call Failed" });
+    }
+  }
+
   if (isLoadingMessages) {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
@@ -121,8 +237,8 @@ function ChatDetailContent() {
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><Phone className="w-4 h-4" /></Button>
-          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><Video className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => handleInitiateCall('audio')} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><Phone className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" onClick={() => handleInitiateCall('video')} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><Video className="w-4 h-4" /></Button>
         </div>
       </header>
 
@@ -147,23 +263,53 @@ function ChatDetailContent() {
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon" className="h-12 w-12 rounded-full bg-amber-50 text-amber-500 shrink-0"><Gift className="w-6 h-6" /></Button>
           </SheetTrigger>
-          <SheetContent side="bottom" className="rounded-t-[2.5rem] p-6 pb-12 max-h-[70svh]">
+          <SheetContent side="bottom" className="rounded-t-[2.5rem] p-6 pb-12 max-h-[85svh]">
             <SheetHeader className="mb-6">
-              <SheetTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Send a Gift</SheetTitle>
+              <SheetTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Select a Gift</SheetTitle>
             </SheetHeader>
-            <div className="grid grid-cols-3 gap-4">
+            <div className="grid grid-cols-4 gap-4 overflow-y-auto max-h-[40svh] px-1 no-scrollbar">
               {GIFTS.map((gift) => (
-                <button key={gift.id} onClick={() => handleSendMessage(`🎁 Sent a ${gift.name}!`)} className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-gray-50 transition-colors">
-                  <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-3xl shadow-inner">
-                    {gift.image ? <img src={gift.image} className="w-10 h-10 object-contain" alt={gift.name} /> : gift.emoji}
-                  </div>
-                  <span className="text-[10px] font-black uppercase text-gray-400 truncate w-full text-center">{gift.name}</span>
-                  <div className="flex items-center gap-1 px-2 py-0.5 bg-[#3BC1A8]/10 rounded-full">
+                <button 
+                  key={gift.id} 
+                  onClick={() => setSelectedGift(gift)} 
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-3 rounded-2xl transition-all border-2",
+                    selectedGift?.id === gift.id ? "bg-[#3BC1A8]/10 border-[#3BC1A8]" : "bg-gray-50 border-transparent"
+                  )}
+                >
+                  <span className="text-3xl drop-shadow-sm">{gift.emoji}</span>
+                  <span className="text-[9px] font-black uppercase text-gray-500 truncate w-full text-center">{gift.name}</span>
+                  <div className="flex items-center gap-0.5">
+                    <span className="text-[10px] font-black text-[#3BC1A8] italic">S</span>
                     <span className="text-[9px] font-black text-[#3BC1A8]">{gift.price}</span>
                   </div>
                 </button>
               ))}
             </div>
+            
+            {selectedGift && (
+              <div className="mt-8 flex flex-col gap-4 animate-in slide-in-from-bottom-4">
+                 <div className="flex items-center justify-between bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                    <div className="flex items-center gap-3">
+                       <span className="text-3xl">{selectedGift.emoji}</span>
+                       <div className="flex flex-col">
+                          <span className="text-xs font-black uppercase tracking-widest">{selectedGift.name}</span>
+                          <span className="text-[10px] font-bold text-gray-400">Recipient receives diamonds</span>
+                       </div>
+                    </div>
+                    <div className="text-right">
+                       <span className="text-sm font-black text-[#3BC1A8]">{selectedGift.price} Coins</span>
+                    </div>
+                 </div>
+                 <Button 
+                   onClick={handleSendGift} 
+                   disabled={isGifting} 
+                   className="w-full h-16 rounded-full bg-[#3BC1A8] text-white font-black text-lg shadow-xl"
+                 >
+                   {isGifting ? <Loader2 className="w-6 h-6 animate-spin" /> : `Send ${selectedGift.name}`}
+                 </Button>
+              </div>
+            )}
           </SheetContent>
         </Sheet>
 

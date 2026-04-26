@@ -14,7 +14,6 @@ import {
   Copy,
   CheckCircle,
   Compass,
-  Calendar,
   Zap,
   Tag,
   X,
@@ -51,16 +50,19 @@ import {
 } from "@/components/ui/carousel"
 import { GIFTS } from "@/app/chat/[id]/page"
 import { usePresence } from "@/hooks/use-presence"
-import { supabase } from "@/lib/supabase"
-import { useSupabaseUser } from "@/hooks/use-supabase"
+import { useFirebase } from "@/firebase/provider"
+import { doc, getDoc, updateDoc, setDoc, collection, addDoc, serverTimestamp, query, where, orderBy, limit, onSnapshot } from "firebase/firestore"
+import { useAuth } from "@/firebase/auth/use-auth"
 
 export default function ProfileDetailPage() {
   const { id } = useParams()
   const router = useRouter()
-  const { user: currentUser, profile: currentUserProfile } = useSupabaseUser()
+  const { auth, firestore } = useFirebase()
+  const { user: currentUser } = useAuth(auth)
   const { toast } = useToast()
   
   const [userProfile, setUserProfile] = useState<any>(null)
+  const [myProfile, setMyProfile] = useState<any>(null)
   const [isProfileLoading, setIsProfileLoading] = useState(true)
   const [giftTransactions, setGiftTransactions] = useState<any[]>([])
   const [isGiftsLoading, setIsGiftsLoading] = useState(true)
@@ -75,57 +77,72 @@ export default function ProfileDetailPage() {
   const [api, setApi] = useState<CarouselApi>()
   const [current, setCurrent] = useState(0)
 
-  // Fetch Profile & Gifts
+  // Fetch Target Profile
   useEffect(() => {
     if (!id) return;
     
-    const fetchData = async () => {
+    const fetchTarget = async () => {
       setIsProfileLoading(true);
-      const { data: profile } = await supabase.from('profiles').select('*').eq('id', id).single();
-      setUserProfile(profile);
+      const docRef = doc(firestore, "userProfiles", id as string);
+      const snap = await getDoc(docRef);
+      if (snap.exists()) {
+        setUserProfile(snap.data());
+      }
       setIsProfileLoading(false);
 
-      if (profile) {
-        const { data: gifts } = await supabase
-          .from('transactions')
-          .select('*')
-          .eq('user_id', id)
-          .eq('type', 'gift_received')
-          .limit(50);
-        setGiftTransactions(gifts || []);
+      // Fetch Gifts received
+      const q = query(
+        collection(firestore, `userProfiles/${id}/transactions`),
+        where("type", "==", "gift_received"),
+        orderBy("transactionDate", "desc"),
+        limit(50)
+      );
+      
+      const unsubscribe = onSnapshot(q, (snap) => {
+        setGiftTransactions(snap.docs.map(d => ({ id: d.id, ...d.data() })));
         setIsGiftsLoading(false);
-      }
+      }, () => setIsGiftsLoading(false));
+
+      return () => unsubscribe();
     };
 
-    fetchData();
-  }, [id]);
+    fetchTarget();
+  }, [id, firestore]);
+
+  // Fetch My Profile
+  useEffect(() => {
+    if (!currentUser) return;
+    const unsub = onSnapshot(doc(firestore, "userProfiles", currentUser.uid), (snap) => {
+      if (snap.exists()) setMyProfile(snap.data());
+    });
+    return () => unsub();
+  }, [currentUser, firestore]);
 
   // Track Visitor
   useEffect(() => {
-    if (currentUser && id && id !== currentUser.id && userProfile && currentUserProfile) {
+    if (currentUser && id && id !== currentUser.uid && userProfile && myProfile) {
       const logVisitor = async () => {
         try {
-          await supabase.from('visitors').upsert({
-            target_user_id: id,
-            visitor_id: currentUser.id,
-            username: currentUserProfile.username || "Someone",
-            photo: (currentUserProfile.profile_photo_urls && currentUserProfile.profile_photo_urls[0]) || "",
-            timestamp: new Date().toISOString()
+          const visitorRef = doc(firestore, "userProfiles", id as string, "visitors", currentUser.uid);
+          await setDoc(visitorRef, {
+            visitorId: currentUser.uid,
+            username: myProfile.username || "Someone",
+            photo: (myProfile.profilePhotoUrls && myProfile.profilePhotoUrls[0]) || "",
+            timestamp: serverTimestamp()
           });
         } catch (e) {
-          // Quietly fail if table doesn't exist yet
           console.warn("Visitor tracking unavailable");
         }
       };
       logVisitor();
     }
-  }, [currentUser?.id, id, !!userProfile, !!currentUserProfile]);
+  }, [currentUser?.uid, id, !!userProfile, !!myProfile, firestore]);
 
   const handleInitiateCall = async (type: 'video' | 'audio') => {
-    if (!currentUser || !userProfile) return;
+    if (!currentUser || !userProfile || !id) return;
     
     const cost = type === 'video' ? 160 : 80;
-    if ((currentUserProfile?.coin_balance || 0) < cost) {
+    if ((myProfile?.coinBalance || 0) < cost) {
       toast({ 
         variant: "destructive", 
         title: "Insufficient Coins", 
@@ -135,35 +152,35 @@ export default function ProfileDetailPage() {
       return;
     }
 
-    const chatId = [currentUser.id, id].sort().join("_");
-
     try {
-      // Clear stale calls first
-      await supabase.from('calls').delete().eq('id', chatId);
-
-      const { error: callError } = await supabase.from('calls').upsert({
-        id: chatId,
-        caller_id: currentUser.id,
-        receiver_id: id,
-        caller_name: currentUserProfile?.username || "Someone",
-        call_type: type,
+      const callId = [currentUser.uid, id as string].sort().join("_");
+      const callRef = doc(firestore, "calls", callId);
+      
+      await setDoc(callRef, {
+        id: callId,
+        callerId: currentUser.uid,
+        receiverId: id,
+        callerName: myProfile?.username || "Someone",
+        callType: type,
         status: 'ringing',
-        cost_per_min: cost,
-        timestamp: Date.now()
+        costPerMin: cost,
+        timestamp: Date.now(),
+        participants: [currentUser.uid, id as string]
       });
 
-      if (callError) throw callError;
-      await supabase.from('profiles').update({ incoming_call_id: chatId }).eq('id', id);
+      await updateDoc(doc(firestore, "userProfiles", id as string), {
+        incomingCallId: callId
+      });
     } catch (error: any) {
       console.error("Call error:", error);
-      toast({ variant: "destructive", title: "Call Failed", description: error.message || "Signaling error." });
+      toast({ variant: "destructive", title: "Call Failed" });
     }
   }
 
   const groupedGifts = useMemo(() => {
     const map = new Map<string, { giftId: string; count: number }>()
     giftTransactions.forEach((tx: any) => {
-      const gId = tx.gift_id || tx.giftId;
+      const gId = tx.giftId;
       if (!gId) return;
       const existing = map.get(gId) || { giftId: gId, count: 0 }
       map.set(gId, { giftId: gId, count: existing.count + 1 })
@@ -183,29 +200,30 @@ export default function ProfileDetailPage() {
   const closeFullscreen = () => setFullscreenImage(null);
 
   const age = useMemo(() => {
-    if (!userProfile?.date_of_birth) return null;
-    const birthDate = new Date(userProfile.date_of_birth);
+    if (!userProfile?.dateOfBirth) return null;
+    const birthDate = new Date(userProfile.dateOfBirth);
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();
     if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
     return age;
-  }, [userProfile?.date_of_birth]);
+  }, [userProfile?.dateOfBirth]);
 
   const presenceText = useMemo(() => {
     if (isOnline) return "Online";
     if (!lastActiveAt) return "Offline";
-    const date = new Date(lastActiveAt);
+    const date = lastActiveAt.toDate ? lastActiveAt.toDate() : new Date(lastActiveAt);
     return `Last seen ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
   }, [isOnline, lastActiveAt]);
 
   const handleBlock = async () => {
-    if (!currentUser || !id || userProfile?.is_support || userProfile?.is_admin) return
+    if (!currentUser || !id || userProfile?.isSupport || userProfile?.isAdmin) return
     try {
-      await supabase.from('blocked_users').upsert({
-        user_id: currentUser.id,
-        blocked_user_id: id,
-        username: userProfile?.username || "Unknown"
+      const blockRef = doc(firestore, `userProfiles/${currentUser.uid}/blockedUsers`, id as string);
+      await setDoc(blockRef, {
+        blockedId: id,
+        username: userProfile?.username || "Unknown",
+        timestamp: serverTimestamp()
       });
       toast({ title: "User Blocked", description: `${userProfile?.username} has been hidden.` })
       router.push('/discover')
@@ -218,11 +236,12 @@ export default function ProfileDetailPage() {
     if (!currentUser || !id || !reportDetails.trim() || isSubmittingReport) return
     setIsSubmittingReport(true)
     try {
-      await supabase.from('reports').insert({
-        reporter_id: currentUser.id,
-        reported_user_id: id,
+      await addDoc(collection(firestore, "reports"), {
+        reporterId: currentUser.uid,
+        reportedUserId: id,
         details: reportDetails,
-        status: "pending"
+        status: "pending",
+        createdAt: serverTimestamp()
       })
       toast({ title: "Report Submitted", description: "Our team will review this profile." })
       setShowReportDialog(false)
@@ -235,8 +254,8 @@ export default function ProfileDetailPage() {
   }
 
   const copyId = () => {
-    if (userProfile?.numeric_id) {
-      navigator.clipboard.writeText(userProfile.numeric_id.toString());
+    if (userProfile?.numericId) {
+      navigator.clipboard.writeText(userProfile.numericId.toString());
       toast({ title: "ID Copied" });
     }
   }
@@ -254,20 +273,20 @@ export default function ProfileDetailPage() {
     </div>
   )
 
-  const userPhotos = (userProfile?.profile_photo_urls || []).filter(Boolean)
-  if (userPhotos.length === 0) userPhotos.push(`https://picsum.photos/seed/${userProfile?.id}/600/800`)
+  const userPhotos = (userProfile?.profilePhotoUrls || []).filter(Boolean)
+  if (userPhotos.length === 0) userPhotos.push(`https://picsum.photos/seed/${id}/600/800`)
   
-  const isVerified = !!userProfile?.is_verified
-  const isProtected = userProfile?.is_admin === true || userProfile?.is_support === true;
+  const isVerified = !!userProfile?.isVerified
+  const isProtected = userProfile?.isAdmin === true || userProfile?.isSupport === true;
   const hasInterests = userProfile?.interests && userProfile.interests.length > 0;
-  const hasDetails = userProfile?.education || userProfile?.horoscope || userProfile?.relationship_goal;
+  const hasDetails = userProfile?.education || userProfile?.horoscope || userProfile?.relationshipGoal;
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-y-auto scroll-smooth">
       <div className="relative aspect-[3/4] w-full shrink-0 bg-gray-100">
         <Carousel setApi={setApi} className="w-full h-full absolute inset-0">
           <CarouselContent className="h-full ml-0" viewportClassName="h-full">
-            {userPhotos.map((url, idx) => (
+            {userPhotos.map((url: string, idx: number) => (
               <CarouselItem key={idx} className="h-full pl-0 basis-full">
                 <div className="relative w-full h-full cursor-pointer active:opacity-90" onClick={() => openFullscreen(url)}>
                   <Image src={url} alt={`${userProfile?.username || "User"} Photo ${idx + 1}`} fill className="object-cover" priority={idx === 0} sizes="(max-width: 768px) 100vw, 600px" />
@@ -279,7 +298,7 @@ export default function ProfileDetailPage() {
 
         {userPhotos.length > 1 && (
           <div className="absolute bottom-14 left-0 right-0 flex justify-center gap-1.5 z-40">
-            {userPhotos.map((_, idx) => (
+            {userPhotos.map((_: any, idx: number) => (
               <div key={idx} className={cn("h-1 rounded-full transition-all duration-300", current === idx ? "w-6 bg-white shadow-sm" : "w-1.5 bg-white/40")} />
             ))}
           </div>
@@ -315,16 +334,18 @@ export default function ProfileDetailPage() {
             <div className="flex flex-col gap-1.5">
               <p className="text-[13px] font-medium text-gray-500 capitalize leading-none font-body">{userProfile?.gender || "Not specified"} • {age ? `${age} years old` : 'Age hidden'}</p>
               <div className="flex items-center gap-4 mt-2">
-                <button onClick={copyId} className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full text-[9px] font-black text-green-600 uppercase tracking-widest active:scale-95 transition-all">ID: {userProfile?.numeric_id || '---'}<Copy className="w-3 h-3 opacity-50" /></button>
+                <button onClick={copyId} className="flex items-center gap-2 px-3 py-1 bg-green-50 rounded-full text-[9px] font-black text-green-600 uppercase tracking-widest active:scale-95 transition-all">ID: {userProfile?.numericId || '---'}<Copy className="w-3 h-3 opacity-50" /></button>
                 <div className="flex items-center gap-1.5 text-[9px] font-black text-gray-400 uppercase tracking-widest"><Globe className="w-3 h-3" />{userProfile?.location || "Kenya"}</div>
               </div>
             </div>
           </div>
 
-          <div className="flex gap-3">
-             <Button onClick={() => handleInitiateCall('audio')} className="flex-1 h-14 rounded-2xl bg-zinc-900 text-white font-black text-[10px] uppercase tracking-widest gap-2"><Phone className="w-3.5 h-3.5" />Voice Call</Button>
-             <Button onClick={() => handleInitiateCall('video')} className="flex-1 h-14 rounded-2xl bg-[#3BC1A8] text-white font-black text-[10px] uppercase tracking-widest gap-2"><Video className="w-3.5 h-3.5" />Video Call</Button>
-          </div>
+          {id !== currentUser?.uid && (
+            <div className="flex gap-3">
+              <Button onClick={() => handleInitiateCall('audio')} className="flex-1 h-14 rounded-2xl bg-zinc-900 text-white font-black text-[10px] uppercase tracking-widest gap-2"><Phone className="w-3.5 h-3.5" />Voice Call</Button>
+              <Button onClick={() => handleInitiateCall('video')} className="flex-1 h-14 rounded-2xl bg-[#3BC1A8] text-white font-black text-[10px] uppercase tracking-widest gap-2"><Video className="w-3.5 h-3.5" />Video Call</Button>
+            </div>
+          )}
 
           <section className="space-y-4">
             <div className="flex items-center justify-between">
@@ -341,7 +362,7 @@ export default function ProfileDetailPage() {
                     return (
                       <div key={g.giftId} className="flex flex-col items-center shrink-0">
                         <div className="w-12 h-12 bg-white rounded-2xl shadow-sm flex items-center justify-center mb-1 border border-white overflow-hidden">
-                          {giftInfo?.image ? <img src={giftInfo.image} className="w-8 h-8 object-contain" alt={giftInfo.name} /> : <span className="text-xl">{giftInfo?.emoji || '🎁'}</span>}
+                          <span className="text-xl">{giftInfo?.emoji || '🎁'}</span>
                         </div>
                         <span className="text-[9px] font-black text-primary italic">x{g.count}</span>
                       </div>
@@ -381,10 +402,10 @@ export default function ProfileDetailPage() {
                     <div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Education</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.education}</p></div>
                   </div>
                 )}
-                {userProfile?.relationship_goal && (
+                {userProfile?.relationshipGoal && (
                   <div className="flex items-center gap-4 p-5 bg-white border border-gray-100 rounded-[2rem] shadow-sm">
                     <div className="w-12 h-12 rounded-2xl bg-primary/5 flex items-center justify-center text-primary"><Target className="w-6 h-6" /></div>
-                    <div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Looking For</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.relationship_goal.replace('-', ' ')}</p></div>
+                    <div className="flex-1"><p className="text-[9px] font-black text-gray-400 uppercase tracking-widest">Looking For</p><p className="text-sm font-black text-gray-900 uppercase tracking-tighter">{userProfile.relationshipGoal.replace('-', ' ')}</p></div>
                   </div>
                 )}
               </div>
@@ -408,11 +429,13 @@ export default function ProfileDetailPage() {
         </div>
       </div>
 
-      <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-[60] flex flex-col items-center">
-        <div className="w-full max-md:max-w-none max-w-md">
-          <Button className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3" onClick={() => router.push(`/chat/${id}`)}>Send Message</Button>
+      {id !== currentUser?.uid && (
+        <div className="fixed bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white/95 to-transparent z-[60] flex flex-col items-center">
+          <div className="w-full max-md:max-w-none max-w-md">
+            <Button className="w-full h-16 rounded-full bg-primary text-white font-black text-lg shadow-2xl active:scale-95 transition-all flex items-center justify-center gap-3" onClick={() => router.push(`/chat/${id}`)}>Send Message</Button>
+          </div>
         </div>
-      </div>
+      )}
 
       {fullscreenImage && (
         <div className="fixed inset-0 z-[1000] bg-black flex flex-col items-center justify-center animate-in fade-in duration-300" onClick={closeFullscreen}>
