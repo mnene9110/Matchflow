@@ -12,7 +12,6 @@ import {
   Gift, 
   Phone, 
   Video,
-  X,
   Plus
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -21,7 +20,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { useFirebase } from "@/firebase/provider"
-import { doc, collection, addDoc, serverTimestamp, query, orderBy, limit, setDoc, runTransaction, increment, updateDoc } from "firebase/firestore"
+import { doc, collection, addDoc, serverTimestamp, query, orderBy, limit, setDoc, runTransaction, increment, updateDoc, getDoc } from "firebase/firestore"
 import { useDoc } from "@/firebase/firestore/use-doc"
 import { useCollection } from "@/firebase/firestore/use-collection"
 import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
@@ -32,14 +31,14 @@ import { useTyping } from "@/hooks/use-typing"
 import { usePresence } from "@/hooks/use-presence"
 
 export const GIFTS = [
-  { id: 'butterfly', name: 'Butterfly', icon: '/butterfly.png', price: 100 },
-  { id: 'roses', name: 'Roses', icon: '/roses.png', price: 300 },
-  { id: 'wine', name: 'Wine', icon: '/wine.png', price: 500 },
-  { id: 'heart', name: 'Heart', icon: '/heart_gift.png', price: 800 },
-  { id: 'ring', name: 'Ring', icon: '/ring.png', price: 2000 },
-  { id: 'car', name: 'Supercar', icon: '/car.png', price: 5000 },
-  { id: 'yacht', name: 'Yacht', icon: '/yacht.png', price: 10000 },
-  { id: 'castle', name: 'Castle', icon: '/castle.png', price: 50000 },
+  { id: 'butterfly', name: 'Butterfly', icon: '/butterfly.png', emoji: '🦋', price: 100 },
+  { id: 'roses', name: 'Roses', icon: '/roses.png', emoji: '🌹', price: 300 },
+  { id: 'wine', name: 'Wine', icon: '/wine.png', emoji: '🍷', price: 500 },
+  { id: 'heart', name: 'Heart', icon: '/heart_gift.png', emoji: '❤️', price: 800 },
+  { id: 'ring', name: 'Ring', icon: '/ring.png', emoji: '💍', price: 2000 },
+  { id: 'car', name: 'Supercar', icon: '/car.png', emoji: '🏎️', price: 5000 },
+  { id: 'yacht', name: 'Yacht', icon: '/yacht.png', emoji: '🛥️', price: 10000 },
+  { id: 'castle', name: 'Castle', icon: '/castle.png', emoji: '🏰', price: 50000 },
 ]
 
 function ChatDetailContent() {
@@ -88,10 +87,30 @@ function ChatDetailContent() {
 
   const handleSendMessage = async (textOverride?: string, metadata?: any) => {
     const textToUse = textOverride || inputText;
-    if (!textToUse.trim() || !currentUser || !chatId || isSending) return
+    if (!textToUse.trim() || !currentUser || !chatId || isSending || !myProfile) return
     
     setIsSending(true);
     try {
+      // Check if text is free
+      const isOfficialSender = myProfile.isAdmin || myProfile.isCoinseller || myProfile.isSupport || myProfile.isAgent;
+      const isOfficialReceiver = otherUser?.isAdmin || otherUser?.isCoinseller || otherUser?.isSupport || otherUser?.isAgent;
+      
+      const isFree = isOfficialSender || isOfficialReceiver || metadata?.type === 'gift';
+      const msgCost = 15;
+
+      if (!isFree) {
+        if ((myProfile.coinBalance || 0) < msgCost) {
+          toast({ variant: "destructive", title: "Insufficient Coins", description: "You need 15 coins to text." });
+          setIsSending(false);
+          return;
+        }
+
+        await updateDoc(doc(firestore, "userProfiles", currentUser.uid), {
+          coinBalance: increment(-msgCost),
+          updatedAt: serverTimestamp()
+        });
+      }
+
       const chatRef = doc(firestore, "chats", chatId);
       await setDoc(chatRef, {
         participants: [currentUser.uid, otherUserId],
@@ -182,7 +201,11 @@ function ChatDetailContent() {
     if (!currentUser || !otherUser) return;
     
     const cost = type === 'video' ? 160 : 80;
-    if ((myProfile?.coinBalance || 0) < cost) {
+    
+    const isOfficialSender = myProfile?.isAdmin || myProfile?.isCoinseller || myProfile?.isSupport || myProfile?.isAgent;
+    const isOfficialReceiver = otherUser?.isAdmin || otherUser?.isCoinseller || otherUser?.isSupport || otherUser?.isAgent;
+
+    if (!isOfficialSender && !isOfficialReceiver && (myProfile?.coinBalance || 0) < cost) {
       toast({ 
         variant: "destructive", 
         title: "Insufficient Coins", 
@@ -203,7 +226,7 @@ function ChatDetailContent() {
         callerName: myProfile?.username || "Someone",
         callType: type,
         status: 'ringing',
-        costPerMin: cost,
+        costPerMin: (isOfficialSender || isOfficialReceiver) ? 0 : cost,
         timestamp: Date.now(),
         participants: [currentUser.uid, otherUserId]
       });
@@ -216,7 +239,7 @@ function ChatDetailContent() {
       toast({ 
         variant: "destructive", 
         title: "Call Failed",
-        description: "Communication link could not be established. Ensure your region configuration is active."
+        description: "Communication link could not be established."
       });
     }
   }
@@ -282,7 +305,10 @@ function ChatDetailContent() {
                 </div>
                 {isMe && isGift && (
                   <button 
-                    onClick={() => setIsGiftSheetOpen(true)}
+                    onClick={() => {
+                      setSelectedGift(giftInfo || null);
+                      setIsGiftSheetOpen(true);
+                    }}
                     className="mt-2 flex items-center gap-1.5 px-3 py-1.5 bg-gray-50 border border-gray-100 rounded-full text-[9px] font-black text-[#3BC1A8] uppercase tracking-widest active:scale-95 transition-all shadow-sm"
                   >
                     <Plus className="w-3 h-3" />

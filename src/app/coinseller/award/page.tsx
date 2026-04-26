@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState } from "react"
@@ -23,7 +24,7 @@ export default function AwardCoinsPage() {
   const [isAwarding, setIsAwarding] = useState(false)
   const [foundUser, setFoundUser] = useState<any>(null)
 
-  const isEligible = profile?.isCoinseller || profile?.isAdmin;
+  const isEligible = profile?.is_coinseller || profile?.is_admin;
 
   if (!isEligible && !isSearching) {
     return <div className="flex h-svh items-center justify-center bg-white text-zinc-400 font-black uppercase text-xs tracking-widest">Access Denied</div>
@@ -67,17 +68,25 @@ export default function AwardCoinsPage() {
         if (!senderDoc.exists()) throw new Error("Sender not found");
         
         const senderData = senderDoc.data();
-        if (!senderData.isAdmin && (senderData.coinBalance || 0) < amount) {
+        const isAdmin = senderData.isAdmin === true;
+
+        if (!isAdmin && (senderData.coinBalance || 0) < amount) {
           throw new Error("INSUFFICIENT_FUNDS");
         }
 
-        // Deduct from sender if not admin
-        if (!senderData.isAdmin) {
-          transaction.update(senderRef, { coinBalance: senderData.coinBalance - amount });
+        // Deduct from sender if NOT admin
+        if (!isAdmin) {
+          transaction.update(senderRef, { 
+            coinBalance: increment(-amount),
+            updatedAt: serverTimestamp()
+          });
         }
 
         // Add to receiver
-        transaction.update(receiverRef, { coinBalance: (foundUser.coinBalance || 0) + amount });
+        transaction.update(receiverRef, { 
+          coinBalance: increment(amount),
+          updatedAt: serverTimestamp()
+        });
 
         // Log transaction for receiver
         const transRef = doc(collection(firestore, `userProfiles/${foundUser.id}/transactions`));
@@ -87,6 +96,17 @@ export default function AwardCoinsPage() {
           description: `Received award from ${profile.username}`,
           transactionDate: new Date().toISOString()
         });
+
+        // Log for sender if not admin (to track their balance loss)
+        if (!isAdmin) {
+          const senderLogRef = doc(collection(firestore, `userProfiles/${profile.id}/transactions`));
+          transaction.set(senderLogRef, {
+            type: "award_sent",
+            amount: -amount,
+            description: `Awarded ${amount} coins to ${foundUser.username}`,
+            transactionDate: new Date().toISOString()
+          });
+        }
       });
 
       toast({ title: "Award Successful", description: `${amount} coins granted.` })
@@ -111,7 +131,7 @@ export default function AwardCoinsPage() {
       <main className="flex-1 px-6 pb-20 space-y-8 pt-6">
         <div className="bg-zinc-900 rounded-[2.5rem] p-6 text-white shadow-xl">
            <div className="flex items-center gap-3 mb-4"><Coins className="w-5 h-5 text-amber-500" /><span className="text-[10px] font-black uppercase tracking-widest opacity-60">Your Balance</span></div>
-           <p className="text-3xl font-black font-headline">{profile?.isAdmin ? "UNLIMITED" : (profile?.coinBalance || 0).toLocaleString()}</p>
+           <p className="text-3xl font-black font-headline">{profile?.is_admin ? "UNLIMITED" : (profile?.coin_balance || 0).toLocaleString()}</p>
         </div>
         <section className="space-y-4">
           <Label className="text-[10px] font-black uppercase tracking-[0.2em] text-[#3BC1A8] ml-1">Recipient Numeric ID</Label>
