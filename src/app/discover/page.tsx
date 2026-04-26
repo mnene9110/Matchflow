@@ -10,6 +10,7 @@ import { cn } from "@/lib/utils"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/firebase/auth/use-auth"
 import { Button } from "@/components/ui/button"
+import { useSupabaseUser } from "@/hooks/use-supabase"
 
 const PAGE_SIZE = 10;
 
@@ -17,6 +18,7 @@ export default function DiscoverPage() {
   const router = useRouter()
   const { auth, firestore } = useFirebase()
   const { user } = useAuth(auth)
+  const { profile } = useSupabaseUser()
 
   const [activeTab, setActiveTab] = useState<'recommended' | 'nearby'>("recommended")
   const [users, setUsers] = useState<any[]>([])
@@ -38,16 +40,27 @@ export default function DiscoverPage() {
     }
 
     try {
+      // Base query: order by presence
       let q = query(
         collection(firestore, "userProfiles"),
-        where("id", "!=", user.uid),
         orderBy("isOnline", "desc"),
-        orderBy("lastActiveAt", "desc"),
-        limit(PAGE_SIZE)
+        orderBy("lastActiveAt", "desc")
       );
 
+      // Apply country filter if "Nearby" tab is selected
+      if (activeTab === 'nearby' && profile?.location) {
+        q = query(
+          collection(firestore, "userProfiles"),
+          where("location", "==", profile.location),
+          orderBy("isOnline", "desc"),
+          orderBy("lastActiveAt", "desc")
+        );
+      }
+
       if (isLoadMore && lastDoc) {
-        q = query(q, startAfter(lastDoc));
+        q = query(q, startAfter(lastDoc), limit(PAGE_SIZE));
+      } else {
+        q = query(q, limit(PAGE_SIZE));
       }
 
       const snapshot = await getDocs(q);
@@ -55,10 +68,14 @@ export default function DiscoverPage() {
       if (snapshot.empty) {
         setHasMore(false);
       } else {
-        const fetchedUsers = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Filter out current user client-side to avoid complex inequality indexes
+        const fetchedUsers = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() }))
+          .filter(u => u.id !== user.uid);
+
         setLastDoc(snapshot.docs[snapshot.docs.length - 1]);
         
-        if (fetchedUsers.length < PAGE_SIZE) {
+        if (snapshot.docs.length < PAGE_SIZE) {
           setHasMore(false);
         }
 
@@ -70,14 +87,14 @@ export default function DiscoverPage() {
       setIsLoading(false);
       setIsLoadingMore(false);
     }
-  }, [user, firestore, lastDoc]);
+  }, [user, firestore, lastDoc, activeTab, profile?.location]);
 
-  // Only fetch once on mount or when the user manually changes the tab/refreshes
+  // Fetch only on tab change or initial load if list is empty
   useEffect(() => {
     if (user && users.length === 0) {
       fetchUsers();
     }
-  }, [user, fetchUsers, users.length]);
+  }, [user, activeTab, fetchUsers, users.length]);
 
   const handleManualRefresh = () => {
     fetchUsers(false);
@@ -120,8 +137,8 @@ export default function DiscoverPage() {
       <div className="sticky top-0 z-30 bg-[#3BC1A8] px-6 py-1.5 shadow-sm">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
-            <button onClick={() => setActiveTab('recommended')} className={cn("text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'recommended' ? "text-white scale-110" : "text-white/50")}>Recommended</button>
-            <button onClick={() => setActiveTab('nearby')} className={cn("text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5", activeTab === 'nearby' ? "text-white scale-110" : "text-white/50")}>Nearby <MapPin className="w-2.5 h-2.5 fill-current" /></button>
+            <button onClick={() => { setActiveTab('recommended'); setUsers([]); }} className={cn("text-[10px] font-black uppercase tracking-widest transition-all", activeTab === 'recommended' ? "text-white scale-110" : "text-white/50")}>Recommended</button>
+            <button onClick={() => { setActiveTab('nearby'); setUsers([]); }} className={cn("text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-1.5", activeTab === 'nearby' ? "text-white scale-110" : "text-white/50")}>Nearby <MapPin className="w-2.5 h-2.5 fill-current" /></button>
           </div>
           <button onClick={handleManualRefresh} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform">
             <RotateCcw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
@@ -186,7 +203,7 @@ export default function DiscoverPage() {
           <div className="w-24 h-24 bg-gray-50 rounded-[3rem] flex items-center justify-center border border-gray-100 shadow-inner">
             <UserSearch className="w-10 h-10 text-gray-200" />
           </div>
-          <p className="text-xs font-black text-gray-900 uppercase tracking-widest">No users found</p>
+          <p className="text-xs font-black text-gray-900 uppercase tracking-widest">No users found{activeTab === 'nearby' ? ` in ${profile?.location || 'your country'}` : ''}</p>
           <Button onClick={handleManualRefresh} variant="link" className="text-primary font-black uppercase text-[10px]">Try Refreshing</Button>
         </div>
       )}
