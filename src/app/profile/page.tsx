@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useState, useEffect } from "react"
@@ -142,7 +143,7 @@ export default function ProfilePage() {
           </div>
         </div>
 
-        {(isAdmin || isCoinseller || isAgent || isSupport || isFemale) && (
+        {(isAdmin || isCoinseller || (isAgent && isFemale) || isSupport || isFemale) && (
           <section className="space-y-4">
             <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Official Tools</h2></div>
             <div className="grid grid-cols-1 gap-2.5">
@@ -155,7 +156,7 @@ export default function ProfilePage() {
               {isFemale && (
                 <button onClick={() => router.push('/profile/agency')} className="w-full h-16 rounded-[1.5rem] bg-[#3BC1A8] flex items-center px-5 gap-4 shadow-lg"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Building2 className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Agency Center</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
               )}
-              {(isAdmin || isAgent) && (
+              {isFemale && (isAdmin || isAgent) && (
                 <button onClick={() => router.push('/profile/agent-center')} className="w-full h-16 rounded-[1.5rem] bg-purple-600 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Building2 className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Agent Anchor</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
               )}
               {(isAdmin || isSupport) && (
