@@ -22,7 +22,7 @@ export default function DiscoverPage() {
 
   const [users, setUsers] = useState<any[]>([])
   const [activeTab, setActiveTab] = useState<'recommended' | 'nearby'>( "recommended")
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(false)
 
   const fetchUsers = async () => {
     if (!user || !profile) return;
@@ -53,11 +53,13 @@ export default function DiscoverPage() {
     }
   };
 
+  // Only fetch on initial mount or if list is empty
+  // Avoid refreshing on every tab change unless manually triggered
   useEffect(() => {
-    if (user && profile) {
+    if (user && profile && users.length === 0) {
       fetchUsers();
     }
-  }, [user, profile, activeTab]);
+  }, [user, profile]);
 
   const calculateAge = (dob: string) => {
     if (!dob) return 20;
@@ -116,8 +118,12 @@ export default function DiscoverPage() {
               {activeTab === 'nearby' && <MapPin className="w-2.5 h-2.5 fill-current" />}
             </button>
           </div>
-          <button onClick={fetchUsers} className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform">
-            <RotateCcw className="w-3.5 h-3.5" />
+          <button 
+            onClick={fetchUsers} 
+            disabled={isLoading}
+            className="w-8 h-8 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform disabled:opacity-30"
+          >
+            {isLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <RotateCcw className="w-3.5 h-3.5" />}
           </button>
         </div>
       </div>

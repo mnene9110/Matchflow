@@ -1,7 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
-import { MessageSquare, CheckCircle, Loader2 } from "lucide-react"
+import { useState, useEffect, useRef } from "react"
+import { MessageSquare, CheckCircle, Loader2, RotateCcw } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
 import { supabase } from "@/lib/supabase"
@@ -55,22 +55,26 @@ function ChatSessionItem({ session, currentUserId }: { session: any, currentUser
 export default function ChatListPage() {
   const { user, isLoading } = useSupabaseUser()
   const [sessions, setSessions] = useState<any[]>([])
-  const [isSyncing, setIsSyncing] = useState(true)
+  const [isSyncing, setIsSyncing] = useState(false)
+  const initialFetchedRef = useRef(false)
+
+  const fetchChats = async () => {
+    if (!user) return;
+    setIsSyncing(true);
+    const { data } = await supabase
+      .from('chats')
+      .select('*')
+      .contains('participants', [user.id])
+      .order('last_message_at', { ascending: false });
+    setSessions(data || []);
+    setIsSyncing(false);
+  };
 
   useEffect(() => {
-    if (!user) return;
-
-    const fetchChats = async () => {
-      const { data } = await supabase
-        .from('chats')
-        .select('*')
-        .contains('participants', [user.id])
-        .order('last_message_at', { ascending: false });
-      setSessions(data || []);
-      setIsSyncing(false);
-    };
+    if (!user || initialFetchedRef.current) return;
 
     fetchChats();
+    initialFetchedRef.current = true;
 
     const channel = supabase
       .channel('chat_list')
@@ -80,6 +84,7 @@ export default function ChatListPage() {
         table: 'chats',
         filter: `participants=cs.{${user.id}}`
       }, () => {
+        // Only re-fetch if we are already showing a list
         fetchChats();
       })
       .subscribe();
@@ -92,14 +97,23 @@ export default function ChatListPage() {
       <header className="bg-[#3BC1A8] pt-[env(safe-area-inset-top)] pb-3 px-6 sticky top-0 z-20 shrink-0">
         <div className="flex items-center justify-between pt-6">
           <h1 className="text-3xl font-logo text-white drop-shadow-sm">Chats</h1>
-          <div className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center">
-            <MessageSquare className="w-4 h-4 text-white fill-current" />
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={fetchChats} 
+              disabled={isSyncing}
+              className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center text-white active:scale-90 transition-transform disabled:opacity-30"
+            >
+              <RotateCcw className={cn("w-4 h-4", isSyncing && "animate-spin")} />
+            </button>
+            <div className="w-10 h-10 rounded-full border-2 border-white/30 flex items-center justify-center">
+              <MessageSquare className="w-4 h-4 text-white fill-current" />
+            </div>
           </div>
         </div>
       </header>
 
       <main className="flex-1 px-6 pt-2 bg-white overflow-y-auto">
-        {isSyncing ? (
+        {isLoading || (isSyncing && sessions.length === 0) ? (
           <div className="flex flex-col items-center justify-center py-32 gap-4 opacity-10">
             <Loader2 className="w-10 h-10 animate-spin" />
           </div>

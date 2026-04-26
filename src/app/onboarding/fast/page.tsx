@@ -30,7 +30,6 @@ export default function FastOnboardingPage() {
     setIsSubmitting(true)
 
     try {
-      // 1. Force fetch fresh session to ensure RLS compliance
       const { data: { session }, error: sessionError } = await supabase.auth.getSession();
       
       if (sessionError || !session?.user) {
@@ -41,34 +40,35 @@ export default function FastOnboardingPage() {
       const numericId = Math.floor(10000000 + Math.random() * 90000000);
       const welcomeCoins = 500;
 
-      // 2. Insert profile using the authenticated user's ID
-      // This matches the 'auth.uid() = id' RLS policy requirement
+      // Generate random age above 18 (19-45)
+      const randomAge = Math.floor(Math.random() * (45 - 19 + 1)) + 19;
+      const dob = new Date();
+      dob.setFullYear(dob.getFullYear() - randomAge);
+      const dateOfBirth = dob.toISOString().split('T')[0];
+
       const { error: insertError } = await supabase
         .from('profiles')
         .insert({
-          id: user.id, // CRITICAL: Must be the auth.uid()
+          id: user.id,
           numeric_id: numericId,
           username: `Guest_${user.id.slice(0, 5)}`,
           gender: gender,
           location: country,
+          date_of_birth: dateOfBirth,
           profile_photo_urls: [`https://picsum.photos/seed/${user.id}/600/800`],
           coin_balance: welcomeCoins,
           is_online: true,
           updated_at: new Date().toISOString()
         });
 
-      if (insertError) {
-        console.error("Supabase insert error details:", insertError);
-        throw new Error(insertError.message || "Failed to create profile record.");
-      }
+      if (insertError) throw new Error(insertError.message);
       
       router.push("/discover")
     } catch (error: any) {
-      console.error("Fast onboarding failed:", error)
       toast({
         variant: "destructive",
         title: "Setup Failed",
-        description: error.message || "An unexpected error occurred while saving your profile."
+        description: error.message || "An unexpected error occurred."
       })
       setIsSubmitting(false)
     }
