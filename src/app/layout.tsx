@@ -10,7 +10,7 @@ import { Navbar } from "@/components/Navbar"
 import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
 import { InstallPWA } from "@/components/InstallPWA"
 
-function NavigationGuard({ children }: { children: React.ReactNode }) {
+function NavigationGuard({ children }: { children: React.Node }) {
   const { user, isUserLoading } = useUser();
   const pathname = usePathname();
   const router = useRouter();
@@ -46,9 +46,21 @@ export default function RootLayout({
     // Register Service Worker for PWA
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js')
+        navigator.serviceWorker.register('/sw.js', { scope: '/' })
           .then((registration) => {
             console.log('MatchFlow SW registered:', registration.scope);
+            
+            // Check for updates periodically
+            registration.addEventListener('updatefound', () => {
+              const newWorker = registration.installing;
+              if (newWorker) {
+                newWorker.addEventListener('statechange', () => {
+                  if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
+                    console.log('[SW] New version available, please refresh.');
+                  }
+                });
+              }
+            });
           })
           .catch((err) => {
             console.error('MatchFlow SW registration failed:', err);
