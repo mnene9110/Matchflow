@@ -1,25 +1,37 @@
 
-import { initializeFirebase } from '@/firebase';
-import { ref, uploadString, getDownloadURL } from 'firebase/storage';
+import { supabase } from './supabase';
 
 /**
- * Uploads a base64 image string to Firebase Storage and returns the public URL.
+ * Uploads a base64 image string to Supabase Storage 'photos' bucket and returns the public URL.
  * @param base64 The image as a data URI.
  * @param path The path in the bucket (e.g., 'profiles/user123/avatar.jpg').
  */
 export async function uploadToSupabase(base64: string, path: string): Promise<string> {
-  // Maintaining the function name for compatibility with existing components
   try {
-    const { storage } = initializeFirebase();
-    const storageRef = ref(storage, path);
-    
-    // uploadString handles data_url format
-    const snapshot = await uploadString(storageRef, base64, 'data_url');
-    const downloadURL = await getDownloadURL(snapshot.ref);
+    // Convert base64 data URL to Blob
+    const response = await fetch(base64);
+    const blob = await response.blob();
 
-    return downloadURL;
+    // The user specified the bucket name is 'photos'
+    const { data, error } = await supabase.storage
+      .from('photos')
+      .upload(path, blob, {
+        contentType: 'image/jpeg',
+        upsert: true
+      });
+
+    if (error) {
+      throw error;
+    }
+
+    // Generate the public URL for the uploaded file
+    const { data: { publicUrl } } = supabase.storage
+      .from('photos')
+      .getPublicUrl(path);
+
+    return publicUrl;
   } catch (err: any) {
-    console.error('Firebase Storage helper failed:', err);
-    throw new Error(err.message || 'Failed to upload image to storage.');
+    console.error('Supabase Storage upload error:', err);
+    throw new Error(err.message || 'Failed to upload image to Supabase.');
   }
 }

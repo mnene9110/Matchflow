@@ -1,4 +1,7 @@
-/**
- * @fileOverview This file is now deprecated as the app has migrated fully to Firebase.
- */
-export const supabase = null;
+
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

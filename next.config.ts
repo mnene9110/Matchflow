@@ -1,3 +1,4 @@
+
 import type {NextConfig} from 'next';
 
 const nextConfig: NextConfig = {
@@ -12,9 +13,7 @@ const nextConfig: NextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: 'rxugxvlezkfomsijhkqa.supabase.co',
-        port: '',
-        pathname: '/**',
+        hostname: '**.supabase.co',
       },
       {
         protocol: 'https',
