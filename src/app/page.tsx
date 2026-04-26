@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useEffect } from "react"
@@ -44,7 +43,7 @@ export default function Home() {
     <div className="fixed inset-0 flex flex-col items-center justify-center bg-[#3BC1A8]">
       <div className="flex flex-col items-center gap-6">
         <div className="animate-float">
-           <h1 className="text-4xl font-logo text-white drop-shadow-lg">MatchFlow</h1>
+           <h1 className="text-2xl font-logo text-white drop-shadow-lg">MatchFlow</h1>
         </div>
       </div>
     </div>
