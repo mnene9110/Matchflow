@@ -1,6 +1,7 @@
+
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -25,6 +26,20 @@ export default function FastOnboardingPage() {
   const router = useRouter()
   const { toast } = useToast()
 
+  // Prevent accessing onboarding if profile already exists
+  useEffect(() => {
+    const checkExisting = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session?.user) {
+        const { data } = await supabase.from('profiles').select('id').eq('id', session.user.id).single();
+        if (data) {
+          router.replace('/discover');
+        }
+      }
+    };
+    checkExisting();
+  }, [router]);
+
   const handleConfirm = async () => {
     if (!gender || !country || isSubmitting) return
     setIsSubmitting(true)
@@ -46,9 +61,10 @@ export default function FastOnboardingPage() {
       dob.setFullYear(dob.getFullYear() - randomAge);
       const dateOfBirth = dob.toISOString().split('T')[0];
 
+      // Use upsert to handle potential race conditions or returning users
       const { error: insertError } = await supabase
         .from('profiles')
-        .insert({
+        .upsert({
           id: user.id,
           numeric_id: numericId,
           username: `Guest_${user.id.slice(0, 5)}`,
@@ -59,7 +75,7 @@ export default function FastOnboardingPage() {
           coin_balance: welcomeCoins,
           is_online: true,
           updated_at: new Date().toISOString()
-        });
+        }, { onConflict: 'id' });
 
       if (insertError) throw new Error(insertError.message);
       

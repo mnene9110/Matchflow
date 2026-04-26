@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect } from "react"
@@ -6,7 +7,7 @@ import { supabase } from "@/lib/supabase"
 
 /**
  * @fileOverview This is the code responsible for the Splash Screen.
- * Now fully migrated to use Supabase for profile checking.
+ * Handles redirection based on auth and profile completion status.
  */
 export default function Home() {
   const router = useRouter()
@@ -15,27 +16,29 @@ export default function Home() {
     if (!supabase) return;
 
     const checkProfileAndRedirect = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
 
-      if (session?.user) {
-        try {
+        if (session?.user) {
           const { data: profile, error } = await supabase
             .from("profiles")
-            .select("id")
+            .select("id, gender, location")
             .eq("id", session.user.id)
             .single();
 
-          if (profile && !error) {
+          // If profile exists and basic onboarding (gender/location) is done
+          if (profile && !error && profile.gender && profile.location) {
             router.replace("/discover")
           } else {
-            // Auth exists but profile doesn't - send to onboarding
+            // Auth exists but profile is missing or incomplete
             router.replace("/onboarding/fast")
           }
-        } catch (e) {
-          console.error("Splash redirect check failed:", e)
+        } else {
+          // No session - go to welcome
           router.replace("/welcome")
         }
-      } else {
+      } catch (e) {
+        console.error("Splash redirect check failed:", e)
         router.replace("/welcome")
       }
     }

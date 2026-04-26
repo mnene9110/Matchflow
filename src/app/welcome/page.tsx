@@ -1,3 +1,4 @@
+
 "use client"
 
 import { useEffect, useState } from "react"
@@ -33,27 +34,64 @@ export default function WelcomePage() {
     return () => window.removeEventListener('popstate', handlePopState);
   }, [router])
 
-  const handleSupabaseAnonymousLogin = async () => {
-    // Fast login using Supabase Anonymous Authentication
-    // This allows immediate access without email confirmation.
+  /**
+   * Persistent Fast Login Logic
+   * Instead of standard anonymous auth (which is lost on sign out),
+   * we use a cached email/password guest identity.
+   */
+  const handlePersistentFastLogin = async () => {
     setIsLoggingIn(true)
     try {
-      const { data, error } = await supabase.auth.signInAnonymously()
-      
-      if (error) {
-        throw error
+      const STORAGE_KEY = 'mf_persistent_guest';
+      const savedCreds = localStorage.getItem(STORAGE_KEY);
+
+      if (savedCreds) {
+        try {
+          const { email, password } = JSON.parse(savedCreds);
+          const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+          
+          if (!error && data.session) {
+            router.push("/discover");
+            return;
+          }
+          // If error (e.g. account deleted), proceed to create new one
+        } catch (e) {
+          localStorage.removeItem(STORAGE_KEY);
+        }
       }
 
+      // Create a new Persistent Guest Account
+      const randomId = Math.random().toString(36).substring(2, 10);
+      const guestEmail = `guest_${randomId}@matchflow.app`;
+      const guestPassword = `pass_${randomId}_${Date.now()}`;
+
+      const { data, error } = await supabase.auth.signUp({
+        email: guestEmail,
+        password: guestPassword,
+        options: {
+          data: { display_name: `Guest_${randomId}` }
+        }
+      });
+
+      if (error) throw error;
+
       if (data.session) {
-        router.push("/onboarding/fast")
+        // Cache credentials locally for future restoration
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({ email: guestEmail, password: guestPassword }));
+        router.push("/onboarding/fast");
+      } else {
+        // If email confirmation is ON, we might need a different strategy, 
+        // but for Fast Login we assume Confirm Email is OFF.
+        toast({ title: "Account Created", description: "Please sign in with your credentials." });
       }
+
     } catch (error: any) {
-      setIsLoggingIn(false)
+      setIsLoggingIn(false);
       toast({
         variant: "destructive",
         title: "Fast Login Failed",
         description: error.message || "Please use email login instead.",
-      })
+      });
     }
   }
 
@@ -64,7 +102,7 @@ export default function WelcomePage() {
 
   return (
     <div className="flex flex-col h-svh bg-zinc-950 relative overflow-hidden">
-      {/* Background Decorative Video/Image placeholder */}
+      {/* Background Decorative Gradient */}
       <div className="absolute inset-0 bg-gradient-to-b from-[#3BC1A8]/20 via-zinc-950 to-zinc-950 z-0" />
 
       <main className="flex-1 flex flex-col items-center justify-center px-8 text-center relative z-10">
@@ -88,7 +126,7 @@ export default function WelcomePage() {
           <Button 
             variant="ghost" 
             className="w-full h-16 rounded-full bg-white/10 backdrop-blur-md text-white border border-white/20 hover:bg-white/20 text-lg font-black gap-3 transition-all active:scale-95 shadow-sm flex items-center justify-center" 
-            onClick={handleSupabaseAnonymousLogin} 
+            onClick={handlePersistentFastLogin} 
             disabled={isLoggingIn || isNavigatingEmail}
           >
             {isLoggingIn ? <Loader2 className="w-6 h-6 animate-spin" /> : <Zap className="w-6 h-6 fill-current text-[#3BC1A8]" />}
