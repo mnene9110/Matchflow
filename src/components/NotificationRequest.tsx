@@ -44,11 +44,36 @@ export function NotificationRequest() {
       const permission = await Notification.requestPermission()
       if (permission === "granted") {
         console.log("Notification permission granted.")
-        // Here you would typically send the subscription to your backend
-        new Notification("MatchFlow", {
+        
+        const title = "MatchFlow";
+        const options = {
           body: "Notifications enabled! You'll now receive alerts for new messages.",
-          icon: "/icon-192.png"
-        })
+          icon: "/icon-192.png",
+          badge: "/icon-192.png",
+        };
+
+        // Use service worker to show the notification to avoid "Illegal constructor" error
+        if ('serviceWorker' in navigator) {
+          try {
+            const registration = await navigator.serviceWorker.ready;
+            await registration.showNotification(title, options);
+          } catch (swError) {
+            console.warn("ServiceWorker showNotification failed, attempting fallback:", swError);
+            // Fallback for environments where SW is registered but showNotification isn't supported/ready
+            try {
+              new Notification(title, options);
+            } catch (e) {
+              console.error("Standard Notification constructor failed:", e);
+            }
+          }
+        } else {
+          // Fallback for non-SW environments
+          try {
+            new Notification(title, options);
+          } catch (e) {
+            console.error("Standard Notification constructor failed:", e);
+          }
+        }
       }
     } catch (error) {
       console.error("Error requesting notification permission", error)
