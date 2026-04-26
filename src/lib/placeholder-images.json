@@ -1,3 +1,40 @@
 {
-  "placeholderImages": []
+  "placeholderImages": [
+    {
+      "id": "nature-1",
+      "description": "Deep blue ocean waves crashing",
+      "imageUrl": "https://picsum.photos/seed/nature1/600/800",
+      "imageHint": "ocean waves"
+    },
+    {
+      "id": "nature-2",
+      "description": "Mist-covered pine forest at dawn",
+      "imageUrl": "https://picsum.photos/seed/nature2/600/800",
+      "imageHint": "misty forest"
+    },
+    {
+      "id": "nature-3",
+      "description": "Serene alpine lake reflecting mountains",
+      "imageUrl": "https://picsum.photos/seed/nature3/600/800",
+      "imageHint": "mountain lake"
+    },
+    {
+      "id": "nature-4",
+      "description": "Hidden tropical waterfall in lush valley",
+      "imageUrl": "https://picsum.photos/seed/nature4/600/800",
+      "imageHint": "tropical waterfall"
+    },
+    {
+      "id": "nature-5",
+      "description": "Sunlight filtering through ancient forest canopy",
+      "imageUrl": "https://picsum.photos/seed/nature5/600/800",
+      "imageHint": "forest sunlight"
+    },
+    {
+      "id": "nature-6",
+      "description": "Crystal clear turquoise tropical lagoon",
+      "imageUrl": "https://picsum.photos/seed/nature6/600/800",
+      "imageHint": "clear water"
+    }
+  ]
 }
