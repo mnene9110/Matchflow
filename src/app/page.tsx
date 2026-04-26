@@ -3,52 +3,36 @@
 
 import { useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { supabase } from "@/lib/supabase"
+import { useFirebase } from "@/firebase/provider"
+import { onAuthStateChanged } from "firebase/auth"
+import { doc, getDoc } from "firebase/firestore"
 
-/**
- * @fileOverview This is the code responsible for the Splash Screen.
- * Handles redirection based on auth and profile completion status.
- */
 export default function Home() {
   const router = useRouter()
+  const { auth, firestore } = useFirebase()
 
   useEffect(() => {
-    if (!supabase) return;
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
+      if (user) {
+        try {
+          const profileSnap = await getDoc(doc(firestore, "userProfiles", user.uid));
+          const profile = profileSnap.data();
 
-    const checkProfileAndRedirect = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-
-        if (session?.user) {
-          const { data: profile, error } = await supabase
-            .from("profiles")
-            .select("id, gender, location")
-            .eq("id", session.user.id)
-            .single();
-
-          // If profile exists and basic onboarding (gender/location) is done
-          if (profile && !error && profile.gender && profile.location) {
+          if (profile && profile.gender && profile.location) {
             router.replace("/discover")
           } else {
-            // Auth exists but profile is missing or incomplete
             router.replace("/onboarding/fast")
           }
-        } else {
-          // No session - go to welcome
-          router.replace("/welcome")
+        } catch (e) {
+          router.replace("/onboarding/fast")
         }
-      } catch (e) {
-        console.error("Splash redirect check failed:", e)
+      } else {
         router.replace("/welcome")
       }
-    }
+    });
 
-    const timer = setTimeout(() => {
-      checkProfileAndRedirect()
-    }, 1500)
-    
-    return () => clearTimeout(timer)
-  }, [router])
+    return () => unsubscribe();
+  }, [router, auth, firestore])
 
   return (
     <div className="flex h-svh w-full flex-col items-center justify-center bg-[#3BC1A8] z-[9999] overflow-hidden">

@@ -12,44 +12,51 @@ import {
   Loader2,
   CheckCircle,
   Gem,
-  ClipboardList,
-  Building2,
   Award,
   UserCog,
   Eye,
   Music,
-  LayoutDashboard
+  Building2,
+  ClipboardList
 } from "lucide-react"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useRouter } from "next/navigation"
-import { useSupabaseUser } from "@/hooks/use-supabase"
+import { useFirebase } from "@/firebase/provider"
+import { doc } from "firebase/firestore"
+import { useDoc } from "@/firebase/firestore/use-doc"
+import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
+import { useAuth } from "@/firebase/auth/use-auth"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
-import { cn } from "@/lib/utils"
-import { useState, useEffect } from "react"
-import { supabase } from "@/lib/supabase"
 
 export default function ProfilePage() {
   const router = useRouter()
-  const { user, profile, isLoading } = useSupabaseUser()
+  const { auth, firestore } = useFirebase()
+  const { user } = useAuth(auth)
   const { toast } = useToast()
 
+  const profileRef = useMemoFirebase(() => {
+    if (!user) return null;
+    return doc(firestore, "userProfiles", user.uid);
+  }, [user]);
+
+  const { data: profile, isLoading } = useDoc(profileRef);
+
   const copyId = () => {
-    if (profile?.numeric_id) {
-      navigator.clipboard.writeText(profile.numeric_id.toString());
+    if (profile?.numericId) {
+      navigator.clipboard.writeText(profile.numericId.toString());
       toast({ title: "ID Copied" });
     }
   }
 
-  const userImage = (profile?.profile_photo_urls && profile?.profile_photo_urls[0]) || ""
-  const isVerified = !!profile?.is_verified
+  const userImage = (profile?.profilePhotoUrls && profile?.profilePhotoUrls[0]) || ""
+  const isVerified = !!profile?.isVerified
   
-  // Role checks
-  const isAdmin = !!profile?.is_admin
-  const isCoinseller = !!profile?.is_coinseller
-  const isAgent = !!profile?.is_agent
-  const isSupport = !!profile?.is_support
-  const isHost = !!profile?.is_party_admin || isAdmin
+  const isAdmin = !!profile?.isAdmin
+  const isCoinseller = !!profile?.isCoinseller
+  const isAgent = !!profile?.isAgent
+  const isSupport = !!profile?.isSupport
+  const isHost = !!profile?.isPartyAdmin || isAdmin
 
   if (isLoading) return <div className="flex h-svh items-center justify-center bg-[#3BC1A8]"><Loader2 className="w-8 h-8 animate-spin text-white" /></div>
 
@@ -57,7 +64,7 @@ export default function ProfilePage() {
     <div className="flex flex-col h-svh w-full bg-white text-gray-900 overflow-y-auto scroll-smooth">
       <header className="flex flex-col items-center pt-8 pb-16 px-6 shrink-0 relative bg-[#3BC1A8]">
         <div className="absolute top-8 right-6 z-20">
-          <button onClick={() => router.push('/profile/visitors')} className="flex flex-col items-center gap-1 group active:scale-95 transition-all">
+          <button onClick={() => router.push('/profile/visitors')} className="flex flex-col items-center gap-1">
             <div className="w-10 h-10 rounded-full bg-white/20 backdrop-blur-md border border-white/30 flex items-center justify-center relative shadow-lg">
               <Eye className="w-5 h-5 text-white" />
             </div>
@@ -69,36 +76,35 @@ export default function ProfilePage() {
             {userImage && <AvatarImage src={userImage} className="object-cover" />}
             <AvatarFallback className="bg-white/20 text-white font-black text-2xl uppercase border-none">{profile?.username?.[0]}</AvatarFallback>
           </Avatar>
-          <button onClick={() => router.push('/profile/edit')} className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center shadow-xl active:scale-90 transition-transform"><Pencil className="w-3.5 h-3.5 text-white" /></button>
+          <button onClick={() => router.push('/profile/edit')} className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-zinc-900 flex items-center justify-center shadow-xl"><Pencil className="w-3.5 h-3.5 text-white" /></button>
         </div>
         <div className="text-center space-y-1 mb-4">
           <div className="flex items-center justify-center gap-2">
             <h1 className="text-2xl font-black text-white drop-shadow-sm">{profile?.username || "Guest"}</h1>
             {isVerified && <CheckCircle className="w-5 h-5 text-blue-500 fill-current" />}
           </div>
-          <p className="text-white/60 text-[9px] font-black uppercase tracking-[0.2em]">Verified Official Profile</p>
+          <p className="text-white/60 text-[9px] font-black uppercase tracking-[0.2em]">Official Profile</p>
         </div>
-        {profile?.numeric_id && (<button onClick={copyId} className="flex items-center gap-2 px-5 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full active:bg-white/30 transition-all shadow-sm"><span className="text-[10px] font-black text-white uppercase tracking-widest">ID: {profile.numeric_id}</span><Copy className="w-3 h-3 text-white/40" /></button>)}
+        {profile?.numericId && (<button onClick={copyId} className="flex items-center gap-2 px-5 py-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-full"><span className="text-[10px] font-black text-white uppercase tracking-widest">ID: {profile.numericId}</span><Copy className="w-3 h-3 text-white/40" /></button>)}
       </header>
 
       <main className="flex-1 px-6 space-y-8 pb-44 -mt-10 relative z-10">
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-white rounded-[2.25rem] p-5 flex flex-col items-center gap-3 shadow-xl border border-gray-50 text-center">
             <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center"><Coins className="w-5 h-5 text-primary" /></div>
-            <div className="space-y-0.5"><span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block">Balance</span><span className="text-2xl font-black text-gray-900 font-headline">{(profile?.coin_balance || 0).toLocaleString()}</span></div>
+            <div className="space-y-0.5"><span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block">Balance</span><span className="text-2xl font-black text-gray-900 font-headline">{(profile?.coinBalance || 0).toLocaleString()}</span></div>
             <Button onClick={() => router.push('/recharge')} className="w-full h-10 rounded-full bg-[#3BC1A8] text-white font-black text-[9px] uppercase tracking-widest">Recharge</Button>
           </div>
           <div className="bg-white rounded-[2.25rem] p-5 flex flex-col items-center gap-3 shadow-xl border border-gray-50 text-center">
             <div className="w-10 h-10 rounded-xl bg-blue-500/10 flex items-center justify-center"><Gem className="w-5 h-5 text-blue-500" /></div>
-            <div className="space-y-0.5"><span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block">Earnings</span><span className="text-2xl font-black text-gray-900 font-headline">{(profile?.diamond_balance || 0).toLocaleString()}</span></div>
+            <div className="space-y-0.5"><span className="text-[9px] font-black text-gray-300 uppercase tracking-widest block">Earnings</span><span className="text-2xl font-black text-gray-900 font-headline">{(profile?.diamondBalance || 0).toLocaleString()}</span></div>
             <Button onClick={() => router.push('/profile/income')} className="w-full h-10 rounded-full bg-zinc-900 text-white font-black text-[9px] uppercase tracking-widest">Income</Button>
           </div>
         </div>
 
-        {/* Specialized Roles Section */}
         {(isAdmin || isCoinseller || isAgent || isSupport || isHost) && (
           <section className="space-y-4">
-            <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Official Tools</h2><div className="h-px flex-1 bg-gray-50 ml-4" /></div>
+            <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Official Tools</h2></div>
             <div className="grid grid-cols-1 gap-2.5">
               {isAdmin && (
                 <button onClick={() => router.push('/admin/roles')} className="w-full h-16 rounded-[1.5rem] bg-zinc-900 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/10 flex items-center justify-center"><UserCog className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">System Roles</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
@@ -106,7 +112,7 @@ export default function ProfilePage() {
               {(isAdmin || isCoinseller) && (
                 <button onClick={() => router.push('/coinseller/award')} className="w-full h-16 rounded-[1.5rem] bg-amber-500 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Award className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Award Coins</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
               )}
-              {(isHost) && (
+              {isHost && (
                 <button onClick={() => router.push('/profile/host-center')} className="w-full h-16 rounded-[1.5rem] bg-[#3BC1A8] flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Music className="w-5 h-5 text-white" /></div><div className="flex-1 text-left text-white font-black text-[13px]">Host Console</div><ChevronRight className="w-4 h-4 text-white/40" /></button>
               )}
               {(isAdmin || isAgent) && (
@@ -120,7 +126,7 @@ export default function ProfilePage() {
         )}
 
         <section className="space-y-4">
-          <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Account & Safety</h2><div className="h-px flex-1 bg-gray-50 ml-4" /></div>
+          <div className="flex items-center justify-between px-2"><h2 className="text-[10px] font-black text-gray-400 capitalize tracking-[0.3em]">Account & Safety</h2></div>
           <div className="space-y-2.5">
             {!isVerified && (<button onClick={() => router.push('/profile/verify')} className="w-full h-16 rounded-[1.5rem] bg-gradient-to-r from-blue-600 to-blue-500 flex items-center px-5 gap-4 shadow-lg"><div className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><ShieldCheck className="w-5 h-5 text-white" /></div><div className="flex-1 text-left"><span className="text-white font-black text-[13px] block">Verify profile</span></div><ChevronRight className="w-4 h-4 text-white/40" /></button>)}
             <button onClick={() => router.push('/chat/customer_support')} className="w-full h-16 rounded-[1.5rem] bg-white border border-gray-50 flex items-center px-5 gap-4"><div className="w-11 h-11 rounded-xl bg-green-50 flex items-center justify-center"><Headset className="w-5 h-5 text-green-600" /></div><div className="flex-1 text-left"><span className="text-gray-900 font-black text-[13px] block">Customer support</span></div><ChevronRight className="w-4 h-4 text-gray-200" /></button>

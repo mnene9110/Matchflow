@@ -1,8 +1,8 @@
 
 "use client"
 
-import { useEffect, useState, useRef } from 'react';
-import { usePathname, useRouter } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { usePathname } from 'next/navigation';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
 import { OfflineDetector } from "@/components/OfflineDetector"
@@ -10,54 +10,70 @@ import { Navbar } from "@/components/Navbar"
 import { InstallPWA } from "@/components/InstallPWA"
 import { NotificationRequest } from "@/components/NotificationRequest"
 import { GlobalCallOverlay } from "@/components/GlobalCallOverlay"
-import { supabase } from '@/lib/supabase';
+import { FirebaseClientProvider } from '@/firebase/client-provider';
+import { useFirebase } from '@/firebase/provider';
+import { onAuthStateChanged } from 'firebase/auth';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 
 function NavigationGuard({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
+  const { auth } = useFirebase();
   const [isReady, setIsReady] = useState(false);
-  const guardTriggeredRef = useRef(false);
 
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
+      const isPublicRoute = publicRoutes.includes(pathname);
 
-    const checkAuth = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        const publicRoutes = ['/', '/welcome', '/login', '/onboarding/fast', '/onboarding/full', '/settings/privacy', '/settings/terms'];
-        const isPublicRoute = publicRoutes.includes(pathname);
-
-        if (!session && !isPublicRoute) {
-          window.location.replace('/welcome');
-        } else {
-          setIsReady(true);
-        }
-      } catch (e) {
-        console.error("Auth guard check failed:", e);
-        setIsReady(true);
-      }
-    };
-
-    checkAuth();
-
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'SIGNED_OUT') {
+      if (!user && !isPublicRoute) {
         window.location.replace('/welcome');
-      } else if (event === 'SIGNED_IN' && session) {
+      } else {
         setIsReady(true);
       }
     });
 
-    return () => {
-      if (listener?.subscription) {
-        listener.subscription.unsubscribe();
-      }
-    };
-  }, [pathname]);
+    return () => unsubscribe();
+  }, [pathname, auth]);
 
   if (!isReady) return <div className="h-svh w-full bg-[#3BC1A8]" />;
 
   return <>{children}</>;
+}
+
+function PresenceManager() {
+  const { auth, firestore } = useFirebase();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      if (!user) return;
+
+      const updatePresence = async (isOnline: boolean) => {
+        try {
+          await updateDoc(doc(firestore, 'userProfiles', user.uid), {
+            isOnline,
+            lastActiveAt: serverTimestamp()
+          });
+        } catch (e) {}
+      };
+
+      updatePresence(true);
+
+      const handleVisibilityChange = () => {
+        updatePresence(document.visibilityState === 'visible');
+      };
+
+      window.addEventListener('visibilitychange', handleVisibilityChange);
+      
+      return () => {
+        updatePresence(false);
+        window.removeEventListener('visibilitychange', handleVisibilityChange);
+      };
+    });
+
+    return () => unsubscribe();
+  }, [auth, firestore]);
+
+  return null;
 }
 
 export default function RootLayout({
@@ -65,8 +81,6 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const [session, setSession] = useState<any>(null);
-
   useEffect(() => {
     if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
       window.addEventListener('load', () => {
@@ -79,47 +93,7 @@ export default function RootLayout({
           });
       });
     }
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
-    return () => subscription.unsubscribe();
   }, []);
-
-  // Presence Tracking Logic
-  useEffect(() => {
-    if (!session?.user?.id) return;
-
-    const updatePresence = async (isOnline: boolean) => {
-      await supabase
-        .from('profiles')
-        .update({ 
-          is_online: isOnline,
-          last_active_at: new Date().toISOString()
-        })
-        .eq('id', session.user.id);
-    };
-
-    // Set online on mount
-    updatePresence(true);
-
-    const handleVisibilityChange = () => {
-      updatePresence(document.visibilityState === 'visible');
-    };
-
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    // Set offline on unmount
-    return () => {
-      updatePresence(false);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [session?.user?.id]);
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -135,17 +109,20 @@ export default function RootLayout({
         <link rel="apple-touch-icon" sizes="192x192" href="/icon-192.png" />
       </head>
       <body className="font-body antialiased selection:bg-none">
-        <NavigationGuard>
-          <OfflineDetector>
-            <div className="app-container">
-              {children}
-              <Navbar />
-              <InstallPWA />
-              <NotificationRequest />
-              <GlobalCallOverlay />
-            </div>
-          </OfflineDetector>
-        </NavigationGuard>
+        <FirebaseClientProvider>
+          <NavigationGuard>
+            <OfflineDetector>
+              <PresenceManager />
+              <div className="app-container">
+                {children}
+                <Navbar />
+                <InstallPWA />
+                <NotificationRequest />
+                <GlobalCallOverlay />
+              </div>
+            </OfflineDetector>
+          </NavigationGuard>
+        </FirebaseClientProvider>
         <Toaster />
       </body>
     </html>

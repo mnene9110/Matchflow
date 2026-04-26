@@ -1,7 +1,8 @@
+
 "use client"
 
-import { useState, useEffect, useRef, useMemo, Suspense, useCallback } from "react"
-import { useParams, useRouter, useSearchParams } from "next/navigation"
+import { useState, useEffect, useRef, useMemo, Suspense } from "react"
+import { useParams, useRouter } from "next/navigation"
 import { 
   ChevronLeft, 
   Send, 
@@ -10,7 +11,6 @@ import {
   Gift, 
   Phone, 
   Video,
-  X,
   History
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -18,166 +18,74 @@ import { Input } from "@/components/ui/input"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { useToast } from "@/hooks/use-toast"
 import { ScrollArea } from "@/components/ui/scroll-area"
-import { supabase } from "@/lib/supabase"
-import { useSupabaseUser } from "@/hooks/use-supabase"
+import { useFirebase } from "@/firebase/provider"
+import { doc, collection, addDoc, serverTimestamp, query, orderBy, limit, setDoc } from "firebase/firestore"
+import { useDoc } from "@/firebase/firestore/use-doc"
+import { useCollection } from "@/firebase/firestore/use-collection"
+import { useMemoFirebase } from "@/firebase/firestore/use-memo-firebase"
+import { useAuth } from "@/firebase/auth/use-auth"
 import { cn } from "@/lib/utils"
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet"
-import { usePresence } from "@/hooks/use-presence"
-import { useTyping } from "@/hooks/use-typing"
 
 export const GIFTS = [
   { id: 'butterfly', name: 'Butterfly', image: '/butterfly.png', price: 300 },
   { id: 'roses', name: 'Rose Bouquet', image: '/bouquet.png', price: 500 },
   { id: 'ring', name: 'Diamond Ring', emoji: '💍', price: 1000 },
-  { id: 'champagne', name: 'Champagne', image: '/champagne.png', price: 1200 },
-  { id: 'trophy', name: 'Gold Trophy', image: '/trophy.png', price: 1500 },
-  { id: 'fireworks', name: 'Fireworks', image: '/fireworks.png', price: 2000 },
-  { id: 'goldbar', name: 'Gold Bar', image: '/goldbar.png', price: 2500 },
-  { id: 'crown', name: 'Royal Crown', image: '/crown.png', price: 3000 },
-  { id: 'lamp', name: 'Magic Lamp', image: '/magiclamp.png', price: 4000 },
-  { id: 'car', name: 'Sport Car', image: '/sportcar.png', price: 5000 },
-  { id: 'crystal', name: 'Crystal Ball', image: '/crystalball.png', price: 6000 },
-  { id: 'map', name: 'Treasure Map', image: '/treasuremap.png', price: 8500 },
-  { id: 'scroll', name: 'Ancient Scroll', image: '/scroll.png', price: 12000 },
-  { id: 'yacht', name: 'Luxury Yacht', image: '/yatch.png', price: 20000 },
-  { id: 'phoenix', name: 'Phoenix', image: '/phonix.png', price: 35000 },
-  { id: 'jet', name: 'Private Jet', image: '/privatejet.png', price: 50000 },
-  { id: 'dragon', name: 'Flying Dragon', image: '/dragon.png', price: 75000 },
-  { id: 'supernova', name: 'Supernova', image: '/supernova.png', price: 100000 },
-  { id: 'galaxy', name: 'Galaxy', image: '/galaxy.png', price: 250000 },
-  { id: 'timemachine', name: 'Time Machine', image: '/timemachine.png', price: 450000 },
-  { id: 'universe', name: 'Universe Core', image: '/universe.png', price: 500000 },
 ]
-
-const PAGE_SIZE = 10;
 
 function ChatDetailContent() {
   const params = useParams()
   const otherUserId = params?.id as string
-  
-  const { user: currentUser, profile: currentUserProfile, isLoading: isUserLoading } = useSupabaseUser()
   const router = useRouter()
   const { toast } = useToast()
+  const { auth, firestore } = useFirebase()
+  const { user: currentUser } = useAuth(auth)
   
   const scrollRef = useRef<HTMLDivElement>(null)
   const [inputText, setInputText] = useState("")
   const [isSending, setIsSending] = useState(false)
-  const [messages, setMessages] = useState<any[]>([])
-  const [otherUser, setOtherUser] = useState<any>(null)
-  const [isLoadingMessages, setIsLoadingLoadingMessages] = useState(true)
-  const [isLoadingMore, setIsLoadingMore] = useState(false)
-  const [hasMore, setHasMore] = useState(false)
-  
   const [isGiftSheetOpen, setIsGiftSheetOpen] = useState(false)
-  const [isCalling, setIsCalling] = useState(false)
 
   const chatId = useMemo(() => {
     if (!currentUser || !otherUserId) return ""
-    return [currentUser.id, otherUserId].sort().join("_")
-  }, [currentUser?.id, otherUserId])
+    return [currentUser.uid, otherUserId].sort().join("_")
+  }, [currentUser, otherUserId])
 
-  const { isOnline, lastActiveAt } = usePresence(otherUserId)
-  const { isOtherUserTyping, setTyping } = useTyping(chatId, currentUser?.id || null, otherUserId)
+  const otherUserRef = useMemoFirebase(() => doc(firestore, "userProfiles", otherUserId), [otherUserId]);
+  const { data: otherUser } = useDoc(otherUserRef);
 
-  useEffect(() => {
-    if (!otherUserId) return;
-    const fetchOther = async () => {
-      const { data } = await supabase.from('profiles').select('*').eq('id', otherUserId).single();
-      setOtherUser(data);
-    };
-    fetchOther();
-  }, [otherUserId]);
+  const messagesQuery = useMemoFirebase(() => {
+    if (!chatId) return null;
+    return query(
+      collection(firestore, "chats", chatId, "messages"),
+      orderBy("timestamp", "asc"),
+      limit(50)
+    );
+  }, [chatId]);
 
-  const fetchInitialMessages = useCallback(async () => {
-    if (!chatId || !currentUser) return;
-    setIsLoadingLoadingMessages(true);
-    
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('chat_id', chatId)
-      .order('created_at', { ascending: false })
-      .limit(PAGE_SIZE);
-
-    if (data) {
-      setMessages(data.reverse());
-      setHasMore(data.length === PAGE_SIZE);
-    } else {
-      setHasMore(false);
-    }
-    setIsLoadingLoadingMessages(false);
-  }, [chatId, currentUser]);
+  const { data: messages, isLoading: isLoadingMessages } = useCollection(messagesQuery);
 
   useEffect(() => {
-    fetchInitialMessages();
-
-    if (!chatId) return;
-
-    const channel = supabase
-      .channel(`chat:${chatId}`)
-      .on('postgres_changes', { 
-        event: 'INSERT', 
-        schema: 'public', 
-        table: 'messages', 
-        filter: `chat_id=eq.${chatId}` 
-      }, (payload) => {
-        setMessages(prev => [...prev, payload.new]);
-        setTimeout(() => scrollRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [chatId, fetchInitialMessages]);
-
-  const loadMoreMessages = async () => {
-    if (isLoadingMore || !hasMore || messages.length === 0) return;
-    setIsLoadingMore(true);
-
-    const oldestMessageAt = messages[0].created_at;
-
-    const { data } = await supabase
-      .from('messages')
-      .select('*')
-      .eq('chat_id', chatId)
-      .lt('created_at', oldestMessageAt)
-      .order('created_at', { ascending: false })
-      .limit(PAGE_SIZE);
-
-    if (data && data.length > 0) {
-      setMessages(prev => [...data.reverse(), ...prev]);
-      setHasMore(data.length === PAGE_SIZE);
-    } else {
-      setHasMore(false);
-    }
-    setIsLoadingMore(false);
-  };
-
-  useEffect(() => {
-    if (!isLoadingMessages && messages.length > 0 && !isLoadingMore) {
-      scrollRef.current?.scrollIntoView({ behavior: 'auto' });
-    }
-  }, [isLoadingMessages, messages.length, isLoadingMore]);
+    scrollRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [messages]);
 
   const handleSendMessage = async (textOverride?: string) => {
     const textToUse = textOverride || inputText;
     if (!textToUse.trim() || !currentUser || !chatId || isSending) return
     
     setIsSending(true);
-    setTyping(false);
     try {
-      await supabase.from('chats').upsert({
-        id: chatId,
-        participants: [currentUser.id, otherUserId],
-        last_message: textToUse,
-        last_message_at: new Date().toISOString()
-      }, { onConflict: 'id' });
+      const chatRef = doc(firestore, "chats", chatId);
+      await setDoc(chatRef, {
+        participants: [currentUser.uid, otherUserId],
+        lastMessage: textToUse,
+        lastMessageAt: serverTimestamp()
+      }, { merge: true });
 
-      await supabase.from('messages').insert({
-        chat_id: chatId,
-        sender_id: currentUser.id,
-        message_text: textToUse
+      await addDoc(collection(firestore, "chats", chatId, "messages"), {
+        senderId: currentUser.uid,
+        text: textToUse,
+        timestamp: serverTimestamp()
       });
 
       if (!textOverride) setInputText("");
@@ -188,101 +96,17 @@ function ChatDetailContent() {
     }
   }
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setInputText(e.target.value);
-    setTyping(true);
-  }
-
-  const handleInitiateCall = async (type: 'video' | 'audio') => {
-    if (!currentUser || !otherUser || isCalling || !chatId) return;
-    
-    const cost = type === 'video' ? 160 : 80;
-    if ((currentUserProfile?.coin_balance || 0) < cost) {
-      toast({ 
-        variant: "destructive", 
-        title: "Insufficient Coins", 
-        description: `You need ${cost} coins.`,
-        action: <Button variant="outline" size="sm" onClick={() => router.push('/recharge')}>Recharge</Button>
-      });
-      return;
-    }
-
-    setIsCalling(true);
-    try {
-      await supabase.from('calls').delete().eq('id', chatId);
-
-      const { error: callError } = await supabase.from('calls').upsert({
-        id: chatId,
-        caller_id: currentUser.id,
-        receiver_id: otherUserId,
-        caller_name: currentUserProfile?.username || "Someone",
-        call_type: type,
-        status: 'ringing',
-        cost_per_min: cost,
-        timestamp: Date.now()
-      });
-
-      if (callError) throw callError;
-
-      await supabase.from('profiles').update({ incoming_call_id: chatId }).eq('id', otherUserId);
-    } catch (error: any) {
-      console.error("Call error:", error);
-      toast({ 
-        variant: "destructive", 
-        title: "Call Failed",
-        description: "Communication link could not be established." 
-      });
-    } finally {
-      setIsCalling(false);
-    }
-  }
-
-  const handleSendGift = async (gift: typeof GIFTS[0]) => {
-    if (!currentUser || !otherUser || isSending) return;
-    
-    setIsSending(true);
-    try {
-      const { error } = await supabase.rpc('process_gift_transfer', {
-        p_receiver_id: otherUserId,
-        p_gift_price: gift.price,
-        p_gift_name: gift.name,
-        p_gift_id: gift.id
-      });
-
-      if (error) {
-        if (error.message.includes('INSUFFICIENT_FUNDS')) {
-          toast({ variant: "destructive", title: "Insufficient Coins" });
-        } else {
-          throw error;
-        }
-        return;
-      }
-
-      await handleSendMessage(`🎁 Sent a ${gift.name}!`);
-      setIsGiftSheetOpen(false);
-      toast({ title: "Gift Sent!" });
-    } catch (e: any) {
-      console.error("Gift error:", e);
-      toast({ variant: "destructive", title: "Gift Failed" });
-    } finally {
-      setIsSending(false);
-    }
-  }
-
-  if (isUserLoading || isLoadingMessages) {
+  if (isLoadingMessages) {
     return <div className="flex h-svh items-center justify-center bg-white"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
   }
 
   const otherUserName = otherUser?.username || "User";
-  const otherUserImage = (otherUser?.profile_photo_urls && otherUser.profile_photo_urls[0]) || `https://picsum.photos/seed/${otherUserId}/200/200`;
-
-  const presenceText = isOnline ? "Online" : isOtherUserTyping ? "typing..." : lastActiveAt ? `Last seen ${new Date(lastActiveAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : "Offline";
+  const otherUserImage = (otherUser?.profilePhotoUrls && otherUser.profilePhotoUrls[0]) || "";
 
   return (
     <div className="flex flex-col h-svh bg-white relative overflow-hidden text-gray-900">
       <header className="px-4 pt-[calc(env(safe-area-inset-top)+1rem)] pb-4 bg-[#3BC1A8] flex items-center justify-between sticky top-0 z-10 shadow-lg text-white">
         <Button variant="ghost" size="icon" onClick={() => router.back()} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white shrink-0"><ChevronLeft className="w-5 h-5" /></Button>
-        
         <div className="flex items-center gap-2.5 transition-opacity flex-1 justify-center cursor-pointer active:opacity-70 px-2 min-w-0" onClick={() => router.push(`/profile/${otherUserId}`)}>
           <Avatar className="w-8 h-8 border border-white/20 shadow-sm shrink-0">
             <AvatarImage src={otherUserImage} className="object-cover" />
@@ -291,49 +115,25 @@ function ChatDetailContent() {
           <div className="flex flex-col truncate items-center">
             <div className="flex items-center gap-1">
               <h3 className="font-black text-[12px] leading-tight truncate">{otherUserName}</h3>
-              {otherUser?.is_verified && <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />}
+              {otherUser?.isVerified && <CheckCircle className="w-3.5 h-3.5 text-blue-500 fill-current" />}
             </div>
-            <span className={cn(
-              "text-[8px] font-bold uppercase tracking-widest", 
-              (isOnline || isOtherUserTyping) ? "text-white animate-pulse" : "text-white/50"
-            )}>
-              {presenceText}
-            </span>
+            <span className="text-[8px] font-bold uppercase tracking-widest text-white/50">{otherUser?.isOnline ? "Online" : "Offline"}</span>
           </div>
         </div>
-
         <div className="flex items-center gap-1 shrink-0">
-          <Button variant="ghost" size="icon" onClick={() => handleInitiateCall('audio')} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><Phone className="w-4 h-4" /></Button>
-          <Button variant="ghost" size="icon" onClick={() => handleInitiateCall('video')} className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><Video className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><Phone className="w-4 h-4" /></Button>
+          <Button variant="ghost" size="icon" className="h-9 w-9 rounded-full bg-white/20 backdrop-blur-md text-white"><Video className="w-4 h-4" /></Button>
         </div>
       </header>
 
       <ScrollArea className="flex-1 px-4 py-4 bg-white">
         <div className="flex flex-col gap-4">
-          {hasMore && (
-            <div className="flex justify-center py-2">
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={loadMoreMessages} 
-                disabled={isLoadingMore}
-                className="text-[10px] font-black uppercase tracking-widest text-gray-400 gap-2 hover:bg-gray-50 rounded-full h-8"
-              >
-                {isLoadingMore ? <Loader2 className="w-3 h-3 animate-spin" /> : <History className="w-3 h-3" />}
-                Load previous messages
-              </Button>
-            </div>
-          )}
-
-          {messages.map((msg, idx) => {
-            const isMe = msg.sender_id === currentUser?.id;
+          {messages?.map((msg, idx) => {
+            const isMe = msg.senderId === currentUser?.uid;
             return (
               <div key={msg.id || idx} className={cn("flex w-full animate-in fade-in slide-in-from-bottom-2 duration-300", isMe ? "justify-end" : "justify-start")}>
-                <div className={cn(
-                  "max-w-[80%] px-4 py-3 text-[13px] font-medium leading-relaxed shadow-sm transition-all", 
-                  isMe ? "bg-[#3BC1A8] text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none"
-                )}>
-                  <p className="whitespace-pre-wrap">{msg.message_text}</p>
+                <div className={cn("max-w-[80%] px-4 py-3 text-[13px] font-medium leading-relaxed shadow-sm", isMe ? "bg-[#3BC1A8] text-white rounded-[1.5rem] rounded-tr-none" : "bg-gray-100 text-gray-900 rounded-[1.5rem] rounded-tl-none")}>
+                  <p className="whitespace-pre-wrap">{msg.text}</p>
                 </div>
               </div>
             )
@@ -351,10 +151,10 @@ function ChatDetailContent() {
             <SheetHeader className="mb-6">
               <SheetTitle className="text-xl font-black font-headline text-center uppercase tracking-widest">Send a Gift</SheetTitle>
             </SheetHeader>
-            <div className="grid grid-cols-3 gap-4 overflow-y-auto no-scrollbar pb-10">
+            <div className="grid grid-cols-3 gap-4">
               {GIFTS.map((gift) => (
-                <button key={gift.id} onClick={() => handleSendGift(gift)} className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-gray-50 transition-colors active:scale-95">
-                  <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-3xl shadow-inner overflow-hidden">
+                <button key={gift.id} onClick={() => handleSendMessage(`🎁 Sent a ${gift.name}!`)} className="flex flex-col items-center gap-2 p-3 rounded-2xl hover:bg-gray-50 transition-colors">
+                  <div className="w-14 h-14 bg-gray-50 rounded-2xl flex items-center justify-center text-3xl shadow-inner">
                     {gift.image ? <img src={gift.image} className="w-10 h-10 object-contain" alt={gift.name} /> : gift.emoji}
                   </div>
                   <span className="text-[10px] font-black uppercase text-gray-400 truncate w-full text-center">{gift.name}</span>
@@ -368,13 +168,7 @@ function ChatDetailContent() {
         </Sheet>
 
         <div className="relative flex-1 group">
-          <Input 
-            value={inputText} 
-            onChange={handleInputChange} 
-            placeholder="Message..." 
-            className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12 focus-visible:ring-[#3BC1A8]/20" 
-            onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} 
-          />
+          <Input value={inputText} onChange={(e) => setInputText(e.target.value)} placeholder="Message..." className="rounded-full h-12 bg-gray-50 border-none px-6 text-[13px] pr-12" onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()} />
           <Button size="icon" className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full w-9 h-9" onClick={() => handleSendMessage()} disabled={!inputText.trim() || isSending}>
             {isSending ? <Loader2 className="w-5 h-5 animate-spin" /> : <Send className="w-5 h-5" />}
           </Button>
